@@ -162,11 +162,20 @@ class LoginWindow(QWidget):
         self.totp_input.setPlaceholderText("Base32 secret (optional)")
         layout.addWidget(self.totp_input)
 
-        # --- Login button ---
+        # --- Buttons row ---
+        btn_row = QHBoxLayout()
+
+        self.save_btn = QPushButton("💾  Save")
+        self.save_btn.setFixedHeight(38)
+        self.save_btn.clicked.connect(self._on_save)
+        btn_row.addWidget(self.save_btn)
+
         self.login_btn = QPushButton("🔐  Auto Login")
         self.login_btn.setFixedHeight(38)
         self.login_btn.clicked.connect(self._on_login)
-        layout.addWidget(self.login_btn)
+        btn_row.addWidget(self.login_btn)
+
+        layout.addLayout(btn_row)
 
         # --- Log area ---
         layout.addWidget(QLabel("Log"))
@@ -209,6 +218,12 @@ class LoginWindow(QWidget):
     def _toggle_password(self, checked: bool):
         mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
         self.password_input.setEchoMode(mode)
+
+    def _on_save(self):
+        self._save_config()
+        self._log("💾 Account saved.")
+        self.status_label.setText("💾 Saved")
+        self.status_label.setStyleSheet("color: #2196F3; font-weight: bold;")
 
     def _on_login(self):
         email = self.email_input.text().strip()
@@ -255,6 +270,7 @@ class LoginWindow(QWidget):
 
     def _set_running(self, running: bool):
         self.login_btn.setEnabled(not running)
+        self.save_btn.setEnabled(not running)
         self.login_btn.setText("⏳  Logging in..." if running else "🔐  Auto Login")
         if running:
             self.status_label.setText("⏳ Running...")
