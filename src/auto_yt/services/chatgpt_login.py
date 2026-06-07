@@ -12,7 +12,7 @@ CHATGPT_URL = "https://chatgpt.com"
 AUTH_DOMAIN = "auth.openai.com"
 
 # Timeouts (ms)
-NAVIGATION_TIMEOUT_MS = 30_000
+NAVIGATION_TIMEOUT_MS = 60_000
 CLOUDFLARE_WAIT_MS = 15_000   # max wait for Cloudflare challenge to clear
 LOGIN_BUTTON_TIMEOUT_MS = 10_000
 INPUT_TIMEOUT_MS = 10_000
@@ -25,7 +25,7 @@ SEL_LOGIN_BUTTON = (
     '[data-testid="login-button"]'
 )
 SEL_EMAIL_INPUT    = 'input[name="email"], input[autocomplete="email"]'
-SEL_PASSWORD_INPUT = 'input[name="password"], input[type="password"][autocomplete="current-password"]'
+SEL_PASSWORD_INPUT = 'input[name="current-password"], input[name="password"], input[type="password"]'
 SEL_SUBMIT_BUTTON  = 'button[type="submit"]'
 SEL_MFA_INPUT      = 'input[inputmode="numeric"], input[name="code"], input[autocomplete="one-time-code"]'
 SEL_PROFILE_BUTTON = '[data-testid="accounts-profile-button"]'
@@ -188,10 +188,32 @@ async def login_gpt_auto(account: dict, page) -> dict:
 
     # --- Step 2: Click "Log in" ------------------------------------------
     logger.info("[2] Clicking Log in")
-    login_btn = page.locator(SEL_LOGIN_BUTTON).first
-    await login_btn.wait_for(state="visible", timeout=LOGIN_BUTTON_TIMEOUT_MS)
-    await login_btn.click()
-    await page.wait_for_url(f"**/{AUTH_DOMAIN}/**", timeout=NAVIGATION_TIMEOUT_MS)
+    login_btn = page.locator('[data-testid="login-button"], button:has-text("Log in")').first
+    try:
+        await login_btn.wait_for(state="visible", timeout=LOGIN_BUTTON_TIMEOUT_MS)
+        await login_btn.click()
+    except Exception as exc:
+        try:
+            await page.locator(SEL_EMAIL_INPUT).first.wait_for(state="visible", timeout=3_000)
+        except Exception:
+            title = await page.title()
+            raise ChatGPTLoginVerifyError(
+                f"Login button not visible and email form did not appear. "
+                f"URL: {page.url}; title: {title}"
+            ) from exc
+    try:
+        await page.wait_for_url(f"**/{AUTH_DOMAIN}/**", timeout=8_000)
+    except Exception:
+        # Current ChatGPT UI can open an inline login modal on chatgpt.com
+        # instead of redirecting immediately to auth.openai.com.
+        try:
+            await page.locator(SEL_EMAIL_INPUT).first.wait_for(state="visible", timeout=LOGIN_BUTTON_TIMEOUT_MS)
+        except Exception as exc:
+            title = await page.title()
+            raise ChatGPTLoginVerifyError(
+                f"Login button clicked but neither auth redirect nor email form appeared. "
+                f"URL: {page.url}; title: {title}"
+            ) from exc
     await asyncio.sleep(1)
 
     # --- Step 3: Email ---------------------------------------------------

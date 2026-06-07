@@ -114,7 +114,7 @@ async def test_login(account: Dict[str, str]) -> bool:
         logger.info("Testing restore_session...")
         context2 = await browser.new_context()
         page2 = await context2.new_page()
-        await page2.set_default_timeout(60_000)
+        page2.set_default_timeout(60_000)
 
         restored = await restore_session(result["cookies"], page2)
         logger.info("✅ Session restore succeeded")
