@@ -300,19 +300,35 @@ async def login_gpt_auto(account: dict, page) -> dict:
     # --- Step 2: Click "Log in" ------------------------------------------
     logger.info("[2] Clicking Log in")
     await _dismiss_cookie_banner(page)
+    # Close sidebar if open — it overlaps the login button
+    try:
+        close_sidebar = page.locator('[data-testid="close-sidebar-button"]').first
+        if await close_sidebar.is_visible(timeout=1_000):
+            await close_sidebar.click()
+            await asyncio.sleep(0.5)
+    except Exception:
+        pass
+    # Use only the specific testid button (avoids the header duplicate)
     login_btn = page.locator('[data-testid="login-button"], button:has-text("Log in")').first
     try:
         await login_btn.wait_for(state="visible", timeout=LOGIN_BUTTON_TIMEOUT_MS)
         await login_btn.click()
     except Exception as exc:
+        # Sidebar or other overlays may intercept pointer events.
+        # Use JS dispatch as fallback before giving up.
         try:
             await page.locator(SEL_EMAIL_INPUT).first.wait_for(state="visible", timeout=3_000)
         except Exception:
-            title = await page.title()
-            raise ChatGPTLoginVerifyError(
-                f"Login button not visible and email form did not appear. "
-                f"URL: {page.url}; title: {title}"
-            ) from exc
+            try:
+                await login_btn.dispatch_event("click")
+                await asyncio.sleep(1)
+                await page.locator(SEL_EMAIL_INPUT).first.wait_for(state="visible", timeout=5_000)
+            except Exception:
+                title = await page.title()
+                raise ChatGPTLoginVerifyError(
+                    f"Login button not visible and email form did not appear. "
+                    f"URL: {page.url}; title: {title}"
+                ) from exc
     try:
         await page.wait_for_url(f"**/{AUTH_DOMAIN}/**", timeout=8_000)
     except Exception:

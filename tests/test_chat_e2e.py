@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from playwright.async_api import async_playwright
 from auto_yt.services.chatgpt_login import login_gpt_auto, ChatGPTLoginError
 from auto_yt.services.chat_gpt import send_prompt, ChatGPTResponseError
+from auto_yt.paths import gpt_profile_dir
+from auto_yt.services.chatgpt_login import restore_session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,25 +29,32 @@ async def run():
     account = data.get("gpt_account1", data)
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(
+    profile_dir = gpt_profile_dir("PROFILE_GPT_1")
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    ctx = await pw.chromium.launch_persistent_context(
+        str(profile_dir),
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
-    )
-    ctx = await browser.new_context(
         viewport={"width": 1280, "height": 800},
-        user_agent=(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/126.0.0.0 Safari/537.36"
-        ),
     )
-    page = await ctx.new_page()
+    page = ctx.pages[0] if ctx.pages else await ctx.new_page()
     page.set_default_timeout(60_000)
 
     try:
         logger.info("=== Step 1: Login ===")
-        result = await login_gpt_auto(account, page)
-        logger.info("Logged in as %s", result["user"])
+        saved_cookies = account.get("session_cookie", [])
+        if saved_cookies:
+            logger.info("Trying restore_session with %d cookies...", len(saved_cookies))
+            try:
+                result = await restore_session(saved_cookies, page)
+                logger.info("Session restored as %s", result["user"])
+            except ChatGPTLoginError as exc:
+                logger.warning("Restore failed (%s), falling back to full login", exc)
+                result = await login_gpt_auto(account, page)
+                logger.info("Logged in as %s", result["user"])
+        else:
+            result = await login_gpt_auto(account, page)
+            logger.info("Logged in as %s", result["user"])
 
         await asyncio.sleep(2)
 
@@ -78,7 +87,7 @@ async def run():
         logger.exception("❌ Unexpected: %s", exc)
         return False
     finally:
-        await browser.close()
+        await ctx.close()
         await pw.stop()
 
 
