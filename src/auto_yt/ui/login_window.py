@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -19,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from auto_yt.paths import ACCOUNT_PATH, DATA_DIR, SESSION_PATH, gpt_profile_dir
-from auto_yt.services.chatgpt_login import ChatGPTLoginError, login_gpt_auto
+from auto_yt.services.chatgpt_login import ChatGPTLoginError, login_gpt_auto, restore_session
 
 WINDOW_TITLE = "ChatGPT Auto Login"
 
@@ -73,18 +74,19 @@ class LoginWorker(QThread):
         from playwright.async_api import async_playwright
 
         playwright = None
-        browser = None
         context = None
         page = None
 
         try:
             self.log.emit("🚀 Launching browser...")
             playwright = await async_playwright().start()
-            browser = await playwright.chromium.launch(
+            profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            self.log.emit(f"📁 Using Chrome profile: {profile_dir}")
+            context = await playwright.chromium.launch_persistent_context(
+                str(profile_dir),
                 headless=False,
                 args=["--disable-blink-features=AutomationControlled"],
-            )
-            context = await browser.new_context(
                 viewport={"width": 1280, "height": 800},
                 user_agent=(
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -92,7 +94,7 @@ class LoginWorker(QThread):
                     "Chrome/126.0.0.0 Safari/537.36"
                 ),
             )
-            page = await context.new_page()
+            page = context.pages[0] if context.pages else await context.new_page()
             page.set_default_timeout(60_000)
 
             handler = _SignalLogHandler(self.log)
@@ -100,8 +102,19 @@ class LoginWorker(QThread):
             login_logger.addHandler(handler)
             login_logger.setLevel(logging.INFO)
 
-            self.log.emit("🔐 Starting login flow...")
-            result = await login_gpt_auto(self.account, page)
+            saved_cookies = self.account.get("session_cookie") or []
+            if saved_cookies:
+                self.log.emit(f"♻️ Restoring saved session ({len(saved_cookies)} cookies)...")
+                try:
+                    result = await restore_session(saved_cookies, page)
+                    self.log.emit("✅ Saved session restored.")
+                except ChatGPTLoginError as exc:
+                    self.log.emit(f"⚠️ Saved session invalid: {exc}")
+                    self.log.emit("🔐 Starting full login flow...")
+                    result = await login_gpt_auto(self.account, page)
+            else:
+                self.log.emit("🔐 Starting full login flow...")
+                result = await login_gpt_auto(self.account, page)
 
             login_logger.removeHandler(handler)
 
@@ -127,7 +140,7 @@ class LoginWorker(QThread):
             self.finished.emit({"success": False, "error": str(exc), "type": "Exception"})
 
         finally:
-            for resource in (page, context, browser):
+            for resource in (page, context):
                 if resource:
                     try:
                         await resource.close()
@@ -160,6 +173,8 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self._worker: LoginWorker | None = None
+        self._saved_cookies: list[dict] = []
+        self._saved_email = ""
         self._init_ui()
         self._load_config()
 
@@ -210,6 +225,11 @@ class LoginWindow(QWidget):
 
         layout.addLayout(btn_row)
 
+        self.clear_btn = QPushButton("🗑️  Clear Account")
+        self.clear_btn.setFixedHeight(32)
+        self.clear_btn.clicked.connect(self._on_clear)
+        layout.addWidget(self.clear_btn)
+
         # --- Log area ---
         layout.addWidget(QLabel("Log"))
         self.log_area = QTextEdit()
@@ -232,17 +252,25 @@ class LoginWindow(QWidget):
             self.email_input.setText(account.get("email", ""))
             self.password_input.setText(account.get("password", ""))
             self.totp_input.setText(account.get("totp_secret", ""))
+            self._saved_email = account.get("email", "").strip()
+            self._saved_cookies = account.get("session_cookie", [])
+            if self._saved_cookies:
+                self._log(f"♻️ Saved session found ({len(self._saved_cookies)} cookies)")
+                self.status_label.setText("♻️ Session ready")
+                self.status_label.setStyleSheet("color: #2196F3; font-weight: bold;")
         except Exception:
             pass
 
     def _save_config(self):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
+        current_email = self.email_input.text().strip()
+        session_cookie = self._saved_cookies if current_email == self._saved_email else []
         data = {
             DEFAULT_GPT_ACCOUNT_KEY: {
-                "email": self.email_input.text().strip(),
+                "email": current_email,
                 "password": self.password_input.text(),
                 "totp_secret": self.totp_input.text().strip(),
-                "session_cookie": [],
+                "session_cookie": session_cookie,
                 "folder_user_data": str(gpt_profile_dir(DEFAULT_GPT_PROFILE)),
                 "type_account": "unknown",
             }
@@ -251,6 +279,8 @@ class LoginWindow(QWidget):
             json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        self._saved_email = current_email
+        self._saved_cookies = session_cookie
 
     # --- UI callbacks -----------------------------------------------------
 
@@ -272,7 +302,6 @@ class LoginWindow(QWidget):
             self._log("⚠️  Email and Password are required.")
             return
 
-        self._save_config()
         self.log_area.clear()
         self._set_running(True)
 
@@ -281,12 +310,25 @@ class LoginWindow(QWidget):
             "password": password,
             "totp_secret": self.totp_input.text().strip() or None,
             "folder_user_data": str(gpt_profile_dir(DEFAULT_GPT_PROFILE)),
+            "session_cookie": self._saved_cookies if email == self._saved_email else [],
         }
 
         self._worker = LoginWorker(account)
         self._worker.log.connect(self._log)
         self._worker.finished.connect(self._on_finished)
         self._worker.start()
+
+    def _on_clear(self):
+        self._saved_cookies = []
+        if SESSION_PATH.exists():
+            SESSION_PATH.unlink()
+        profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
+        if profile_dir.exists():
+            shutil.rmtree(profile_dir, ignore_errors=True)
+        self._save_config()
+        self._log("🗑️ Session, cookies, and Chrome profile cleared.")
+        self.status_label.setText("🗑️ Cleared")
+        self.status_label.setStyleSheet("color: gray; font-weight: bold;")
 
     def _on_finished(self, result: dict):
         self._set_running(False)
@@ -295,6 +337,8 @@ class LoginWindow(QWidget):
         if result.get("success"):
             user = result.get("user", {})
             cookies = result.get("cookies", [])
+            self._saved_cookies = cookies
+            self._saved_email = self.email_input.text().strip()
             self._log("✅ Login successful!")
             self._log(f"   User: {user.get('name', '')} ({user.get('email', '')})")
             self._log(f"   Plan: {user.get('plan', 'N/A')}")
@@ -311,6 +355,7 @@ class LoginWindow(QWidget):
     def _set_running(self, running: bool):
         self.login_btn.setEnabled(not running)
         self.save_btn.setEnabled(not running)
+        self.clear_btn.setEnabled(not running)
         self.login_btn.setText("⏳  Logging in..." if running else "🔐  Auto Login")
         if running:
             self.status_label.setText("⏳ Running...")
