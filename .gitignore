@@ -11,3 +11,4 @@ data/chrome_user_data/
 test_config.json
 session_chatgpt.json
 .DS_Store
+data/last_response.json
