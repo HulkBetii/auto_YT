@@ -18,12 +18,40 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from auto_yt.paths import ACCOUNT_PATH, DATA_DIR, SESSION_PATH
+from auto_yt.paths import ACCOUNT_PATH, DATA_DIR, SESSION_PATH, gpt_profile_dir
 from auto_yt.services.chatgpt_login import ChatGPTLoginError, login_gpt_auto
 
 WINDOW_TITLE = "ChatGPT Auto Login"
+
+
+def _extract_gpt_account(data: dict) -> dict:
+    """Extract account fields from either flat or nested config format."""
+    if DEFAULT_GPT_ACCOUNT_KEY in data and isinstance(data[DEFAULT_GPT_ACCOUNT_KEY], dict):
+        return data[DEFAULT_GPT_ACCOUNT_KEY]
+    if "email" in data:
+        return data
+    return {}
+
+
+def _save_account_payload(account: dict) -> None:
+    """Merge account payload back into account.json under gpt_account1."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    existing = {}
+    if ACCOUNT_PATH.exists():
+        try:
+            existing = json.loads(ACCOUNT_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    existing[DEFAULT_GPT_ACCOUNT_KEY] = account
+    ACCOUNT_PATH.write_text(
+        json.dumps(existing, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
 WINDOW_WIDTH = 520
 WINDOW_HEIGHT = 480
+DEFAULT_GPT_ACCOUNT_KEY = "gpt_account1"
+DEFAULT_GPT_PROFILE = "PROFILE_GPT_1"
 
 
 # --- Worker thread -------------------------------------------------------
@@ -78,6 +106,11 @@ class LoginWorker(QThread):
             login_logger.removeHandler(handler)
 
             DATA_DIR.mkdir(parents=True, exist_ok=True)
+            account_payload = dict(self.account)
+            account_payload["session_cookie"] = result.get("cookies", [])
+            account_payload.setdefault("folder_user_data", DEFAULT_GPT_PROFILE)
+            _save_account_payload(account_payload)
+
             SESSION_PATH.write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),
                 encoding="utf-8",
@@ -195,18 +228,24 @@ class LoginWindow(QWidget):
             return
         try:
             data = json.loads(ACCOUNT_PATH.read_text(encoding="utf-8"))
-            self.email_input.setText(data.get("email", ""))
-            self.password_input.setText(data.get("password", ""))
-            self.totp_input.setText(data.get("totp_secret", ""))
+            account = _extract_gpt_account(data)
+            self.email_input.setText(account.get("email", ""))
+            self.password_input.setText(account.get("password", ""))
+            self.totp_input.setText(account.get("totp_secret", ""))
         except Exception:
             pass
 
     def _save_config(self):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         data = {
-            "email": self.email_input.text().strip(),
-            "password": self.password_input.text(),
-            "totp_secret": self.totp_input.text().strip(),
+            DEFAULT_GPT_ACCOUNT_KEY: {
+                "email": self.email_input.text().strip(),
+                "password": self.password_input.text(),
+                "totp_secret": self.totp_input.text().strip(),
+                "session_cookie": [],
+                "folder_user_data": str(gpt_profile_dir(DEFAULT_GPT_PROFILE)),
+                "type_account": "unknown",
+            }
         }
         ACCOUNT_PATH.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
@@ -241,6 +280,7 @@ class LoginWindow(QWidget):
             "email": email,
             "password": password,
             "totp_secret": self.totp_input.text().strip() or None,
+            "folder_user_data": str(gpt_profile_dir(DEFAULT_GPT_PROFILE)),
         }
 
         self._worker = LoginWorker(account)

@@ -5,7 +5,9 @@ __pycache__/
 # Local secrets & sessions
 data/account.json
 data/session_chatgpt.json
+data/chrome_user_data/
 
 # Legacy root files (removed after refactor)
 test_config.json
 session_chatgpt.json
+.DS_Store

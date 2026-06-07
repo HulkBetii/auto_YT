@@ -23,7 +23,15 @@ from playwright.async_api import async_playwright
 
 # Add current directory to Python path for import
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from auto_yt.services.chatgpt_login import login_gpt_auto, restore_session, ChatGPTLoginError
+from auto_yt.services.chatgpt_login import (
+    login_gpt_auto,
+    restore_session,
+    ChatGPTLoginError,
+    ChatGPTLoginCredentialError,
+    ChatGPTLoginMFAError,
+    ChatGPTLoginVerifyError,
+    ChatGPTLoginDeviceVerificationError,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,9 +56,12 @@ def load_test_account() -> Optional[Dict[str, str]]:
     if TEST_CONFIG_PATH.exists():
         try:
             data = json.loads(TEST_CONFIG_PATH.read_text())
-            email = data.get("email", "").strip()
-            password = data.get("password", "").strip()
-            totp_secret = data.get("totp_secret", "").strip()
+            account = data
+            if "gpt_account1" in data and isinstance(data["gpt_account1"], dict):
+                account = data["gpt_account1"]
+            email = account.get("email", "").strip()
+            password = account.get("password", "").strip()
+            totp_secret = account.get("totp_secret", "").strip()
             if email and password:
                 logger.info("Loaded credentials from %s", TEST_CONFIG_PATH)
                 return {
@@ -123,6 +134,10 @@ async def test_login(account: Dict[str, str]) -> bool:
         await context2.close()
         return True
 
+    except (ChatGPTLoginCredentialError, ChatGPTLoginMFAError,
+            ChatGPTLoginVerifyError, ChatGPTLoginDeviceVerificationError) as e:
+        logger.error("❌ Known login error [%s]: %s", e.__class__.__name__, e)
+        return False
     except ChatGPTLoginError as e:
         logger.error("❌ Login error: %s", e)
         logger.error("Type: %s", e.__class__.__name__)

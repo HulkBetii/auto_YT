@@ -31,6 +31,25 @@ SEL_MFA_INPUT      = 'input[inputmode="numeric"], input[name="code"], input[auto
 SEL_PROFILE_BUTTON = '[data-testid="accounts-profile-button"]'
 SEL_BOOTSTRAP      = 'script#client-bootstrap'
 
+# OpenAI/Auth0 error selectors observed in the current auth.openai.com flow.
+# Wrong password appears as text inside li._error_* without role=alert/data-testid.
+SEL_ERROR_TEXT = (
+    'text=/Incorrect email address or password|'
+    'Invalid code|Incorrect code|Code expired|Try again|'
+    'Verify you are human|Checking if the site connection is secure|'
+    'verify your identity|verify your email|device verification/i'
+)
+SEL_CLOUDFLARE_OR_CAPTCHA = (
+    'iframe[src*="turnstile"], '
+    'iframe[src*="challenges"], '
+    'iframe[src*="captcha"], '
+    'iframe[title*="Cloudflare"], '
+    'iframe[title*="Widget"], '
+    '#cf-turnstile, '
+    '.cf-turnstile, '
+    '[data-testid*="captcha"]'
+)
+
 # Cloudflare injects this title while the JS challenge runs
 _CLOUDFLARE_TITLES = {"just a moment...", "checking your browser"}
 
@@ -51,6 +70,10 @@ class ChatGPTLoginVerifyError(ChatGPTLoginError):
     """Anti-bot / captcha / extra verification required."""
 
 
+class ChatGPTLoginDeviceVerificationError(ChatGPTLoginError):
+    """New-device verification or email confirmation required."""
+
+
 # --- Helpers -------------------------------------------------------------
 
 async def _wait_past_cloudflare(page, timeout_ms: int = CLOUDFLARE_WAIT_MS) -> None:
@@ -61,14 +84,95 @@ async def _wait_past_cloudflare(page, timeout_ms: int = CLOUDFLARE_WAIT_MS) -> N
     """
     deadline = asyncio.get_event_loop().time() + timeout_ms / 1000
     while asyncio.get_event_loop().time() < deadline:
-        title = await page.title()
-        if title.lower() not in _CLOUDFLARE_TITLES:
+        if not await _is_cloudflare_or_captcha(page):
             return
         await asyncio.sleep(1)
     raise ChatGPTLoginVerifyError(
         "Cloudflare challenge did not clear. "
         "Run in headed mode (headless=False) and ensure the browser is not detected."
     )
+
+
+async def _is_cloudflare_or_captcha(page) -> bool:
+    """Return True when Cloudflare/Turnstile/captcha challenge is visible."""
+    try:
+        title = (await page.title()).strip().lower()
+        if title in _CLOUDFLARE_TITLES:
+            return True
+    except Exception:
+        pass
+
+    try:
+        if await page.locator(SEL_CLOUDFLARE_OR_CAPTCHA).count() > 0:
+            return True
+    except Exception:
+        pass
+
+    try:
+        body = (await page.locator("body").first.inner_text(timeout=1_000)).lower()
+        return any(
+            text in body
+            for text in (
+                "verify you are human",
+                "checking if the site connection is secure",
+                "cloudflare",
+                "captcha",
+            )
+        )
+    except Exception:
+        return False
+
+
+async def _raise_if_cloudflare_or_captcha(page) -> None:
+    if await _is_cloudflare_or_captcha(page):
+        title = await page.title()
+        raise ChatGPTLoginVerifyError(
+            f"Cloudflare/captcha challenge detected. URL: {page.url}; title: {title}"
+        )
+
+
+async def _get_visible_error_text(page) -> str | None:
+    """Return a visible auth error text from common OpenAI/Auth0 locations."""
+    error_selectors = (
+        '[role="alert"]',
+        '[data-testid*="error"]',
+        '[aria-live="assertive"]',
+        '[aria-live="polite"]',
+        'li[class*="error"]',
+        'div[class*="error"]',
+        SEL_ERROR_TEXT,
+    )
+    for selector in error_selectors:
+        try:
+            locator = page.locator(selector).first
+            if await locator.is_visible(timeout=800):
+                text = (await locator.inner_text(timeout=1_000)).strip()
+                if text:
+                    return text
+        except Exception:
+            continue
+    return None
+
+
+async def _raise_known_auth_error(page, stage: str) -> None:
+    """Raise a precise exception for known auth error states."""
+    await _raise_if_cloudflare_or_captcha(page)
+
+    text = await _get_visible_error_text(page)
+    if not text:
+        return
+
+    lower = text.lower()
+    if "incorrect email address or password" in lower or "incorrect password" in lower:
+        raise ChatGPTLoginCredentialError(f"Wrong email or password ({stage}): {text}")
+    if any(word in lower for word in ("invalid code", "incorrect code", "code expired", "try again")):
+        raise ChatGPTLoginMFAError(f"TOTP rejected or expired ({stage}): {text}")
+    if any(word in lower for word in ("verify your email", "verify your identity", "device verification", "new device")):
+        raise ChatGPTLoginDeviceVerificationError(f"Device/email verification required ({stage}): {text}")
+    if any(word in lower for word in ("verify you are human", "cloudflare", "captcha")):
+        raise ChatGPTLoginVerifyError(f"Human verification required ({stage}): {text}")
+
+    raise ChatGPTLoginError(f"Auth error ({stage}): {text}")
 
 
 async def _fill_and_submit(page, selector: str, value: str, timeout_ms: int = INPUT_TIMEOUT_MS) -> None:
@@ -127,14 +231,7 @@ async def _verify_logged_in(page) -> dict:
 
 async def _detect_error_state(page) -> str | None:
     """Return visible error banner text, or None."""
-    for sel in ('[data-testid="error-message"]', '[role="alert"]', ".error-message"):
-        try:
-            el = page.locator(sel).first
-            if await el.is_visible(timeout=1_000):
-                return (await el.inner_text(timeout=2_000)).strip()
-        except Exception:
-            continue
-    return None
+    return await _get_visible_error_text(page)
 
 
 # --- Main ----------------------------------------------------------------
@@ -221,28 +318,19 @@ async def login_gpt_auto(account: dict, page) -> dict:
     await _fill_and_submit(page, SEL_EMAIL_INPUT, email)
     await asyncio.sleep(1.5)
 
-    error = await _detect_error_state(page)
-    if error:
-        raise ChatGPTLoginCredentialError(f"Email step rejected: {error}")
+    await _raise_known_auth_error(page, "email")
 
     # --- Step 4: Password ------------------------------------------------
     logger.info("[4] Entering password")
     try:
         await _fill_and_submit(page, SEL_PASSWORD_INPUT, password)
     except Exception as exc:
-        error = await _detect_error_state(page)
-        if error:
-            raise ChatGPTLoginCredentialError(f"Password form error: {error}") from exc
+        await _raise_known_auth_error(page, "password-form")
         raise ChatGPTLoginError(f"Password field not found: {exc}") from exc
 
     await asyncio.sleep(2)
 
-    error = await _detect_error_state(page)
-    if error:
-        lower = error.lower()
-        if any(kw in lower for kw in ("password", "incorrect", "credential", "wrong")):
-            raise ChatGPTLoginCredentialError(f"Wrong password: {error}")
-        raise ChatGPTLoginError(f"Login error after password: {error}")
+    await _raise_known_auth_error(page, "password")
 
     # --- Step 5: MFA (TOTP) if prompted ----------------------------------
     try:
@@ -258,10 +346,8 @@ async def login_gpt_auto(account: dict, page) -> dict:
         await asyncio.sleep(0.3)
         await page.locator(SEL_SUBMIT_BUTTON).first.click()
         await asyncio.sleep(2)
-        mfa_error = await _detect_error_state(page)
-        if mfa_error:
-            raise ChatGPTLoginMFAError(f"TOTP rejected: {mfa_error}")
-    except (ChatGPTLoginMFAError, ChatGPTLoginError):
+        await _raise_known_auth_error(page, "mfa")
+    except (ChatGPTLoginMFAError, ChatGPTLoginError, ChatGPTLoginDeviceVerificationError):
         raise
     except Exception:
         # No MFA form — normal flow
@@ -273,8 +359,9 @@ async def login_gpt_auto(account: dict, page) -> dict:
         await page.wait_for_url("**/chatgpt.com/**", timeout=POST_LOGIN_TIMEOUT_MS)
     except Exception:
         if AUTH_DOMAIN in page.url:
+            await _raise_known_auth_error(page, "redirect")
             raise ChatGPTLoginVerifyError(
-                f"Still on {AUTH_DOMAIN} — captcha or extra verification required. URL: {page.url}"
+                f"Still on {AUTH_DOMAIN} after timeout. URL: {page.url}"
             )
 
     await asyncio.sleep(2)
@@ -321,5 +408,4 @@ async def restore_session(cookies: list[dict], page) -> dict:
     return {"success": True, "cookies": await context.cookies(), "user": verify["user"]}
 
 
-# TODO: Error states cụ thể (sai pass exact wording, captcha detection heuristics)
-# TODO: Cấu trúc thư mục lưu trữ local (vd chrome_user_data/PROFILE_X)
+# TODO: Cấu trúc thư mục lưu trữ local (vd chrome_user_data/PROFILE_X) — paths.py đã có gpt_profile_dir()
