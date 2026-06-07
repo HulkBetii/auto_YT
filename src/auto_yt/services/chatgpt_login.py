@@ -50,6 +50,8 @@ SEL_CLOUDFLARE_OR_CAPTCHA = (
     '[data-testid*="captcha"]'
 )
 
+SEL_COOKIE_BANNER_ACCEPT = 'button:has-text("Accept all"), button:has-text("Reject non-essential")'
+
 # Cloudflare injects this title while the JS challenge runs
 _CLOUDFLARE_TITLES = {"just a moment...", "checking your browser"}
 
@@ -75,6 +77,18 @@ class ChatGPTLoginDeviceVerificationError(ChatGPTLoginError):
 
 
 # --- Helpers -------------------------------------------------------------
+
+async def _dismiss_cookie_banner(page) -> None:
+    """Dismiss the cookie consent banner if present (blocks click on login)."""
+    try:
+        btn = page.locator(SEL_COOKIE_BANNER_ACCEPT).first
+        if await btn.is_visible(timeout=2_000):
+            await btn.click()
+            logger.info("Dismissed cookie consent banner")
+            await asyncio.sleep(0.5)
+    except Exception:
+        pass
+
 
 async def _wait_past_cloudflare(page, timeout_ms: int = CLOUDFLARE_WAIT_MS) -> None:
     """
@@ -285,6 +299,7 @@ async def login_gpt_auto(account: dict, page) -> dict:
 
     # --- Step 2: Click "Log in" ------------------------------------------
     logger.info("[2] Clicking Log in")
+    await _dismiss_cookie_banner(page)
     login_btn = page.locator('[data-testid="login-button"], button:has-text("Log in")').first
     try:
         await login_btn.wait_for(state="visible", timeout=LOGIN_BUTTON_TIMEOUT_MS)
