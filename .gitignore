@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local secrets & sessions
+data/account.json
+data/session_chatgpt.json
+
+# Legacy root files (removed after refactor)
+test_config.json
+session_chatgpt.json
