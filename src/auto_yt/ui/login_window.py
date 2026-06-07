@@ -153,6 +153,60 @@ class LoginWorker(QThread):
                     pass
 
 
+class OpenProfileWorker(QThread):
+    """Open the persistent ChatGPT Chrome profile for manual use."""
+
+    log = pyqtSignal(str)
+    finished = pyqtSignal(dict)
+
+    def run(self):
+        asyncio.run(self._open_profile())
+
+    async def _open_profile(self):
+        from playwright.async_api import async_playwright
+
+        playwright = None
+        context = None
+
+        try:
+            profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            self.log.emit(f"📂 Opening profile: {profile_dir}")
+
+            playwright = await async_playwright().start()
+            context = await playwright.chromium.launch_persistent_context(
+                str(profile_dir),
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+                viewport={"width": 1280, "height": 800},
+            )
+            page = context.pages[0] if context.pages else await context.new_page()
+            await page.goto("https://chatgpt.com", wait_until="domcontentloaded", timeout=60_000)
+            self.log.emit("✅ Profile opened. Close the browser window when done.")
+
+            # Keep Playwright alive while the user manually uses the browser.
+            while context.pages:
+                await asyncio.sleep(1)
+
+            self.finished.emit({"success": True})
+
+        except Exception as exc:
+            self.log.emit(f"❌ Cannot open profile: {exc}")
+            self.finished.emit({"success": False, "error": str(exc)})
+
+        finally:
+            if context:
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+            if playwright:
+                try:
+                    await playwright.stop()
+                except Exception:
+                    pass
+
+
 class _SignalLogHandler(logging.Handler):
     """Forward log records to a pyqtSignal(str)."""
 
@@ -173,6 +227,7 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self._worker: LoginWorker | None = None
+        self._profile_worker: OpenProfileWorker | None = None
         self._saved_cookies: list[dict] = []
         self._saved_email = ""
         self._init_ui()
@@ -229,6 +284,11 @@ class LoginWindow(QWidget):
         self.clear_btn.setFixedHeight(32)
         self.clear_btn.clicked.connect(self._on_clear)
         layout.addWidget(self.clear_btn)
+
+        self.open_profile_btn = QPushButton("📂  Open Profile")
+        self.open_profile_btn.setFixedHeight(32)
+        self.open_profile_btn.clicked.connect(self._on_open_profile)
+        layout.addWidget(self.open_profile_btn)
 
         # --- Log area ---
         layout.addWidget(QLabel("Log"))
@@ -330,6 +390,24 @@ class LoginWindow(QWidget):
         self.status_label.setText("🗑️ Cleared")
         self.status_label.setStyleSheet("color: gray; font-weight: bold;")
 
+    def _on_open_profile(self):
+        if self._profile_worker and self._profile_worker.isRunning():
+            self._log("⚠️ Profile browser is already open.")
+            return
+        self._log("📂 Opening profile browser...")
+        self._profile_worker = OpenProfileWorker()
+        self._profile_worker.log.connect(self._log)
+        self._profile_worker.finished.connect(self._on_profile_closed)
+        self.open_profile_btn.setEnabled(False)
+        self.open_profile_btn.setText("📂  Browser open...")
+        self._profile_worker.start()
+
+    def _on_profile_closed(self, result: dict):
+        self._profile_worker = None
+        self.open_profile_btn.setEnabled(True)
+        self.open_profile_btn.setText("📂  Open Profile")
+        self._log("📂 Profile browser closed.")
+
     def _on_finished(self, result: dict):
         self._set_running(False)
         self._worker = None
@@ -356,6 +434,7 @@ class LoginWindow(QWidget):
         self.login_btn.setEnabled(not running)
         self.save_btn.setEnabled(not running)
         self.clear_btn.setEnabled(not running)
+        self.open_profile_btn.setEnabled(not running)
         self.login_btn.setText("⏳  Logging in..." if running else "🔐  Auto Login")
         if running:
             self.status_label.setText("⏳ Running...")
