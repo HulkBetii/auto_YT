@@ -19,6 +19,12 @@ SEND_BUTTON_SELS = (
 ASSISTANT_MSG_SEL = '[data-message-author-role="assistant"]'
 STOP_BUTTON_SEL  = 'button[data-testid="stop-button"], button[aria-label="Stop generating"]'
 
+# Model picker (top of composer): a button labeled "Instant"/"Thinking"/etc.
+# opens a menu listing "Instant", "Thinking", "Configure...". We always want
+# "Thinking" mode for content-generation prompts (better reasoning quality).
+MODEL_SWITCHER_SEL = 'button:has-text("Instant"), button:has-text("Thinking"), button:has-text("Auto")'
+THINKING_MENU_ITEM_SEL = '[role="menuitem"]:has-text("Thinking"), div[role="menuitemradio"]:has-text("Thinking")'
+
 DEFAULT_REPLY_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 
@@ -54,6 +60,42 @@ async def _click_send(page) -> None:
             continue
     logger.warning("No send button found, pressing Enter as fallback")
     await page.locator(PROMPT_INPUT_SEL).first.press("Enter")
+
+
+async def ensure_thinking_mode(page) -> None:
+    """Best-effort: switch the ChatGPT model picker to "Thinking" mode.
+
+    The composer shows a small dropdown (currently labeled "Instant", "Auto",
+    etc. depending on the last-used mode) that opens a menu with "Instant",
+    "Thinking", "Configure...". Content-generation prompts produce noticeably
+    better results in Thinking mode, and ChatGPT remembers the last-picked
+    mode per session — but we re-assert it on every send so a manual override
+    (or a session reset) never silently degrades output quality.
+
+    Deliberately swallows all errors: this is a quality nicety, not a
+    correctness requirement, and the picker's selectors are the most likely
+    part of the ChatGPT UI to change without notice.
+    """
+    try:
+        switcher = page.locator(MODEL_SWITCHER_SEL).first
+        if not await switcher.is_visible(timeout=2_000):
+            return
+
+        label = (await switcher.inner_text(timeout=1_000)).strip()
+        if "Thinking" in label:
+            return  # already in Thinking mode
+
+        await switcher.click()
+        await asyncio.sleep(0.4)
+
+        option = page.locator(THINKING_MENU_ITEM_SEL).first
+        if await option.count() == 0:
+            option = page.get_by_text(re.compile(r"^Thinking$")).first
+        await option.click(timeout=3_000)
+        await asyncio.sleep(0.3)
+        logger.info("Switched ChatGPT composer to Thinking mode")
+    except Exception as exc:
+        logger.warning("Could not switch to Thinking mode (continuing anyway): %s", exc)
 
 
 async def _get_last_assistant_text(page) -> str | None:
@@ -99,6 +141,8 @@ async def send_prompt(
     """
     if not prompt.strip():
         raise ChatGPTResponseError("Prompt is empty.")
+
+    await ensure_thinking_mode(page)
 
     prev_count = await page.locator(ASSISTANT_MSG_SEL).count()
 
