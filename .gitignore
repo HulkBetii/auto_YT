@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 
 # Local secrets & sessions
+data/db_config.json
 data/account.json
 data/session_chatgpt.json
 data/chrome_user_data/

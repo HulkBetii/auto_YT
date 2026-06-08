@@ -1,0 +1,1 @@
+ALTER TABLE "channel_config" DROP COLUMN "rollback_count_30d";

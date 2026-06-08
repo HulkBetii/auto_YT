@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780893120364,
+      "tag": "0000_familiar_paibok",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780893133581,
+      "tag": "0001_add_special_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780894162636,
+      "tag": "0002_free_daimon_hellstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780894365019,
+      "tag": "0003_fancy_ultimates",
+      "breakpoints": true
+    }
+  ]
+}

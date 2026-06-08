@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/process-jobs",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/cron/check-analytics",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/evaluate-rollback",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/check-worker",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

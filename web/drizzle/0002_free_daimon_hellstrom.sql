@@ -1,0 +1,1 @@
+ALTER TYPE "public"."content_stage" ADD VALUE 'P5';
