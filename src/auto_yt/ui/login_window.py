@@ -49,6 +49,19 @@ def _save_account_payload(account: dict) -> None:
         encoding="utf-8",
     )
 
+
+def _load_saved_session_cookies() -> list[dict]:
+    """Load saved ChatGPT session cookies from account.json."""
+    if not ACCOUNT_PATH.exists():
+        return []
+    try:
+        data = json.loads(ACCOUNT_PATH.read_text(encoding="utf-8"))
+        account = _extract_gpt_account(data)
+        cookies = account.get("session_cookie", [])
+        return cookies if isinstance(cookies, list) else []
+    except Exception:
+        return []
+
 WINDOW_WIDTH = 520
 WINDOW_HEIGHT = 480
 DEFAULT_GPT_ACCOUNT_KEY = "gpt_account1"
@@ -180,6 +193,10 @@ class OpenProfileWorker(QThread):
                 args=["--disable-blink-features=AutomationControlled"],
                 viewport={"width": 1280, "height": 800},
             )
+            saved_cookies = _load_saved_session_cookies()
+            if saved_cookies:
+                await context.add_cookies(saved_cookies)
+                self.log.emit(f"♻️ Injected saved session cookies ({len(saved_cookies)})")
             page = context.pages[0] if context.pages else await context.new_page()
             await page.goto("https://chatgpt.com", wait_until="domcontentloaded", timeout=60_000)
             self.log.emit("✅ Profile opened. Close the browser window when done.")
