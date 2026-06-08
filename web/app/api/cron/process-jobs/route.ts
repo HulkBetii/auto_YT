@@ -23,7 +23,7 @@ async function notifyNewlyFailedJobs() {
 
   for (const job of failed) {
     await notify(
-      `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` for video #${job.videoId}` : ""} failed: ${job.errorMessage ?? "unknown error"}`,
+      `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` của video #${job.videoId}` : ""} đã thất bại: ${job.errorMessage ?? "lỗi không xác định"}`,
     );
     await markJobConsumed(job.id);
     logEvent("job_failed_notified", { jobId: job.id, videoId: job.videoId, stage: job.stage });

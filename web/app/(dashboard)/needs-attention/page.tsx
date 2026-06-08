@@ -94,9 +94,9 @@ export default async function NeedsAttentionPage() {
 
   return (
     <div className="flex flex-col gap-10">
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Needs Attention</h1>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Cần chú ý</h1>
 
-      <Section title="Published videos missing a YouTube video ID" count={missingYoutubeId.length}>
+      <Section title="Video đã đăng nhưng thiếu YouTube video ID" count={missingYoutubeId.length}>
         <div className="flex flex-col gap-3">
           {missingYoutubeId.map((video) => (
             <div key={video.id} className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -106,11 +106,11 @@ export default async function NeedsAttentionPage() {
               <YoutubeIdForm videoId={video.id} currentValue={video.youtubeVideoId} />
             </div>
           ))}
-          {missingYoutubeId.length === 0 && <EmptyRow>Nothing pending — all published videos have a YouTube ID.</EmptyRow>}
+          {missingYoutubeId.length === 0 && <EmptyRow>Không có gì cần xử lý — mọi video đã đăng đều có YouTube ID.</EmptyRow>}
         </div>
       </Section>
 
-      <Section title="Videos missing manually-entered analytics (CTR / avg. view duration)" count={missingAnalytics.length}>
+      <Section title="Video thiếu dữ liệu analytics nhập tay (CTR / thời lượng xem TB)" count={missingAnalytics.length}>
         <div className="flex flex-col gap-3">
           {missingAnalytics.map(({ video, missingCtr, missingAvd }) => (
             <div key={video.id} className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -119,30 +119,30 @@ export default async function NeedsAttentionPage() {
                   {video.title}
                 </Link>
                 <span className="text-xs text-zinc-500">
-                  Missing: {[missingCtr && "CTR", missingAvd && "avg. view duration"].filter(Boolean).join(", ")}
+                  Thiếu: {[missingCtr && "CTR", missingAvd && "thời lượng xem TB"].filter(Boolean).join(", ")}
                 </span>
               </div>
               <p className="text-xs text-zinc-500">
-                These require YouTube Analytics OAuth (not available via the plain Data API key) — enter the values from
-                YouTube Studio manually.
+                Các chỉ số này cần YouTube Analytics OAuth (không có sẵn qua Data API key thường) — hãy
+                nhập thủ công từ YouTube Studio.
               </p>
               <AnalyticsForm videoId={video.id} />
             </div>
           ))}
-          {missingAnalytics.length === 0 && <EmptyRow>Nothing pending — all tracked videos have full analytics.</EmptyRow>}
+          {missingAnalytics.length === 0 && <EmptyRow>Không có gì cần xử lý — mọi video đang theo dõi đều đã đủ dữ liệu analytics.</EmptyRow>}
         </div>
       </Section>
 
-      <Section title="Hard-failed jobs" count={failedJobs.length}>
+      <Section title="Job lỗi cứng (hard-failed)" count={failedJobs.length}>
         <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
               <tr>
-                <th className="px-4 py-2">Stage</th>
+                <th className="px-4 py-2">Giai đoạn</th>
                 <th className="px-4 py-2">Video</th>
-                <th className="px-4 py-2">Error</th>
-                <th className="px-4 py-2">Retries</th>
-                <th className="px-4 py-2">Created</th>
+                <th className="px-4 py-2">Lỗi</th>
+                <th className="px-4 py-2">Số lần thử lại</th>
+                <th className="px-4 py-2">Tạo lúc</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
@@ -156,7 +156,7 @@ export default async function NeedsAttentionPage() {
                         {job.videoTitle ?? `#${job.videoId}`}
                       </Link>
                     ) : (
-                      <span className="text-zinc-500">batch job</span>
+                      <span className="text-zinc-500">job theo lô</span>
                     )}
                   </td>
                   <td className="max-w-sm truncate px-4 py-2 text-red-600 dark:text-red-400">{job.errorMessage ?? "—"}</td>
@@ -167,7 +167,7 @@ export default async function NeedsAttentionPage() {
               ))}
               {failedJobs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">No hard-failed jobs. 🎉</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">Không có job lỗi cứng nào. 🎉</td>
                 </tr>
               )}
             </tbody>
@@ -175,7 +175,7 @@ export default async function NeedsAttentionPage() {
         </div>
       </Section>
 
-      <Section title="Prompt versions flagged after rollback cap" count={flaggedPrompts.length}>
+      <Section title="Phiên bản prompt bị gắn cờ sau khi đạt giới hạn rollback" count={flaggedPrompts.length}>
         <div className="flex flex-col gap-3">
           {flaggedPrompts.map((version) => (
             <div key={version.id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
@@ -183,12 +183,12 @@ export default async function NeedsAttentionPage() {
                 <Link href={`/prompts/${version.promptKey}`} className="font-medium hover:underline">
                   {version.promptKey} v{version.version}
                 </Link>{" "}
-                — auto-update is paused (rollback rate limit reached: 1 per 30 days). Review the change history and either
-                resume from the prompt page or activate a different version manually.
+                — tự động cập nhật đang bị tạm dừng (đã đạt giới hạn tần suất rollback: 1 lần / 30 ngày). Xem lại lịch sử thay đổi và
+                tiếp tục từ trang prompt hoặc kích hoạt thủ công một phiên bản khác.
               </span>
             </div>
           ))}
-          {flaggedPrompts.length === 0 && <EmptyRow>No prompts are currently flagged — auto-update is running normally.</EmptyRow>}
+          {flaggedPrompts.length === 0 && <EmptyRow>Hiện không có prompt nào bị gắn cờ — tự động cập nhật đang chạy bình thường.</EmptyRow>}
         </div>
       </Section>
     </div>

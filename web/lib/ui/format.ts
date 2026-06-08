@@ -30,11 +30,11 @@ export function formatRelative(date: Date | string | null | undefined): string {
   const d = typeof date === "string" ? new Date(date) : date;
   const diffMs = Date.now() - d.getTime();
   const diffMin = Math.round(diffMs / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return "vừa xong";
+  if (diffMin < 60) return `${diffMin} phút trước`;
   const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.round(diffHr / 24)}d ago`;
+  if (diffHr < 24) return `${diffHr} giờ trước`;
+  return `${Math.round(diffHr / 24)} ngày trước`;
 }
 
 export function formatDuration(seconds: number | null | undefined): string {

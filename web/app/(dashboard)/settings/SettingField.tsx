@@ -32,7 +32,7 @@ export function SettingField({
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setError(json?.error ?? "Failed to save.");
+        setError(json?.error ?? "Lưu thất bại.");
         return;
       }
       setSaved(true);
@@ -59,12 +59,12 @@ export function SettingField({
             disabled={isPending || value === initialValue}
             className="rounded bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
-            {isPending ? "Saving…" : "Save"}
+            {isPending ? "Đang lưu…" : "Lưu"}
           </button>
         </div>
       </label>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {saved && !error && <p className="text-xs text-emerald-600">Saved.</p>}
+      {saved && !error && <p className="text-xs text-emerald-600">Đã lưu.</p>}
     </form>
   );
 }

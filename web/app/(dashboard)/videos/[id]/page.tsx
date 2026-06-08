@@ -29,21 +29,21 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <Link href="/videos" className="text-sm text-zinc-500 hover:underline">
-          ← All videos
+          ← Tất cả video
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{video.title}</h1>
           <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(video.status)}`}>{video.status}</span>
         </div>
         <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400 sm:grid-cols-4">
-          <div><dt className="text-xs uppercase text-zinc-400">Person</dt><dd>{video.featuredPerson ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Pain type</dt><dd>{video.painType ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Temperature</dt><dd>{video.temperature ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Format</dt><dd>{video.format}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Score</dt><dd>{video.score ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Retry count</dt><dd>{video.retryCount}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Nhân vật</dt><dd>{video.featuredPerson ?? "—"}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Loại nỗi đau</dt><dd>{video.painType ?? "—"}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Nhiệt độ</dt><dd>{video.temperature ?? "—"}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Định dạng</dt><dd>{video.format}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Điểm</dt><dd>{video.score ?? "—"}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Số lần thử lại</dt><dd>{video.retryCount}</dd></div>
           <div><dt className="text-xs uppercase text-zinc-400">YouTube ID</dt><dd>{video.youtubeVideoId ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Published</dt><dd>{formatDateTime(video.publishedAt)}</dd></div>
+          <div><dt className="text-xs uppercase text-zinc-400">Ngày đăng</dt><dd>{formatDateTime(video.publishedAt)}</dd></div>
         </dl>
       </div>
 
@@ -55,7 +55,7 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Pipeline timeline (P1 → P_score)
+          Dòng thời gian pipeline (P1 → P_score)
         </h2>
         <ol className="flex flex-col gap-3">
           {content.map((row) => (
@@ -68,7 +68,7 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
               </div>
               <details>
                 <summary className="cursor-pointer text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50">
-                  View output ({row.output.length.toLocaleString()} chars)
+                  Xem nội dung ({row.output.length.toLocaleString()} ký tự)
                 </summary>
                 <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                   {row.output}
@@ -78,24 +78,24 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
           ))}
           {content.length === 0 && (
             <li className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-              No content produced yet.
+              Chưa có nội dung nào được tạo.
             </li>
           )}
         </ol>
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Jobs</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Job</h2>
         <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
               <tr>
-                <th className="px-4 py-2">Stage</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Retries</th>
-                <th className="px-4 py-2">Duration</th>
-                <th className="px-4 py-2">Error</th>
-                <th className="px-4 py-2">Created</th>
+                <th className="px-4 py-2">Giai đoạn</th>
+                <th className="px-4 py-2">Trạng thái</th>
+                <th className="px-4 py-2">Số lần thử lại</th>
+                <th className="px-4 py-2">Thời lượng</th>
+                <th className="px-4 py-2">Lỗi</th>
+                <th className="px-4 py-2">Tạo lúc</th>
               </tr>
             </thead>
             <tbody>
@@ -119,7 +119,7 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
               })}
               {videoJobs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">No jobs for this video yet.</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">Video này chưa có job nào.</td>
                 </tr>
               )}
             </tbody>
@@ -129,17 +129,17 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
 
       {analytics.length > 0 && (
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Analytics snapshots</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Ảnh chụp Analytics</h2>
           <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
                 <tr>
-                  <th className="px-4 py-2">Fetched</th>
-                  <th className="px-4 py-2">Views</th>
-                  <th className="px-4 py-2">Likes</th>
-                  <th className="px-4 py-2">Comments</th>
+                  <th className="px-4 py-2">Lấy lúc</th>
+                  <th className="px-4 py-2">Lượt xem</th>
+                  <th className="px-4 py-2">Lượt thích</th>
+                  <th className="px-4 py-2">Bình luận</th>
                   <th className="px-4 py-2">CTR</th>
-                  <th className="px-4 py-2">Avg. view duration</th>
+                  <th className="px-4 py-2">Thời lượng xem TB</th>
                 </tr>
               </thead>
               <tbody>

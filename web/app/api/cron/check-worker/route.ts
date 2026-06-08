@@ -54,7 +54,7 @@ async function evaluateWorkerStall() {
   const alreadyAlerted = (await getConfigValue("worker_stall_alerted")) === "true";
   if (!alreadyAlerted) {
     await notify(
-      `🛑 Worker appears <b>stalled</b> — status is "running" but no heartbeat for ${minutesSinceLastBeat.toFixed(0)} min (threshold ${STALL_THRESHOLD_MINUTES} min). It likely crashed mid-run; check the Mac.`,
+      `🛑 Worker có vẻ đã <b>bị treo</b> — trạng thái vẫn là "running" nhưng không có heartbeat trong ${minutesSinceLastBeat.toFixed(0)} phút (ngưỡng ${STALL_THRESHOLD_MINUTES} phút). Có khả năng đã crash giữa chừng — kiểm tra lại Mac.`,
     );
     await setConfigValue("worker_stall_alerted", "true");
     logEvent("worker_stall_detected", { minutesSinceLastBeat });

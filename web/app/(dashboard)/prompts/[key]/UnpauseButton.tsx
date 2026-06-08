@@ -20,7 +20,7 @@ export function UnpauseButton() {
       disabled={isPending}
       className="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-500 disabled:opacity-50"
     >
-      {isPending ? "Resuming…" : "Resume auto-update"}
+      {isPending ? "Đang tiếp tục…" : "Tiếp tục tự động cập nhật"}
     </button>
   );
 }

@@ -32,13 +32,13 @@ export default async function VideosPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Videos</h1>
+        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Video</h1>
         <div className="flex flex-wrap gap-1">
           <Link
             href="/videos"
             className={`rounded px-3 py-1 text-xs font-medium ${filter === ALL ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"}`}
           >
-            all
+            tất cả
           </Link>
           {videoStatusEnum.enumValues.map((s) => (
             <Link
@@ -57,12 +57,12 @@ export default async function VideosPage({
           <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
             <tr>
               <th className="px-4 py-2">ID</th>
-              <th className="px-4 py-2">Title</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Person</th>
-              <th className="px-4 py-2">Score</th>
-              <th className="px-4 py-2">Retries</th>
-              <th className="px-4 py-2">Created</th>
+              <th className="px-4 py-2">Tiêu đề</th>
+              <th className="px-4 py-2">Trạng thái</th>
+              <th className="px-4 py-2">Nhân vật</th>
+              <th className="px-4 py-2">Điểm</th>
+              <th className="px-4 py-2">Số lần thử lại</th>
+              <th className="px-4 py-2">Tạo lúc</th>
             </tr>
           </thead>
           <tbody>
@@ -86,7 +86,7 @@ export default async function VideosPage({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
-                  No videos match this filter.
+                  Không có video nào khớp bộ lọc này.
                 </td>
               </tr>
             )}

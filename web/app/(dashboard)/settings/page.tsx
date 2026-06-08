@@ -17,7 +17,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Settings</h1>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Cài đặt</h1>
 
       <section className="flex flex-col gap-3">
         {values.map(({ field, value }) => (
@@ -26,15 +26,15 @@ export default async function SettingsPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Worker status</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Trạng thái Worker</h2>
         <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
           <p className="text-zinc-600 dark:text-zinc-400">
-            Last seen: <span className="font-medium text-zinc-900 dark:text-zinc-50">{formatDateTime(heartbeat?.workerLastSeenAt)}</span>
+            Lần thấy gần nhất: <span className="font-medium text-zinc-900 dark:text-zinc-50">{formatDateTime(heartbeat?.workerLastSeenAt)}</span>
             {" · "}
-            Status: <span className="font-medium text-zinc-900 dark:text-zinc-50">{heartbeat?.workerLastStatus ?? "—"}</span>
+            Trạng thái: <span className="font-medium text-zinc-900 dark:text-zinc-50">{heartbeat?.workerLastStatus ?? "—"}</span>
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            Recorded by the Playwright worker on every poll cycle (read-only here — see Phase 7 for the alerting logic).
+            Được ghi lại bởi worker Playwright ở mỗi vòng poll (chỉ xem ở đây — xem Phase 7 để biết logic cảnh báo).
           </p>
         </div>
       </section>

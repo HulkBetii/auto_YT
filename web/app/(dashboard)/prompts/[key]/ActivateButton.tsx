@@ -18,7 +18,7 @@ export function ActivateButton({ promptKey, versionId }: { promptKey: string; ve
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setError(json?.error ?? "Failed to activate.");
+        setError(json?.error ?? "Kích hoạt thất bại.");
         return;
       }
       router.refresh();
@@ -32,7 +32,7 @@ export function ActivateButton({ promptKey, versionId }: { promptKey: string; ve
         disabled={isPending}
         className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
       >
-        {isPending ? "Activating…" : "Activate this version"}
+        {isPending ? "Đang kích hoạt…" : "Kích hoạt phiên bản này"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>

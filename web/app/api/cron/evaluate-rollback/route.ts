@@ -123,7 +123,7 @@ async function evaluateP1Rollback() {
     await setConfigValue("auto_update_paused", "true");
     if (!wasAlreadyPaused) {
       await notify(
-        `⏸️ Auto-update for <b>P1</b> has been <b>paused</b> — the rollback rate limit (1 per 30 days) was reached. Review on the dashboard's Needs Attention page.`,
+        `⏸️ Tự động cập nhật prompt <b>P1</b> đã bị <b>tạm dừng</b> — đã chạm giới hạn tần suất rollback (1 lần / 30 ngày). Vào trang Needs Attention trên dashboard để xem xét.`,
       );
       logEvent("auto_update_paused", { promptKey: "P1" });
     }
@@ -161,7 +161,7 @@ async function evaluateP1Rollback() {
     return { evaluated: true, rolledBack: false, degradationPct };
   }
 
-  const changeReason = `Auto-rollback: new batch (videos ${newBatch[0].id}-${newBatch.at(-1)!.id}) CTR ${(newStats.averageCtrBasisPoints / 100).toFixed(2)}% vs previous batch (videos ${oldBatch[0].id}-${oldBatch.at(-1)!.id}) CTR ${(oldStats.averageCtrBasisPoints / 100).toFixed(2)}% — degradation ${degradationPct.toFixed(1)}% exceeds ${thresholdPct}% threshold.`;
+  const changeReason = `Tự động rollback: lô mới (video ${newBatch[0].id}-${newBatch.at(-1)!.id}) có CTR ${(newStats.averageCtrBasisPoints / 100).toFixed(2)}% so với lô trước (video ${oldBatch[0].id}-${oldBatch.at(-1)!.id}) CTR ${(oldStats.averageCtrBasisPoints / 100).toFixed(2)}% — mức giảm ${degradationPct.toFixed(1)}% vượt ngưỡng ${thresholdPct}%.`;
 
   await activateNewPromptVersion({
     promptKey: "P1",
@@ -173,7 +173,7 @@ async function evaluateP1Rollback() {
 
   await recordRollback();
 
-  await notify(`↩️ <b>P1 prompt auto-rolled back</b> to v${previous.version} — ${changeReason}`);
+  await notify(`↩️ <b>Prompt P1 đã tự động rollback</b> về v${previous.version} — ${changeReason}`);
   logEvent("prompt_rollback", { promptKey: "P1", revertedToVersion: previous.version, degradationPct });
 
   return { evaluated: true, rolledBack: true, degradationPct };

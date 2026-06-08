@@ -21,15 +21,15 @@ export default async function PromptsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Prompts</h1>
+      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Prompt</h1>
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
             <tr>
               <th className="px-4 py-2">Key</th>
-              <th className="px-4 py-2">Active version</th>
-              <th className="px-4 py-2">Created by</th>
-              <th className="px-4 py-2">Activated</th>
+              <th className="px-4 py-2">Phiên bản đang dùng</th>
+              <th className="px-4 py-2">Tạo bởi</th>
+              <th className="px-4 py-2">Kích hoạt lúc</th>
             </tr>
           </thead>
           <tbody>

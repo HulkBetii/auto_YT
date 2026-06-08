@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });
 
   const field = SETTINGS_FIELDS.find((f) => f.key === parsed.data.key);
-  if (!field) return NextResponse.json({ ok: false, error: "Unknown setting key" }, { status: 400 });
+  if (!field) return NextResponse.json({ ok: false, error: "Khóa cài đặt không xác định" }, { status: 400 });
 
   const validated = field.schema.safeParse(parsed.data.value);
   if (!validated.success) {

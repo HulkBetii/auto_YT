@@ -65,7 +65,7 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-8">
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Videos by status ({videoTotal} total)
+          Video theo trạng thái (tổng {videoTotal})
         </h2>
         <div className="flex flex-wrap gap-3">
           {videoCounts.map((row) => (
@@ -79,13 +79,13 @@ export default async function DashboardPage() {
               <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{row.count}</span>
             </div>
           ))}
-          {videoCounts.length === 0 && <p className="text-sm text-zinc-500">No videos yet.</p>}
+          {videoCounts.length === 0 && <p className="text-sm text-zinc-500">Chưa có video nào.</p>}
         </div>
       </section>
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Jobs by status ({jobTotal} total)
+          Job theo trạng thái (tổng {jobTotal})
         </h2>
         <div className="flex flex-wrap gap-3">
           {jobCounts.map((row) => (
@@ -99,22 +99,22 @@ export default async function DashboardPage() {
               <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{row.count}</span>
             </div>
           ))}
-          {jobCounts.length === 0 && <p className="text-sm text-zinc-500">No jobs yet.</p>}
+          {jobCounts.length === 0 && <p className="text-sm text-zinc-500">Chưa có job nào.</p>}
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Avg. processing time per stage
+            Thời gian xử lý trung bình theo giai đoạn
           </h2>
           <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
                 <tr>
-                  <th className="px-4 py-2">Stage</th>
-                  <th className="px-4 py-2">Avg. duration</th>
-                  <th className="px-4 py-2">Sample size</th>
+                  <th className="px-4 py-2">Giai đoạn</th>
+                  <th className="px-4 py-2">Thời lượng TB</th>
+                  <th className="px-4 py-2">Số lượng mẫu</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,7 +128,7 @@ export default async function DashboardPage() {
                 {avgDurations.length === 0 && (
                   <tr>
                     <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
-                      No finished jobs yet.
+                      Chưa có job nào hoàn thành.
                     </td>
                   </tr>
                 )}
@@ -139,19 +139,19 @@ export default async function DashboardPage() {
 
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Recent activity
+            Hoạt động gần đây
           </h2>
           <ul className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
             {recentActivity.map((row) => (
               <li key={row.id} className="flex items-center justify-between gap-3 rounded px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900">
                 <Link href={`/videos/${row.videoId}`} className="truncate text-zinc-700 hover:underline dark:text-zinc-300">
                   <span className="font-medium text-zinc-900 dark:text-zinc-50">{row.stage}</span>{" "}
-                  produced for <span className="truncate">{row.videoTitle ?? `video #${row.videoId}`}</span>
+                  đã tạo cho <span className="truncate">{row.videoTitle ?? `video #${row.videoId}`}</span>
                 </Link>
                 <span className="shrink-0 text-xs text-zinc-500">{formatRelative(row.createdAt)}</span>
               </li>
             ))}
-            {recentActivity.length === 0 && <li className="px-3 py-6 text-center text-sm text-zinc-500">No activity yet.</li>}
+            {recentActivity.length === 0 && <li className="px-3 py-6 text-center text-sm text-zinc-500">Chưa có hoạt động nào.</li>}
           </ul>
         </section>
       </div>

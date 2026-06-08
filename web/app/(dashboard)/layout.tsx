@@ -1,11 +1,11 @@
 import Link from "next/link";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/videos", label: "Videos" },
-  { href: "/prompts", label: "Prompts" },
-  { href: "/needs-attention", label: "Needs Attention" },
-  { href: "/settings", label: "Settings" },
+  { href: "/", label: "Tổng quan" },
+  { href: "/videos", label: "Video" },
+  { href: "/prompts", label: "Prompt" },
+  { href: "/needs-attention", label: "Cần chú ý" },
+  { href: "/settings", label: "Cài đặt" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

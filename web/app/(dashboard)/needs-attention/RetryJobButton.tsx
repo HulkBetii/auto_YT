@@ -14,7 +14,7 @@ export function RetryJobButton({ jobId }: { jobId: number }) {
       const res = await fetch(`/api/jobs/${jobId}/retry`, { method: "POST" });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setError(json?.error ?? "Failed to retry.");
+        setError(json?.error ?? "Thử lại thất bại.");
         return;
       }
       router.refresh();
@@ -28,7 +28,7 @@ export function RetryJobButton({ jobId }: { jobId: number }) {
         disabled={isPending}
         className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
       >
-        {isPending ? "Retrying…" : "Retry"}
+        {isPending ? "Đang thử lại…" : "Thử lại"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>

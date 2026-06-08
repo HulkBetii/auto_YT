@@ -20,7 +20,7 @@ export function YoutubeIdForm({ videoId, currentValue }: { videoId: number; curr
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setError(json?.error ?? "Failed to save.");
+        setError(json?.error ?? "Lưu thất bại.");
         return;
       }
       router.refresh();
@@ -30,12 +30,12 @@ export function YoutubeIdForm({ videoId, currentValue }: { videoId: number; curr
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
       <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-        YouTube video ID (the only required manual step post-publish)
+        YouTube video ID (bước thủ công duy nhất cần sau khi đăng)
         <div className="flex gap-2">
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="e.g. dQw4w9WgXcQ"
+            placeholder="vd: dQw4w9WgXcQ"
             className="flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
           <button
@@ -43,7 +43,7 @@ export function YoutubeIdForm({ videoId, currentValue }: { videoId: number; curr
             disabled={isPending || value.trim().length === 0}
             className="rounded bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
-            {isPending ? "Saving…" : "Save"}
+            {isPending ? "Đang lưu…" : "Lưu"}
           </button>
         </div>
       </label>

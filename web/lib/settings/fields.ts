@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 const intString = (min: number, max: number) =>
-  z.string().regex(/^\d+$/, "Must be a whole number").refine((v) => {
+  z.string().regex(/^\d+$/, "Phải là một số nguyên").refine((v) => {
     const n = Number.parseInt(v, 10);
     return n >= min && n <= max;
-  }, `Must be between ${min} and ${max}`);
+  }, `Phải nằm trong khoảng từ ${min} đến ${max}`);
 
 /**
  * Editable `channel_config` key/value rows, with per-field zod validation run
@@ -14,44 +14,44 @@ const intString = (min: number, max: number) =>
 export const SETTINGS_FIELDS = [
   {
     key: "channel_name",
-    label: "Channel name",
-    description: "Used to fill [CHANNEL_NAME] in prompt templates.",
+    label: "Tên kênh",
+    description: "Dùng để điền vào [CHANNEL_NAME] trong các mẫu prompt.",
     schema: z.string().trim().min(1).max(200),
   },
   {
     key: "p1_topics_per_batch",
-    label: "P1 topics per batch",
-    description: "How many candidate topics P1 generates per run.",
+    label: "Số chủ đề P1 mỗi lô",
+    description: "Số lượng chủ đề ứng viên mà P1 tạo ra mỗi lần chạy.",
     schema: intString(1, 50),
   },
   {
     key: "score_threshold",
-    label: "Score threshold",
-    description: "Minimum P_score (0-100) to mark a video ready_to_publish; below this, it loops back to P3 for a retry.",
+    label: "Ngưỡng điểm",
+    description: "Điểm P_score tối thiểu (0-100) để đánh dấu video ready_to_publish; thấp hơn ngưỡng này sẽ quay lại P3 để thử lại.",
     schema: intString(0, 100),
   },
   {
     key: "max_content_retries",
-    label: "Max content retries",
-    description: "How many times a video can loop through the P3 retry cycle before being flagged needs_attention.",
+    label: "Số lần thử lại tối đa",
+    description: "Số lần tối đa một video có thể lặp qua chu trình thử lại P3 trước khi bị gắn cờ needs_attention.",
     schema: intString(0, 10),
   },
   {
     key: "p6_batch_size",
-    label: "P6 batch size",
-    description: "How many freshly-analyzed videos accumulate before triggering a P6 prompt-strategy review.",
+    label: "Kích thước lô P6",
+    description: "Số video vừa được phân tích cần tích lũy trước khi kích hoạt đánh giá chiến lược prompt P6.",
     schema: intString(1, 100),
   },
   {
     key: "rollback_min_views",
-    label: "Rollback min. views",
-    description: "View-count floor a video must cross before its analytics count toward a rollback comparison.",
+    label: "Lượt xem tối thiểu để rollback",
+    description: "Ngưỡng lượt xem tối thiểu mà một video phải đạt được trước khi dữ liệu analytics của nó được tính vào so sánh rollback.",
     schema: intString(1, 1_000_000),
   },
   {
     key: "rollback_threshold_pct",
-    label: "Rollback degradation threshold (%)",
-    description: "If the new batch's average CTR drops by more than this percentage vs. the previous batch, auto-revert the prompt.",
+    label: "Ngưỡng suy giảm để rollback (%)",
+    description: "Nếu CTR trung bình của lô mới giảm nhiều hơn tỷ lệ này so với lô trước, prompt sẽ tự động được khôi phục về phiên bản cũ.",
     schema: intString(1, 100),
   },
 ] as const;

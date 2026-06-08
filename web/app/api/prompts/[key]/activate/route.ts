@@ -18,7 +18,7 @@ const bodySchema = z.object({ versionId: z.number().int().positive() });
 export async function POST(request: Request, { params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
   if (!(promptKeyEnum.enumValues as readonly string[]).includes(key)) {
-    return NextResponse.json({ ok: false, error: "Unknown prompt key" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Prompt key không xác định" }, { status: 400 });
   }
   const promptKey = key as (typeof promptKeyEnum.enumValues)[number];
 
@@ -27,10 +27,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
 
   const [source] = await db.select().from(promptVersions).where(eq(promptVersions.id, parsed.data.versionId)).limit(1);
   if (!source || source.promptKey !== promptKey) {
-    return NextResponse.json({ ok: false, error: "Version not found for this prompt key" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: "Không tìm thấy phiên bản cho prompt key này" }, { status: 404 });
   }
   if (source.isActive) {
-    return NextResponse.json({ ok: false, error: "This version is already active" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Phiên bản này đang được sử dụng rồi" }, { status: 400 });
   }
 
   const created = await activateNewPromptVersion({

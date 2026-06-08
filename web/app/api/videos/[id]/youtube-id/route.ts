@@ -12,7 +12,7 @@ const bodySchema = z.object({
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const videoId = Number.parseInt(id, 10);
-  if (!Number.isFinite(videoId)) return NextResponse.json({ ok: false, error: "Invalid video id" }, { status: 400 });
+  if (!Number.isFinite(videoId)) return NextResponse.json({ ok: false, error: "ID video không hợp lệ" }, { status: 400 });
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });

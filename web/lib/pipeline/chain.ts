@@ -203,7 +203,7 @@ async function handlePScoreDone(job: Job) {
     await updateVideoStatus(video.id, "ready_to_publish", { score: score.total_score });
     // One-way state transition (scoring -> ready_to_publish happens at most once
     // per video), so this fires exactly once — no extra idempotency flag needed.
-    await notify(`✅ <b>${video.title}</b> is ready to publish (score ${score.total_score}).`);
+    await notify(`✅ <b>${video.title}</b> đã sẵn sàng để đăng (điểm ${score.total_score}).`);
     return;
   }
 

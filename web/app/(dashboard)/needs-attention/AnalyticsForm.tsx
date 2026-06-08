@@ -16,7 +16,7 @@ export function AnalyticsForm({ videoId }: { videoId: number }) {
     const ctr = Number.parseFloat(ctrPct);
     const avd = Number.parseFloat(avdMinutes);
     if (!Number.isFinite(ctr) || !Number.isFinite(avd)) {
-      setError("Enter numeric values for both fields.");
+      setError("Hãy nhập giá trị số cho cả hai trường.");
       return;
     }
     startTransition(async () => {
@@ -27,7 +27,7 @@ export function AnalyticsForm({ videoId }: { videoId: number }) {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setError(json?.error ?? "Failed to save.");
+        setError(json?.error ?? "Lưu thất bại.");
         return;
       }
       router.refresh();
@@ -42,17 +42,17 @@ export function AnalyticsForm({ videoId }: { videoId: number }) {
           value={ctrPct}
           onChange={(e) => setCtrPct(e.target.value)}
           inputMode="decimal"
-          placeholder="e.g. 6.50"
+          placeholder="vd: 6.50"
           className="w-24 rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
         />
       </label>
       <label className="flex flex-col gap-1 text-xs text-zinc-500">
-        Avg. view duration (min)
+        Thời lượng xem TB (phút)
         <input
           value={avdMinutes}
           onChange={(e) => setAvdMinutes(e.target.value)}
           inputMode="decimal"
-          placeholder="e.g. 4.2"
+          placeholder="vd: 4.2"
           className="w-32 rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
         />
       </label>
@@ -61,7 +61,7 @@ export function AnalyticsForm({ videoId }: { videoId: number }) {
         disabled={isPending}
         className="rounded bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
       >
-        {isPending ? "Saving…" : "Save"}
+        {isPending ? "Đang lưu…" : "Lưu"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </form>

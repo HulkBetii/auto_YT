@@ -26,7 +26,7 @@ export default async function PromptDetailPage({ params }: { params: Promise<{ k
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Link href="/prompts" className="text-sm text-zinc-500 hover:underline">
-          ← All prompts
+          ← Tất cả prompt
         </Link>
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{promptKey}</h1>
       </div>
@@ -34,8 +34,8 @@ export default async function PromptDetailPage({ params }: { params: Promise<{ k
       {autoUpdatePaused === "true" && promptKey === "P1" && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
           <span>
-            Auto-update is <strong>paused</strong> — the rollback rate limit (1 per 30 days) was reached and this
-            prompt was flagged for manual review.
+            Tự động cập nhật đang <strong>bị tạm dừng</strong> — đã đạt giới hạn tần suất rollback (1 lần / 30 ngày) và
+            prompt này đã được gắn cờ để xem xét thủ công.
           </span>
           <UnpauseButton />
         </div>
@@ -51,7 +51,7 @@ export default async function PromptDetailPage({ params }: { params: Promise<{ k
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">v{version.version}</span>
                 {version.isActive && (
-                  <span className="rounded bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white">active</span>
+                  <span className="rounded bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white">đang dùng</span>
                 )}
                 <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                   {version.createdBy}
@@ -64,7 +64,7 @@ export default async function PromptDetailPage({ params }: { params: Promise<{ k
             {version.changeReason && (
               <details className="mb-2">
                 <summary className="cursor-pointer text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50">
-                  Change reason / report
+                  Lý do thay đổi / báo cáo
                 </summary>
                 <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                   {version.changeReason}
@@ -74,7 +74,7 @@ export default async function PromptDetailPage({ params }: { params: Promise<{ k
 
             <details>
               <summary className="cursor-pointer text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50">
-                Template ({version.template.length.toLocaleString()} chars)
+                Mẫu prompt ({version.template.length.toLocaleString()} ký tự)
               </summary>
               <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                 {version.template}
@@ -84,7 +84,7 @@ export default async function PromptDetailPage({ params }: { params: Promise<{ k
         ))}
         {versions.length === 0 && (
           <li className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-            No versions for this prompt key yet.
+            Chưa có phiên bản nào cho prompt key này.
           </li>
         )}
       </ol>
