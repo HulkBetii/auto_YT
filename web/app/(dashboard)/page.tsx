@@ -65,7 +65,16 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-start justify-between gap-4">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Tổng quan</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Tổng quan</h1>
+          <span
+            title="Trang tự động làm mới dữ liệu mỗi 15 giây khi đang mở"
+            className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            Tự động cập nhật
+          </span>
+        </div>
         <RunPipelineButton />
       </div>
       <section>
