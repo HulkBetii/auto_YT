@@ -71,6 +71,7 @@ async function handleP1Done(job: Job) {
     accepted++;
 
     await enqueueStage({
+      causedByJobId: job.id,
       promptKey: "P2",
       stage: "P2",
       videoId: video.id,
@@ -102,6 +103,7 @@ async function handleP2Done(job: Job) {
   await updateVideoStatus(video.id, "outline");
 
   await enqueueStage({
+    causedByJobId: job.id,
     promptKey: "P3",
     stage: "P3",
     videoId: video.id,
@@ -133,6 +135,7 @@ async function handleP3Done(job: Job) {
   const p2Content = await getLatestVideoContent(video.id, "P2");
 
   await enqueueStage({
+    causedByJobId: job.id,
     promptKey: "P4",
     stage: "P4",
     videoId: video.id,
@@ -171,6 +174,7 @@ async function handleP4Done(job: Job) {
 
   await updateVideoStatus(video.id, "scoring");
   await enqueueStage({
+    causedByJobId: job.id,
     promptKey: "P_score",
     stage: "P_score",
     videoId: video.id,
@@ -214,6 +218,7 @@ async function handlePScoreDone(job: Job) {
       retryCount: video.retryCount + 1,
     });
     await enqueueStage({
+      causedByJobId: job.id,
       promptKey: "P3",
       stage: "P3",
       videoId: video.id,
@@ -310,29 +315,34 @@ async function handleP6Done(job: Job) {
  * Chains a single completed job onward per the pipeline state machine, then
  * marks it consumed so the cron never double-processes it.
  *
- * KNOWN RISK (found during a 2026-06-08 review pass, not yet hit live):
- * `consumed_at` is stamped *after* the handler runs, not before — so the
- * handlers are NOT actually idempotent despite the old comment here claiming
- * otherwise. If a handler throws partway through (e.g. handleP4Done crashes
- * between `updateVideoStatus("seo_done")` and `enqueueStage("P_score")`, or
- * right after `enqueueStage` but before this function reaches
- * `markJobConsumed`), the cron's per-job try/catch in process-jobs/route.ts
- * swallows the error and logs it into `results`, but `consumed_at` is still
- * NULL — so `listUnconsumedDoneJobs` hands the very same job back on the next
- * tick and the WHOLE handler re-runs from scratch: `saveVideoContent` inserts
- * a duplicate `video_content` row, `enqueueStage` creates a second `P_score`
- * (or P5/P6/etc.) job with no dedup check (see createJob.ts — unconditional
- * insert), which can cascade into double-scoring and a duplicate "ready to
- * publish" Telegram alert via handlePScoreDone.
+ * PARTIALLY-MITIGATED RISK (found + patched during a 2026-06-08 review pass,
+ * never hit live): `consumed_at` is stamped *after* the handler runs, not
+ * before — so handlers are NOT fully idempotent despite the old comment here
+ * claiming otherwise. If a handler throws partway through (e.g. handleP4Done
+ * crashes between `updateVideoStatus("seo_done")` and `enqueueStage`, or right
+ * after `enqueueStage` but before this function reaches `markJobConsumed`),
+ * the cron's per-job try/catch in process-jobs/route.ts swallows the error
+ * into `results`, but `consumed_at` stays NULL — so `listUnconsumedDoneJobs`
+ * hands the very same job back next tick and the WHOLE handler re-runs.
  *
- * Not fixed here because the proper fix (stamping `consumed_at` first trades
- * this for silent-skip-on-crash — the same class of bug as the stale-
- * consumed_at strand fixed in /api/jobs/:id/retry — or wrapping each handler
- * + markJobConsumed in one transaction, which the Neon HTTP driver this repo
- * uses doesn't support) needs a deliberate architecture decision, not a
- * drive-by patch. Until then: `consumed_at` remains the actual guard against
- * re-running on a *successful* pass, but offers no protection against a
- * *failed* one.
+ * The dangerous half of that — `enqueueStage` inserting a second downstream
+ * job (double P_score → double-scoring → duplicate "ready to publish" alert,
+ * etc) — is now guarded: every `enqueueStage` call below passes
+ * `causedByJobId: job.id`, and `enqueueStage`/`findJobByCause` (see
+ * createJob.ts / db/repo/jobs.ts) skip the insert if a job with that exact
+ * (cause job, stage, video) triple already exists. Re-running the handler
+ * after a crash now just returns the already-created job instead of making a
+ * sibling.
+ *
+ * Still NOT fully solved: `saveVideoContent` has no equivalent guard, so a
+ * re-run still inserts a duplicate `video_content` row for the stage (cosmetic
+ * — `getLatestVideoContent` always reads the newest one — but worth cleaning
+ * up later), and `handleP1Done`'s loop creates brand-new `videos` rows each
+ * pass (its `causedByJobId` check can't match an existing entry because the
+ * video id itself differs run-to-run); that's only loosely mitigated by
+ * `isDuplicateTopic`'s person/embedding checks rejecting the re-offered topic.
+ * A full fix there would mean making `createVideo` idempotent per source
+ * topic — left as a known follow-up, not a drive-by patch.
  */
 export async function processDoneJob(jobId: number) {
   const job = await getJob(jobId);
