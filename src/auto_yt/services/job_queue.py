@@ -124,13 +124,26 @@ async def retry_transient_job(dsn: str, job_id: int, *, error_message: str, retr
 
 
 async def requeue_job(dsn: str, job_id: int) -> None:
-    """Reset a failed job back to pending for another attempt (used by retry logic)."""
+    """Reset a failed job back to pending for another attempt.
+
+    NOTE: dead code from this worker's point of view — the only sanctioned
+    revival path for a hard-failed job is the Next.js dashboard's authenticated
+    `POST /api/jobs/:id/retry` route (web/app/api/jobs/[id]/retry/route.ts),
+    which performs the equivalent reset directly via Drizzle. Kept here (a)
+    for parity/documentation of what a "clean requeue" must reset, and (b) in
+    case a future worker-side requeue path is added — in which case, MUST also
+    clear `consumed_at`, exactly like the dashboard route now does (see its
+    docstring for the stranded-job bug this guards against: a job whose
+    failure was already notified — `consumed_at` stamped — getting retried,
+    completing successfully, and then being silently skipped forever by
+    `processDoneJob`'s `if (... || job.consumedAt) return` guard)."""
     conn = await asyncpg.connect(dsn)
     try:
         await conn.execute(
             """
             UPDATE jobs
-            SET status = 'pending', error_message = NULL, started_at = NULL, finished_at = NULL
+            SET status = 'pending', error_message = NULL, started_at = NULL,
+                finished_at = NULL, consumed_at = NULL
             WHERE id = $1
             """,
             job_id,

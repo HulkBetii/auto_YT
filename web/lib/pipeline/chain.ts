@@ -308,9 +308,31 @@ async function handleP6Done(job: Job) {
 
 /**
  * Chains a single completed job onward per the pipeline state machine, then
- * marks it consumed so the cron never double-processes it. Each handler is
- * idempotent-ish in intent, but `consumed_at` is the actual guard against
- * re-running on the next poll.
+ * marks it consumed so the cron never double-processes it.
+ *
+ * KNOWN RISK (found during a 2026-06-08 review pass, not yet hit live):
+ * `consumed_at` is stamped *after* the handler runs, not before — so the
+ * handlers are NOT actually idempotent despite the old comment here claiming
+ * otherwise. If a handler throws partway through (e.g. handleP4Done crashes
+ * between `updateVideoStatus("seo_done")` and `enqueueStage("P_score")`, or
+ * right after `enqueueStage` but before this function reaches
+ * `markJobConsumed`), the cron's per-job try/catch in process-jobs/route.ts
+ * swallows the error and logs it into `results`, but `consumed_at` is still
+ * NULL — so `listUnconsumedDoneJobs` hands the very same job back on the next
+ * tick and the WHOLE handler re-runs from scratch: `saveVideoContent` inserts
+ * a duplicate `video_content` row, `enqueueStage` creates a second `P_score`
+ * (or P5/P6/etc.) job with no dedup check (see createJob.ts — unconditional
+ * insert), which can cascade into double-scoring and a duplicate "ready to
+ * publish" Telegram alert via handlePScoreDone.
+ *
+ * Not fixed here because the proper fix (stamping `consumed_at` first trades
+ * this for silent-skip-on-crash — the same class of bug as the stale-
+ * consumed_at strand fixed in /api/jobs/:id/retry — or wrapping each handler
+ * + markJobConsumed in one transaction, which the Neon HTTP driver this repo
+ * uses doesn't support) needs a deliberate architecture decision, not a
+ * drive-by patch. Until then: `consumed_at` remains the actual guard against
+ * re-running on a *successful* pass, but offers no protection against a
+ * *failed* one.
  */
 export async function processDoneJob(jobId: number) {
   const job = await getJob(jobId);
