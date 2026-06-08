@@ -195,25 +195,33 @@ class TabManager:
             return await self._new_logged_in_page()
         return await self._get_video_page(video_id)
 
-    async def close_if_finished(self, dsn: str, job: dict) -> None:
-        """After completing a job, close & forget that video's tab once it has
-        reached a terminal status — frees resources without losing context for
-        videos that are still mid-pipeline (including needs_retry loops)."""
-        video_id = job.get("video_id")
-        if video_id is None or video_id not in self.video_pages:
-            return
-        try:
-            status = await fetch_video_status(dsn, video_id)
-        except Exception:
-            return
-        if status in TERMINAL_VIDEO_STATUSES:
-            page = self.video_pages.pop(video_id, None)
-            if page is not None:
-                logger.info("Video #%s reached '%s' — closing its dedicated tab.", video_id, status)
-                try:
-                    await page.close()
-                except Exception:
-                    pass
+    async def sweep_terminal_tabs(self, dsn: str) -> None:
+        """Close & forget any open per-video tab whose video has reached a
+        terminal status, freeing resources without losing context for videos
+        still mid-pipeline (including needs_retry loops).
+
+        This has to be a periodic sweep over *all* open tabs rather than a
+        one-shot check right after this worker completes a job: the actual
+        status write (e.g. scoring -> ready_to_publish) happens later and
+        asynchronously, performed by the Next.js orchestrator's job-chaining
+        cron when it consumes the job we just marked 'done' — not by us. So
+        "check this video's status immediately after finishing its job" is
+        structurally always one beat too early for that video's *last* job
+        (there's no follow-up job to trigger a recheck). Sweeping every poll
+        tick catches the transition whenever the cron actually lands it."""
+        for video_id, page in list(self.video_pages.items()):
+            try:
+                status = await fetch_video_status(dsn, video_id)
+            except Exception:
+                continue
+            if status in TERMINAL_VIDEO_STATUSES:
+                page = self.video_pages.pop(video_id, None)
+                if page is not None:
+                    logger.info("Video #%s reached '%s' — closing its dedicated tab.", video_id, status)
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
 
     async def close_all(self) -> None:
         for video_id, page in list(self.video_pages.items()):
@@ -303,13 +311,14 @@ async def run() -> None:
             try:
                 job = await claim_next_job(dsn)
                 if job is None:
+                    await tabs.sweep_terminal_tabs(dsn)
                     await record_heartbeat(dsn, "running")
                     await asyncio.sleep(POLL_INTERVAL_S)
                     continue
 
                 page = await tabs.get_page_for(job)
                 await process_job(page, dsn, job)
-                await tabs.close_if_finished(dsn, job)
+                await tabs.sweep_terminal_tabs(dsn)
                 await record_heartbeat(dsn, "running")
             except (ChatGPTLoginError, ChatGPTResponseError) as exc:
                 logger.error("ChatGPT error during poll loop: %s", exc)
