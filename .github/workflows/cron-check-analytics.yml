@@ -1,0 +1,18 @@
+name: Cron - check-analytics
+
+# Polls YouTube Data API for view-count thresholds that trigger P5/P6
+# (analysis + prompt-rewrite batches). Runs every 6 hours.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call-check-analytics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/check-analytics
+        run: |
+          curl -sS -f -X GET \
+            -H "Authorization: Bearer ${{ secrets.DASHBOARD_SECRET }}" \
+            "${{ vars.PIPELINE_BASE_URL }}/api/cron/check-analytics"

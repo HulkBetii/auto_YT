@@ -1,0 +1,19 @@
+name: Cron - check-worker
+
+# Detects a worker that stalled mid-run (status="running" but no heartbeat for
+# > 30 min). Runs every 10 minutes — see web/app/api/cron/check-worker/route.ts
+# for the full healthy/graceful-stop/stalled state machine and idempotency notes.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call-check-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/check-worker
+        run: |
+          curl -sS -f -X GET \
+            -H "Authorization: Bearer ${{ secrets.DASHBOARD_SECRET }}" \
+            "${{ vars.PIPELINE_BASE_URL }}/api/cron/check-worker"

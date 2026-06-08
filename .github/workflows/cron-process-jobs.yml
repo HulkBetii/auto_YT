@@ -1,0 +1,20 @@
+name: Cron - process-jobs
+
+# Vercel Hobby plan only allows daily cron schedules, but the pipeline needs
+# near-real-time job chaining (P1 -> P2 -> P3 -> P4 -> P_score). GitHub Actions
+# scheduled workflows fill the gap for free; 5 minutes is the practical minimum
+# GitHub honors reliably (more frequent schedules get throttled/skipped under load).
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call-process-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/process-jobs
+        run: |
+          curl -sS -f -X GET \
+            -H "Authorization: Bearer ${{ secrets.DASHBOARD_SECRET }}" \
+            "${{ vars.PIPELINE_BASE_URL }}/api/cron/process-jobs"
