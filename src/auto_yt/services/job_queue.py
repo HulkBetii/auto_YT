@@ -75,11 +75,16 @@ async def complete_job(dsn: str, job_id: int, *, result: str) -> None:
 
 
 async def fail_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
-    """Mark a job failed and record the error + updated retry counter.
+    """Mark a job permanently/terminally failed and record the error +
+    final retry counter. Hard-failed jobs are terminal — nothing in the
+    Next.js orchestrator's chain.ts ever consumes them; they surface on the
+    Needs Attention dashboard + a Telegram alert and require a manual
+    POST /api/jobs/:id/retry to come back to life.
 
-    The orchestrator (Next.js cron) decides whether to requeue based on
-    retry_count vs its own retry-budget config — this function only persists state.
-    """
+    Call this either for non-transient errors (unexpected exceptions — likely
+    real bugs, not worth auto-retrying) or once a transient failure has
+    exhausted its retry budget (see retry_transient_job + worker.py's
+    MAX_TRANSIENT_RETRIES / process_job)."""
     conn = await asyncpg.connect(dsn)
     try:
         await conn.execute(
@@ -91,6 +96,29 @@ async def fail_job(dsn: str, job_id: int, *, error_message: str, retry_count: in
             job_id, error_message, retry_count,
         )
         logger.info("Failed job id=%s retry_count=%s: %s", job_id, retry_count, error_message)
+    finally:
+        await conn.close()
+
+
+async def retry_transient_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
+    """Send a job that hit a *transient* failure (ChatGPT timeout/hiccup) back
+    to 'pending' for another automatic attempt — unlike fail_job, this keeps
+    the job alive in the queue. Persists the incremented retry_count and the
+    error text (for visibility on the dashboard) so the caller's retry-budget
+    check (worker.py: MAX_TRANSIENT_RETRIES) has up-to-date state to compare
+    against on the next attempt, and can hard-fail once the budget runs out."""
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            """
+            UPDATE jobs
+            SET status = 'pending', error_message = $2, retry_count = $3,
+                started_at = NULL, finished_at = NULL
+            WHERE id = $1
+            """,
+            job_id, error_message, retry_count,
+        )
+        logger.info("Requeued job id=%s for transient retry (attempt %d)", job_id, retry_count)
     finally:
         await conn.close()
 

@@ -26,7 +26,7 @@ from playwright.async_api import async_playwright
 from auto_yt.paths import ACCOUNT_PATH, DATA_DIR, gpt_profile_dir
 from auto_yt.services.chat_gpt import ChatGPTResponseError, send_prompt
 from auto_yt.services.chatgpt_login import ChatGPTLoginError, login_gpt_auto, restore_session
-from auto_yt.services.job_queue import claim_next_job, complete_job, fail_job
+from auto_yt.services.job_queue import claim_next_job, complete_job, fail_job, retry_transient_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +34,14 @@ logger = logging.getLogger(__name__)
 DB_CONFIG_PATH = DATA_DIR / "db_config.json"
 POLL_INTERVAL_S = 15
 PROMPT_TIMEOUT_S = 240
+
+# How many times a *transient* ChatGPT failure (timeout, no-response, etc. —
+# ChatGPTResponseError) gets automatically retried in-place before the job is
+# hard-failed (terminal `failed` status + Telegram alert + manual /retry
+# needed). Caught live during e2e testing 2026-06-08: this constant existed
+# but was never actually consulted — every transient hiccup (e.g. "No new
+# assistant message appeared within 240s", which happens routinely under
+# normal ChatGPT load) went straight to a hard failure. See process_job.
 MAX_TRANSIENT_RETRIES = 3
 
 
@@ -268,8 +276,18 @@ async def process_job(page, dsn: str, job: dict) -> None:
         response = await send_prompt(prompt_text, page, timeout_s=PROMPT_TIMEOUT_S)
     except ChatGPTResponseError as exc:
         next_retry = retry_count + 1
-        logger.warning("Job id=%s transient failure (attempt %d): %s", job_id, next_retry, exc)
-        await fail_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
+        if next_retry <= MAX_TRANSIENT_RETRIES:
+            logger.warning(
+                "Job id=%s transient failure (attempt %d/%d) — requeuing for retry: %s",
+                job_id, next_retry, MAX_TRANSIENT_RETRIES, exc,
+            )
+            await retry_transient_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
+        else:
+            logger.warning(
+                "Job id=%s exhausted %d transient retries — hard-failing: %s",
+                job_id, MAX_TRANSIENT_RETRIES, exc,
+            )
+            await fail_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
         return
     except Exception as exc:  # noqa: BLE001 - surface unexpected errors as a failed job, not a crash
         logger.exception("Job id=%s unexpected error", job_id)
