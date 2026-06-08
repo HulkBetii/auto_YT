@@ -72,56 +72,6 @@ async def _page_alive(page) -> bool:
         return False
 
 
-async def ensure_session(pw, ctx, page, account: dict):
-    """Recover from a dead ChatGPT page/context.
-
-    The worker runs unattended for hours; if the tab crashes, gets closed, or
-    a stray navigation tears down the frame, every subsequent job would
-    otherwise fail instantly with TargetClosedError forever — while the
-    heartbeat keeps reporting "running" (a false-positive health signal that
-    `check-worker` can't catch, since it only watches for *missing* heartbeats).
-
-    Tries the cheap fix first (open a fresh tab in the same persistent
-    context — the common case: tab died, browser process alive), then falls
-    back to relaunching the whole context if that also fails.
-
-    Returns (ctx, page) — both may be replaced.
-    """
-    if await _page_alive(page):
-        return ctx, page
-
-    logger.warning("ChatGPT page/context appears dead — attempting recovery...")
-    try:
-        new_page = await ctx.new_page()
-        new_page.set_default_timeout(60_000)
-        result = await ensure_logged_in(new_page, account)
-        logger.info("Recovered via new tab in existing context. Logged in user: %s", result.get("user", {}))
-        try:
-            await page.close()
-        except Exception:
-            pass
-        return ctx, new_page
-    except Exception as exc:
-        logger.warning("New-tab recovery failed (%s) — relaunching browser context...", exc)
-
-    try:
-        await ctx.close()
-    except Exception:
-        pass
-
-    new_ctx = await pw.chromium.launch_persistent_context(
-        str(gpt_profile_dir("PROFILE_GPT_1")),
-        headless=False,
-        args=["--disable-blink-features=AutomationControlled"],
-        viewport={"width": 1280, "height": 800},
-    )
-    new_page = new_ctx.pages[0] if new_ctx.pages else await new_ctx.new_page()
-    new_page.set_default_timeout(60_000)
-    result = await ensure_logged_in(new_page, account)
-    logger.info("Recovered by relaunching browser context. Logged in user: %s", result.get("user", {}))
-    return new_ctx, new_page
-
-
 async def ensure_logged_in(page, account: dict) -> dict:
     saved_cookies = account.get("session_cookie", [])
     if saved_cookies:
@@ -132,6 +82,152 @@ async def ensure_logged_in(page, account: dict) -> dict:
             logger.warning("restore_session failed: %s", exc)
     logger.info("Falling back to full login...")
     return await login_gpt_auto(account, page)
+
+
+# Video statuses at which a per-video ChatGPT tab is no longer needed and gets
+# closed to free resources. `needs_retry` is intentionally excluded — the video
+# isn't done, and reusing the same conversation for the retry lets ChatGPT see
+# why its previous attempt scored low. P5/P6 (which only happen much later,
+# once analytics roll in) get a *fresh* tab when their time comes — simpler
+# than keeping hundreds of idle tabs alive for weeks.
+TERMINAL_VIDEO_STATUSES = ("ready_to_publish", "needs_attention")
+
+
+async def fetch_video_status(dsn: str, video_id: int) -> str | None:
+    conn = await asyncpg.connect(dsn)
+    try:
+        return await conn.fetchval("SELECT status FROM videos WHERE id = $1", video_id)
+    finally:
+        await conn.close()
+
+
+class TabManager:
+    """Owns one Playwright page (= one ChatGPT conversation) per "routing key"
+    so unrelated pieces of content never bleed context into each other, and
+    related stages of the *same* piece keep their shared context:
+
+      - P1 (topic generation) always runs in a single dedicated, long-lived
+        "topic reservoir" tab/conversation. Reusing the same thread across
+        every P1 run means ChatGPT can see every topic it has ever proposed
+        and naturally avoid repeating itself — a second line of defense on
+        top of the embedding-based anti-dup check in the orchestrator.
+        ("Pinning" a tab is a Chrome tab-strip UI affordance with no
+        Playwright/CDP automation hook — see _try_pin below; what actually
+        matters for correctness is that *this exact Page object* is reused,
+        which is what we guarantee here regardless of its visual pin state.)
+
+      - P2..P_score (and later P5/P6) each get their own tab/conversation,
+        keyed by video_id, lazily opened on first use and reused across that
+        video's remaining stages — so e.g. a P3 retry can "see" the P2
+        outline it's continuing from, without any cross-video noise.
+
+    Dead tabs (crashed, closed, torn-down frame — the TargetClosedError class
+    of failure that used to wedge the whole worker, see git history) are
+    detected via `_page_alive` and transparently replaced on next use.
+    """
+
+    def __init__(self, ctx, account: dict):
+        self.ctx = ctx
+        self.account = account
+        self.topic_page = None
+        self.video_pages: dict[int, object] = {}
+
+    async def _new_logged_in_page(self):
+        page = await self.ctx.new_page()
+        page.set_default_timeout(60_000)
+        result = await ensure_logged_in(page, self.account)
+        logger.info("New ChatGPT tab ready. Logged in user: %s", result.get("user", {}))
+        return page
+
+    async def _try_pin(self, page) -> None:
+        """Best-effort cosmetic pin — Chrome's tab-strip pin state isn't part
+        of the page/target model CDP exposes, so there is nothing reliable to
+        call here. We deliberately don't fake it with fragile UI clicking on
+        browser chrome (which Playwright can't even address). If you want the
+        topic tab visually pinned for your own monitoring, right-click it in
+        the visible browser window — it has zero effect on automation either
+        way, since what matters is that we keep reusing the same Page object."""
+        return
+
+    async def bootstrap(self) -> None:
+        """Open & log into the topic-reservoir tab eagerly at startup so a
+        broken login surfaces immediately rather than on the first P1 job."""
+        await self._get_topic_page()
+
+    async def _get_topic_page(self):
+        if self.topic_page is None or not await _page_alive(self.topic_page):
+            if self.topic_page is not None:
+                logger.warning("Topic-reservoir tab is dead — reopening (e.g. account/profile changed)...")
+                try:
+                    await self.topic_page.close()
+                except Exception:
+                    pass
+            logger.info("Opening dedicated 'topic reservoir' tab for P1...")
+            self.topic_page = await self._new_logged_in_page()
+            await self._try_pin(self.topic_page)
+        return self.topic_page
+
+    async def _get_video_page(self, video_id: int):
+        page = self.video_pages.get(video_id)
+        if page is None or not await _page_alive(page):
+            if page is not None:
+                logger.warning("Tab for video #%s is dead — reopening...", video_id)
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            logger.info("Opening dedicated tab for video #%s...", video_id)
+            page = await self._new_logged_in_page()
+            self.video_pages[video_id] = page
+        return page
+
+    async def get_page_for(self, job: dict):
+        """Routes a claimed job to the right conversation: the shared topic
+        reservoir for P1, or this video's dedicated tab for everything else."""
+        if job["stage"] == "P1":
+            return await self._get_topic_page()
+        video_id = job.get("video_id")
+        if video_id is None:
+            # Defensive fallback — every non-P1 stage carries a video_id in
+            # practice (enforced by the orchestrator), but never crash the
+            # loop over a missing one; just use a scratch tab for this job.
+            logger.warning("Job id=%s stage=%s has no video_id — using a scratch tab", job["id"], job["stage"])
+            return await self._new_logged_in_page()
+        return await self._get_video_page(video_id)
+
+    async def close_if_finished(self, dsn: str, job: dict) -> None:
+        """After completing a job, close & forget that video's tab once it has
+        reached a terminal status — frees resources without losing context for
+        videos that are still mid-pipeline (including needs_retry loops)."""
+        video_id = job.get("video_id")
+        if video_id is None or video_id not in self.video_pages:
+            return
+        try:
+            status = await fetch_video_status(dsn, video_id)
+        except Exception:
+            return
+        if status in TERMINAL_VIDEO_STATUSES:
+            page = self.video_pages.pop(video_id, None)
+            if page is not None:
+                logger.info("Video #%s reached '%s' — closing its dedicated tab.", video_id, status)
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+
+    async def close_all(self) -> None:
+        for video_id, page in list(self.video_pages.items()):
+            try:
+                await page.close()
+            except Exception:
+                pass
+        self.video_pages.clear()
+        if self.topic_page is not None:
+            try:
+                await self.topic_page.close()
+            except Exception:
+                pass
+            self.topic_page = None
 
 
 async def record_heartbeat(dsn: str, status: str) -> None:
@@ -186,26 +282,34 @@ async def run() -> None:
         args=["--disable-blink-features=AutomationControlled"],
         viewport={"width": 1280, "height": 800},
     )
-    page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-    page.set_default_timeout(60_000)
+
+    # Close whatever blank tab the persistent profile opens by default — every
+    # conversation we use from here on is opened (and logged in) on demand by
+    # TabManager, keyed by what the job actually is (P1 reservoir vs. per-video).
+    for stray in list(ctx.pages):
+        try:
+            await stray.close()
+        except Exception:
+            pass
+
+    tabs = TabManager(ctx, account)
 
     try:
-        result = await ensure_logged_in(page, account)
-        logger.info("Logged in user: %s", result.get("user", {}))
+        await tabs.bootstrap()
         await record_heartbeat(dsn, "running")
 
         logger.info("Worker started — polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL_S)
         while True:
             try:
-                ctx, page = await ensure_session(pw, ctx, page, account)
-
                 job = await claim_next_job(dsn)
                 if job is None:
                     await record_heartbeat(dsn, "running")
                     await asyncio.sleep(POLL_INTERVAL_S)
                     continue
 
+                page = await tabs.get_page_for(job)
                 await process_job(page, dsn, job)
+                await tabs.close_if_finished(dsn, job)
                 await record_heartbeat(dsn, "running")
             except (ChatGPTLoginError, ChatGPTResponseError) as exc:
                 logger.error("ChatGPT error during poll loop: %s", exc)
@@ -213,11 +317,12 @@ async def run() -> None:
             except asyncpg.PostgresError as exc:
                 logger.error("Database error during poll loop: %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
-            except Exception as exc:  # noqa: BLE001 - keep the loop alive; a session-recovery hiccup shouldn't crash the whole worker
+            except Exception as exc:  # noqa: BLE001 - keep the loop alive; a tab-recovery hiccup shouldn't crash the whole worker
                 logger.exception("Unexpected error during poll loop: %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
     finally:
         await record_heartbeat(dsn, "stopped")
+        await tabs.close_all()
         await ctx.close()
         await pw.stop()
 
