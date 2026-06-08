@@ -54,11 +54,18 @@ Tất cả secrets đã được set ở cả `web/.env.local` (local dev) **và
   - Đã set GitHub repo secret `DASHBOARD_SECRET` + repo variable `PIPELINE_BASE_URL=https://web-three-eta-70.vercel.app`
   - Có thể trigger thủ công qua tab Actions (mỗi workflow đều có `workflow_dispatch`)
 
-## ⚠️ Việc còn lại trước khi chạy production thật
+## ✅ Worker & Kickoff cron — TRẠNG THÁI (cập nhật 2026-06-08)
 
-1. Khởi chạy worker (`src/auto_yt/worker.py`) trên máy Mac cá nhân — heartbeat ghi vào `channel_config.worker_heartbeat`.
-2. Theo dõi tab **Actions** trên GitHub vài giờ đầu để xác nhận 3 workflow cron chạy đúng lịch (GitHub có thể trễ vài phút so với lịch khai báo dưới tải cao — đây là giới hạn đã biết của GitHub Actions scheduled workflows, không phải lỗi).
-3. *(Tùy chọn)* Nếu muốn polling chính xác hơn (đúng mỗi phút như thiết kế gốc), cân nhắc nâng cấp Vercel Pro (~$20/tháng) để dùng cron native — đã loại bỏ phương án này theo lựa chọn ban đầu của user (ưu tiên miễn phí).
+- **Worker đang chạy** trên Mac (nohup, ghi log vào `worker.log`), heartbeat OK, đã login ChatGPT, **đã xác nhận luôn dùng Thinking mode** (xem mục bug bên dưới).
+- **Phát hiện bug nghiêm trọng**: dashboard production trống (0 video, 0 job) vì **chưa từng có gì khởi động lô P1 đầu tiên**. Đã sửa — xem mục Bug bên dưới (`generate-topics` cron).
+- Job #23 (P1 — tạo chủ đề lô đầu tiên) đã được tạo thủ công và đang chờ worker xử lý.
+
+## ⚠️ Việc còn lại trước khi go-live hoàn toàn
+
+1. Theo dõi vài giờ đầu để xác nhận chuỗi P1→P2→P3→P4→P_score chạy hết và video đầu tiên đạt `ready_to_publish`.
+2. Theo dõi tab **Actions** trên GitHub để xác nhận 3 workflow cron chạy đúng lịch (GitHub có thể trễ vài phút dưới tải cao — giới hạn đã biết, không phải lỗi).
+3. *(Tùy chọn)* Nếu muốn polling chính xác hơn (đúng mỗi phút như thiết kế gốc), cân nhắc nâng cấp Vercel Pro (~$20/tháng) — đã loại bỏ phương án này theo lựa chọn ban đầu của user (ưu tiên miễn phí).
+4. Worker sẽ dừng khi Mac tắt/ngủ — khởi động lại bằng: `cd /Users/sangspm/Documents/auto_YT && nohup python3 -m src.auto_yt.worker > worker.log 2>&1 &`
 
 ---
 
@@ -66,6 +73,7 @@ Tất cả secrets đã được set ở cả `web/.env.local` (local dev) **và
 
 - **`db.transaction()` không được neon-http driver hỗ trợ** (Phase 5): `activateNewPromptVersion` lẽ ra sẽ fail mọi lần ghi đè prompt P6/rollback trong production. Đã sửa bằng cách chạy 2 statement tuần tự, dựa vào partial unique index `prompt_versions_one_active_per_key` làm cơ chế đảm bảo tính nhất quán.
 - **`DASHBOARD_SECRET=""` placeholder rỗng** (Phase 6): vô hiệu hóa hoàn toàn cổng xác thực dashboard VÀ Bearer auth cho cron routes. Đã tạo secret thật bằng `openssl rand -hex 24`.
+- **Thiếu cron khởi động lô P1 đầu tiên** (phát hiện sau khi deploy production — dashboard trống hoàn toàn, 0 video/0 job): plan gốc gọi rõ một cron riêng `generate-topics` để tự tạo lô chủ đề mới khi pipeline rảnh, nhưng cron này chưa từng được build trong Phase 3 — `processDoneJob` chỉ biết "nối tiếp" job đã tồn tại, không có gì "khởi động" job đầu tiên. Đã tạo `web/app/api/cron/generate-topics/route.ts` (kiểm tra "có lô đang chạy dở không" rồi mới tạo job P1 mới kèm ngữ cảnh chống trùng), lên lịch hàng tuần (thứ Hai) trong `vercel.json`, và **kích hoạt thủ công ngay sau khi deploy** để bắt đầu lô đầu tiên (job #23) thay vì chờ tới thứ Hai tuần sau.
 
 ---
 
