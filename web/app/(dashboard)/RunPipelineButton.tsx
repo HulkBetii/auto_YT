@@ -8,6 +8,7 @@ interface CycleResult {
   processed: number;
   failedNotified: number;
   results: Array<{ jobId: number; ok: boolean; error?: string }>;
+  newBatch?: { triggered: boolean; reason?: string; jobId?: number };
   error?: string;
 }
 
@@ -19,8 +20,16 @@ interface CycleResult {
  * scheduler, completed jobs pile up with consumed_at = NULL and the pipeline
  * visibly stalls after each stage).
  *
- * Shows a short summary of what just got chained (and any per-job errors) so
- * the operator gets the same feedback `curl .../process-jobs` would give,
+ * As of the 2026-06-08 update, one click now does TWO things server-side (see
+ * /api/jobs/process-now): (1) chains forward any finished jobs, AND (2) tries
+ * to start a brand-new P1 batch (more videos!) if nothing is currently in
+ * flight — the same guarded check generate-topics uses, which on this project
+ * only runs weekly. So this is a genuine "chạy thêm 1 lượt worker, tạo thêm
+ * video" button, not just an unstall button for the current batch.
+ *
+ * Shows a short summary of what just got chained, any per-job errors, and
+ * whether a new batch was started (or why not) — the operator gets the same
+ * feedback `curl .../process-jobs` + `curl .../generate-topics` would give,
  * without needing the bearer secret.
  */
 export function RunPipelineButton() {
@@ -64,6 +73,23 @@ export function RunPipelineButton() {
                 Đã xử lý {summary.processed} job
                 {summary.failedNotified > 0 ? `, cảnh báo ${summary.failedNotified} job lỗi` : ""}.
               </span>
+              {summary.newBatch && (
+                <div className="mt-1">
+                  {summary.newBatch.triggered ? (
+                    <span className="text-emerald-600">
+                      ✓ Đã khởi động lô video mới (job #{summary.newBatch.jobId}).
+                    </span>
+                  ) : (
+                    <span>
+                      Chưa tạo lô mới — {summary.newBatch.reason === "a batch is already in flight (videos not yet ready_to_publish/published)"
+                        ? "lô hiện tại chưa xong."
+                        : summary.newBatch.reason === "a job is already pending/running"
+                          ? "đang có job đang chạy."
+                          : summary.newBatch.reason}
+                    </span>
+                  )}
+                </div>
+              )}
               {failedJobs.length > 0 && (
                 <ul className="mt-1 text-red-600">
                   {failedJobs.map((r) => (

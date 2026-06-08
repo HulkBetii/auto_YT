@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { maybeStartNewBatch } from "@/lib/pipeline/batch";
 import { runChainCycle } from "@/lib/pipeline/chain";
 
 export const maxDuration = 300;
@@ -17,12 +18,26 @@ export const maxDuration = 300;
  * completed jobs pile up with `consumed_at = NULL` and the pipeline visibly
  * stalls after each stage ("dừng ở 5 topic"). This button lets the operator
  * manually advance the pipeline by one tick from the dashboard instead of
- * having to curl the cron endpoint with the bearer secret. It calls the exact
- * same `runChainCycle` the cron route does — single source of truth, see
- * chain.ts's docstring on that function for the full story and the proper
- * long-term fix (external scheduler / Claude scheduled-tasks).
+ * having to curl the cron endpoint with the bearer secret.
+ *
+ * Two things happen, mirroring the two cron jobs that would otherwise drive
+ * the system end-to-end:
+ *  1. `runChainCycle` — chain forward any `done` jobs (same as process-jobs,
+ *     which polls every minute when registered).
+ *  2. `maybeStartNewBatch` — if nothing is in flight, also kick off a fresh P1
+ *     batch (same guarded logic as generate-topics, which on this project only
+ *     runs WEEKLY — "0 0 * * 1" — so on-demand triggering here is the
+ *     difference between waiting up to 7 days and getting a new batch of
+ *     videos started right now). This is what makes the button a genuine
+ *     "run the worker again, make more videos" control, not just an unstall
+ *     button for the current batch.
+ *
+ * Both delegate to the exact same shared implementations their respective
+ * cron routes use — single source of truth, see chain.ts / batch.ts.
  */
 export async function POST() {
   const { processed, results, failedNotified } = await runChainCycle();
-  return NextResponse.json({ ok: true, processed, results, failedNotified });
+  const newBatch = await maybeStartNewBatch();
+
+  return NextResponse.json({ ok: true, processed, results, failedNotified, newBatch });
 }
