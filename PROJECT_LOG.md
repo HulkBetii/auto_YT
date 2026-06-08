@@ -25,15 +25,40 @@ Kế hoạch gốc: `~/.claude/plans/t-t-t-c-c-c-scalable-pebble-agent-aa00d898b
 
 ---
 
+## ✅ Tài nguyên / credentials — TRẠNG THÁI (cập nhật 2026-06-08)
+
+Tất cả secrets đã được set ở cả `web/.env.local` (local dev) **và** Vercel project env vars (production):
+
+| Biến | Trạng thái | Mục đích |
+|---|---|---|
+| `DATABASE_URL` | ✅ set | Neon Postgres |
+| `OPENAI_API_KEY` | ✅ set | Embeddings — chống trùng nội dung (Phase 4) |
+| `YOUTUBE_API_KEY` | ✅ set | Theo dõi view-count → trigger P5/P6 (Phase 5) |
+| `TELEGRAM_BOT_TOKEN` | ✅ set (bot `@rp_yt_bot`) | Gửi cảnh báo |
+| `TELEGRAM_CHAT_ID` | ✅ set (`5145120612`, chat riêng @HulkBeotii) | Đích nhận cảnh báo |
+| `DASHBOARD_SECRET` | ✅ set (`openssl rand -hex 24`) | Auth dashboard + Bearer cho cron routes |
+
+→ Đã gửi tin nhắn test thật qua Telegram và xác nhận `notify()` hoạt động end-to-end trên production credentials.
+
+## ✅ Deploy & Cron — TRẠNG THÁI (cập nhật 2026-06-08)
+
+- **Deployed lên Vercel production**: `https://web-three-eta-70.vercel.app`
+- **Phát hiện giới hạn quan trọng**: Vercel Hobby plan chỉ cho phép cron chạy **tối đa 1 lần/ngày** — không đủ cho `process-jobs` (cần mỗi phút), `check-worker` (10 phút), `check-analytics` (6 giờ).
+- **Giải pháp đã triển khai** (theo lựa chọn của user — dùng dịch vụ cron miễn phí bên ngoài thay vì nâng cấp Pro):
+  - `web/vercel.json` chỉ còn giữ `evaluate-rollback` (chạy hàng ngày — Hobby cho phép native)
+  - 3 cron còn lại chuyển sang **GitHub Actions scheduled workflows** tại `.github/workflows/`:
+    - `cron-process-jobs.yml` — mỗi 5 phút (GitHub Actions không đảm bảo chính xác mỗi phút; 5 phút là mức thực tế đáng tin cậy nhất)
+    - `cron-check-worker.yml` — mỗi 10 phút
+    - `cron-check-analytics.yml` — mỗi 6 giờ
+  - Mỗi workflow gọi endpoint tương ứng qua `curl` với header `Authorization: Bearer ${{ secrets.DASHBOARD_SECRET }}`
+  - Đã set GitHub repo secret `DASHBOARD_SECRET` + repo variable `PIPELINE_BASE_URL=https://web-three-eta-70.vercel.app`
+  - Có thể trigger thủ công qua tab Actions (mỗi workflow đều có `workflow_dispatch`)
+
 ## ⚠️ Việc còn lại trước khi chạy production thật
 
-1. **Tạo Telegram bot thật** — `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID` trong `web/.env.local` hiện vẫn là chuỗi rỗng (placeholder). Cần:
-   - Tạo bot qua [@BotFather](https://t.me/BotFather) → lấy token
-   - Lấy `chat_id` (gửi tin nhắn cho bot rồi gọi `getUpdates`)
-   - Điền vào `.env.local` (local) **và** Vercel project env vars (production)
-   - Logic dispatch đã được test bằng stub fetch — chỉ thiếu credentials thật.
-2. Deploy `web/` lên Vercel (nếu chưa) + đảm bảo 4 cron jobs trong `vercel.json` hoạt động (`process-jobs` mỗi phút, `check-analytics` 6h, `evaluate-rollback` hàng ngày, `check-worker` mỗi 10 phút).
-3. Khởi chạy worker (`src/auto_yt/worker.py`) trên máy Mac cá nhân — heartbeat ghi vào `channel_config.worker_heartbeat`.
+1. Khởi chạy worker (`src/auto_yt/worker.py`) trên máy Mac cá nhân — heartbeat ghi vào `channel_config.worker_heartbeat`.
+2. Theo dõi tab **Actions** trên GitHub vài giờ đầu để xác nhận 3 workflow cron chạy đúng lịch (GitHub có thể trễ vài phút so với lịch khai báo dưới tải cao — đây là giới hạn đã biết của GitHub Actions scheduled workflows, không phải lỗi).
+3. *(Tùy chọn)* Nếu muốn polling chính xác hơn (đúng mỗi phút như thiết kế gốc), cân nhắc nâng cấp Vercel Pro (~$20/tháng) để dùng cron native — đã loại bỏ phương án này theo lựa chọn ban đầu của user (ưu tiên miễn phí).
 
 ---
 
@@ -56,3 +81,4 @@ Kế hoạch gốc: `~/.claude/plans/t-t-t-c-c-c-scalable-pebble-agent-aa00d898b
 ## Lịch sử cập nhật log này
 
 - **2026-06-08**: Tạo file. Hoàn thành toàn bộ 8 phase, verify live trên Neon DB, dọn dẹp stub data, restore baseline. Pipeline sẵn sàng deploy — chỉ còn thiếu Telegram bot credentials thật.
+- **2026-06-08 (cập nhật)**: Người dùng cung cấp đủ `OPENAI_API_KEY`, `YOUTUBE_API_KEY`, `TELEGRAM_BOT_TOKEN`; lấy `TELEGRAM_CHAT_ID` qua `getUpdates`. Đã set toàn bộ 6 secrets vào `.env.local` + Vercel production env vars, gửi tin nhắn test Telegram thành công. **Tất cả tài nguyên/credentials đã sẵn sàng** — chỉ còn bước deploy + khởi chạy worker để go-live.
