@@ -57,6 +57,71 @@ def load_account() -> dict:
     return data.get("gpt_account1", data)
 
 
+async def _page_alive(page) -> bool:
+    """Cheap liveness probe — `page.is_closed()` alone misses the case where
+    the underlying frame/context died (crash, manual close, navigation wipe)
+    but the Page wrapper object hasn't flipped its closed flag yet. A trivial
+    `evaluate` round-trips through the real target and raises TargetClosedError
+    if it's actually gone."""
+    try:
+        if page.is_closed():
+            return False
+        await page.evaluate("1")
+        return True
+    except Exception:
+        return False
+
+
+async def ensure_session(pw, ctx, page, account: dict):
+    """Recover from a dead ChatGPT page/context.
+
+    The worker runs unattended for hours; if the tab crashes, gets closed, or
+    a stray navigation tears down the frame, every subsequent job would
+    otherwise fail instantly with TargetClosedError forever — while the
+    heartbeat keeps reporting "running" (a false-positive health signal that
+    `check-worker` can't catch, since it only watches for *missing* heartbeats).
+
+    Tries the cheap fix first (open a fresh tab in the same persistent
+    context — the common case: tab died, browser process alive), then falls
+    back to relaunching the whole context if that also fails.
+
+    Returns (ctx, page) — both may be replaced.
+    """
+    if await _page_alive(page):
+        return ctx, page
+
+    logger.warning("ChatGPT page/context appears dead — attempting recovery...")
+    try:
+        new_page = await ctx.new_page()
+        new_page.set_default_timeout(60_000)
+        result = await ensure_logged_in(new_page, account)
+        logger.info("Recovered via new tab in existing context. Logged in user: %s", result.get("user", {}))
+        try:
+            await page.close()
+        except Exception:
+            pass
+        return ctx, new_page
+    except Exception as exc:
+        logger.warning("New-tab recovery failed (%s) — relaunching browser context...", exc)
+
+    try:
+        await ctx.close()
+    except Exception:
+        pass
+
+    new_ctx = await pw.chromium.launch_persistent_context(
+        str(gpt_profile_dir("PROFILE_GPT_1")),
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+        viewport={"width": 1280, "height": 800},
+    )
+    new_page = new_ctx.pages[0] if new_ctx.pages else await new_ctx.new_page()
+    new_page.set_default_timeout(60_000)
+    result = await ensure_logged_in(new_page, account)
+    logger.info("Recovered by relaunching browser context. Logged in user: %s", result.get("user", {}))
+    return new_ctx, new_page
+
+
 async def ensure_logged_in(page, account: dict) -> dict:
     saved_cookies = account.get("session_cookie", [])
     if saved_cookies:
@@ -132,6 +197,8 @@ async def run() -> None:
         logger.info("Worker started — polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL_S)
         while True:
             try:
+                ctx, page = await ensure_session(pw, ctx, page, account)
+
                 job = await claim_next_job(dsn)
                 if job is None:
                     await record_heartbeat(dsn, "running")
@@ -145,6 +212,9 @@ async def run() -> None:
                 await asyncio.sleep(POLL_INTERVAL_S)
             except asyncpg.PostgresError as exc:
                 logger.error("Database error during poll loop: %s", exc)
+                await asyncio.sleep(POLL_INTERVAL_S)
+            except Exception as exc:  # noqa: BLE001 - keep the loop alive; a session-recovery hiccup shouldn't crash the whole worker
+                logger.exception("Unexpected error during poll loop: %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
     finally:
         await record_heartbeat(dsn, "stopped")
