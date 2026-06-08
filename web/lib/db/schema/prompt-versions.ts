@@ -41,7 +41,7 @@ export const promptVersions = pgTable("prompt_versions", {
   changeReason: text("change_reason"),
   /** First video that used this version — anchor point for rollback batch comparison. */
   effectiveFromVideoId: integer("effective_from_video_id").references(
-    (): any => videos.id,
+    () => videos.id,
   ),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
