@@ -334,10 +334,14 @@ async function handleP6Done(job: Job) {
  * after a crash now just returns the already-created job instead of making a
  * sibling.
  *
- * Still NOT fully solved: `saveVideoContent` has no equivalent guard, so a
- * re-run still inserts a duplicate `video_content` row for the stage (cosmetic
- * — `getLatestVideoContent` always reads the newest one — but worth cleaning
- * up later), and `handleP1Done`'s loop creates brand-new `videos` rows each
+ * `saveVideoContent` (db/repo/video-content.ts) got the same treatment: it
+ * now dedupes on an exact-match (videoId, stage, output) lookup before
+ * inserting — safe because `job.result` is byte-identical between the
+ * original run and a crash-rerun (the worker writes it once and never
+ * mutates it), while a *legitimate* repeat (needs_retry's fresh P3 attempt)
+ * produces different text and is correctly kept as a new history row.
+ *
+ * Still NOT fully solved: `handleP1Done`'s loop creates brand-new `videos` rows each
  * pass (its `causedByJobId` check can't match an existing entry because the
  * video id itself differs run-to-run); that's only loosely mitigated by
  * `isDuplicateTopic`'s person/embedding checks rejecting the re-offered topic.
