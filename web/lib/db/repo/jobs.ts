@@ -37,6 +37,14 @@ export async function listUnconsumedDoneJobs() {
     .where(and(eq(jobs.status, "done"), isNull(jobs.consumedAt)));
 }
 
+/** Hard-failed jobs the orchestrator hasn't alerted about yet (see notifyNewlyFailedJobs in chain.ts). */
+export async function listUnconsumedFailedJobs() {
+  return db
+    .select()
+    .from(jobs)
+    .where(and(eq(jobs.status, "failed"), isNull(jobs.consumedAt)));
+}
+
 export async function markJobConsumed(jobId: number) {
   await db.update(jobs).set({ consumedAt: new Date() }).where(eq(jobs.id, jobId));
 }

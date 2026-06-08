@@ -4,6 +4,7 @@ import { desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { jobs, videoContent, videos } from "@/lib/db/schema";
 import { formatDuration, formatRelative, statusBadgeClass } from "@/lib/ui/format";
+import { RunPipelineButton } from "./RunPipelineButton";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Tổng quan</h1>
+        <RunPipelineButton />
+      </div>
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Video theo trạng thái (tổng {videoTotal})

@@ -1,42 +1,15 @@
-import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { db } from "@/lib/db";
-import { markJobConsumed, listUnconsumedDoneJobs } from "@/lib/db/repo/jobs";
-import { jobs } from "@/lib/db/schema";
-import { logEvent } from "@/lib/observability/log";
-import { notify } from "@/lib/notifications";
-import { processDoneJob } from "@/lib/pipeline/chain";
+import { runChainCycle } from "@/lib/pipeline/chain";
 
 export const maxDuration = 300;
 
 /**
- * Hard-failed jobs are terminal — nothing in chain.ts ever consumes them, so
- * `consumed_at` doubles here as "the orchestrator has acknowledged this failure
- * and notified about it," preventing the same job from re-alerting every poll.
- */
-async function notifyNewlyFailedJobs() {
-  const failed = await db
-    .select()
-    .from(jobs)
-    .where(and(eq(jobs.status, "failed"), isNull(jobs.consumedAt)));
-
-  for (const job of failed) {
-    await notify(
-      `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` của video #${job.videoId}` : ""} đã thất bại: ${job.errorMessage ?? "lỗi không xác định"}`,
-    );
-    await markJobConsumed(job.id);
-    logEvent("job_failed_notified", { jobId: job.id, videoId: job.videoId, stage: job.stage });
-  }
-
-  return failed.length;
-}
-
-/**
  * Polled by Vercel Cron (see vercel.json) — there is no long-lived orchestrator
  * process. Each run picks up jobs the worker finished since the last pass and
- * chains the pipeline forward (see lib/pipeline/chain.ts for the state machine),
- * plus notifies about any newly hard-failed jobs.
+ * chains the pipeline forward (see lib/pipeline/chain.ts for the state machine
+ * and `runChainCycle` for the actual cycle logic, shared with the dashboard's
+ * manual "Chạy pipeline ngay" button at /api/jobs/process-now).
  */
 export async function GET(request: Request) {
   const expected = process.env.DASHBOARD_SECRET;
@@ -47,23 +20,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const pendingJobs = await listUnconsumedDoneJobs();
-  const results: Array<{ jobId: number; ok: boolean; error?: string }> = [];
+  const { processed, results, failedNotified } = await runChainCycle();
 
-  for (const job of pendingJobs) {
-    try {
-      await processDoneJob(job.id);
-      results.push({ jobId: job.id, ok: true });
-    } catch (error) {
-      results.push({
-        jobId: job.id,
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  const failedNotified = await notifyNewlyFailedJobs();
-
-  return NextResponse.json({ ok: true, processed: results.length, results, failedNotified });
+  return NextResponse.json({ ok: true, processed, results, failedNotified });
 }

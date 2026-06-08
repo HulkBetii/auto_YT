@@ -1,5 +1,5 @@
 import { getConfigValue } from "../db/repo/channel-config";
-import { getJob, markJobConsumed } from "../db/repo/jobs";
+import { getJob, markJobConsumed, listUnconsumedDoneJobs, listUnconsumedFailedJobs } from "../db/repo/jobs";
 import { activateNewPromptVersion } from "../db/repo/prompt-versions";
 import { saveVideoContent, getLatestVideoContent } from "../db/repo/video-content";
 import { createVideo, getVideo, updateVideoStatus } from "../db/repo/videos";
@@ -388,4 +388,69 @@ export async function processDoneJob(jobId: number) {
     stage: job.stage,
     durationMs: Date.now() - startedAt,
   });
+}
+
+/**
+ * Hard-failed jobs are terminal — nothing in this file ever consumes them, so
+ * `consumed_at` doubles here as "the orchestrator has acknowledged this failure
+ * and notified about it," preventing the same job from re-alerting every poll.
+ */
+async function notifyNewlyFailedJobs() {
+  const failed = await listUnconsumedFailedJobs();
+
+  for (const job of failed) {
+    await notify(
+      `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` của video #${job.videoId}` : ""} đã thất bại: ${job.errorMessage ?? "lỗi không xác định"}`,
+    );
+    await markJobConsumed(job.id);
+    logEvent("job_failed_notified", { jobId: job.id, videoId: job.videoId, stage: job.stage });
+  }
+
+  return failed.length;
+}
+
+export interface ChainCycleResult {
+  processed: number;
+  results: Array<{ jobId: number; ok: boolean; error?: string }>;
+  failedNotified: number;
+}
+
+/**
+ * One full pass of the orchestration loop: chains every unconsumed `done` job
+ * forward (see `processDoneJob`), then notifies about any newly hard-failed
+ * ones. This is the single source of truth for "advance the pipeline by one
+ * tick" — both `/api/cron/process-jobs` (polled by Vercel Cron, when
+ * configured) and the dashboard's manual "Chạy pipeline ngay" button
+ * (`/api/jobs/process-now`, see RunPipelineButton) call this so there is
+ * exactly one implementation of the chaining cycle to keep correct.
+ *
+ * NOTE (2026-06-08): at the time this was extracted, `process-jobs` was found
+ * to NOT actually be registered in vercel.json's cron list (only
+ * evaluate-rollback and generate-topics are — likely a Vercel Hobby plan
+ * 2-cron-job limit), despite the README documenting it as "every minute".
+ * Without something calling this on a schedule, completed jobs pile up with
+ * `consumed_at = NULL` and the pipeline stalls after each stage. The manual
+ * button is the stop-gap until an external scheduler (or Claude's own
+ * scheduled-tasks) is wired up to hit this on a regular cadence.
+ */
+export async function runChainCycle(): Promise<ChainCycleResult> {
+  const pendingJobs = await listUnconsumedDoneJobs();
+  const results: Array<{ jobId: number; ok: boolean; error?: string }> = [];
+
+  for (const job of pendingJobs) {
+    try {
+      await processDoneJob(job.id);
+      results.push({ jobId: job.id, ok: true });
+    } catch (error) {
+      results.push({
+        jobId: job.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const failedNotified = await notifyNewlyFailedJobs();
+
+  return { processed: results.length, results, failedNotified };
 }
