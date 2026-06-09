@@ -7,7 +7,7 @@ import { and, asc, desc, eq, gt } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { getConfigValue } from "@/lib/db/repo/channel-config";
-import { hasJobForVideoStage } from "@/lib/db/repo/jobs";
+import { hasActiveJobForVideoStage, hasActivePendingStageJob } from "@/lib/db/repo/jobs";
 import { getLatestAnalytics, saveAnalyticsSnapshot } from "@/lib/db/repo/video-analytics";
 import { listVideosByStatus } from "@/lib/db/repo/videos";
 import { promptVersions, videos } from "@/lib/db/schema";
@@ -62,7 +62,7 @@ export async function refreshAnalyticsAndTriggerP5(): Promise<number[]> {
     if (!analytics) continue;
     if (analytics.views < minViews) continue;
     if (analytics.ctrBasisPoints == null || analytics.averageViewDurationSeconds == null) continue;
-    if (await hasJobForVideoStage(video.id, "P5")) continue;
+    if (await hasActiveJobForVideoStage(video.id, "P5")) continue;
 
     await enqueueStage({
       promptKey: "P5",
@@ -113,7 +113,7 @@ export async function triggerP6IfBatchReady(): Promise<number[] | null> {
     .limit(batchSize);
 
   if (analyzed.length < batchSize) return null;
-  if (await hasJobForVideoStage(analyzed[0].id, "P6")) return null;
+  if (await hasActivePendingStageJob("P6")) return null;
 
   const rows: BatchRow[] = [];
   for (let i = 0; i < analyzed.length; i++) {

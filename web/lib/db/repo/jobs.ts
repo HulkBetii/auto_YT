@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "../index";
 import { jobs, type jobStageEnum } from "../schema";
@@ -54,12 +54,50 @@ export async function getJob(jobId: number) {
   return row ?? null;
 }
 
-/** Guards against re-enqueuing the same analysis stage for a video on every cron tick. */
+/**
+ * Returns true if ANY job (including failed/done) exists for this (video, stage).
+ * Used by the pipeline chain to detect legitimate completions.
+ * NOT suitable for P5/P6 re-trigger guards — use `hasActiveJobForVideoStage` instead.
+ */
 export async function hasJobForVideoStage(videoId: number, stage: JobStage) {
   const [row] = await db
     .select({ id: jobs.id })
     .from(jobs)
     .where(and(eq(jobs.videoId, videoId), eq(jobs.stage, stage)))
+    .limit(1);
+  return row != null;
+}
+
+/**
+ * Returns true if a PENDING or RUNNING job exists for this (video, stage).
+ * Use for P5 re-trigger guard: allows re-triggering after a failed job,
+ * but prevents duplicate submissions while one is still in flight.
+ */
+export async function hasActiveJobForVideoStage(videoId: number, stage: JobStage) {
+  const [row] = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.videoId, videoId),
+        eq(jobs.stage, stage),
+        or(eq(jobs.status, "pending"), eq(jobs.status, "running")),
+      ),
+    )
+    .limit(1);
+  return row != null;
+}
+
+/**
+ * Returns true if a PENDING or RUNNING job exists for the given stage,
+ * regardless of videoId. Use for P6 (which has no videoId) to prevent
+ * duplicate submissions while a P6 job is still in-flight.
+ */
+export async function hasActivePendingStageJob(stage: JobStage) {
+  const [row] = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.stage, stage), or(eq(jobs.status, "pending"), eq(jobs.status, "running"))))
     .limit(1);
   return row != null;
 }
