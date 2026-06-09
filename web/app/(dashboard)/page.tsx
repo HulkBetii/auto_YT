@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RunPipelineButton } from "./RunPipelineButton";
+import { WorkerControl } from "./WorkerControl";
 
 export const dynamic = "force-dynamic";
 
@@ -172,7 +173,10 @@ export default async function DashboardPage() {
             Live
           </span>
         </div>
-        <RunPipelineButton />
+        <div className="flex items-center gap-3">
+          <WorkerControl />
+          <RunPipelineButton />
+        </div>
       </div>
 
       {/* Stat cards */}
