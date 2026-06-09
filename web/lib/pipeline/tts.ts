@@ -10,7 +10,7 @@ import { notify } from "@/lib/notifications";
 const TTS_BASE_URL = "https://api.ai33.pro";
 const HARDCODED_DEFAULT_VOICE = "clone_2572202"; // Tenpu Nakamura
 const POLL_INTERVAL_MS = 5_000;
-const MAX_WAIT_MS = 120_000; // 2 minutes — Vercel function max 5 min, cron max 5 min
+const MAX_WAIT_MS = 240_000; // 4 minutes — leaves ~1 min headroom within Vercel's 5 min cap
 
 // ---------------------------------------------------------------------------
 // P3 parsing
@@ -209,16 +209,16 @@ export interface TTSRunResult {
  */
 export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
   // Query videos ready for TTS: ready_to_publish AND audio_url IS NULL
+  // Clone voice synthesis takes ~4-5 min per video. Vercel functions cap at 5 min
+  // (maxDuration=300). Process 1 video per call — cron fires every 5 min so all
+  // ready_to_publish videos get audio within minutes×count ticks.
   const pending = await db
     .select()
     .from(videos)
-    .where(
-      // Use raw SQL-style approach: status = ready_to_publish AND audio_url IS NULL
-      eq(videos.status, "ready_to_publish"),
-    )
-    .limit(10); // fetch 10, filter below for null audioUrl
+    .where(eq(videos.status, "ready_to_publish"))
+    .limit(5); // fetch a few, take only first null
 
-  const toProcess = pending.filter((v) => v.audioUrl === null || v.audioUrl === undefined).slice(0, 5);
+  const toProcess = pending.filter((v) => v.audioUrl === null || v.audioUrl === undefined).slice(0, 1);
 
   if (toProcess.length === 0) {
     return { processed: 0, results: [] };
