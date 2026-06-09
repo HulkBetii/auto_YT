@@ -1,17 +1,65 @@
 import { sql } from "drizzle-orm";
 
 import { db } from "../db";
+import { getConfigValue } from "../db/repo/channel-config";
 import { listRecentVideos } from "../db/repo/videos";
 
-const RULE_LOOKBACK_VIDEOS = 3;
-const SEMANTIC_LOOKBACK_DAYS = 90;
-const SEMANTIC_SIMILARITY_THRESHOLD = 0.85;
+// ── Configurable defaults (overridden by channel_config) ─────────────────────
+const DEFAULT_PERSON_LOOKBACK = 3;       // anti_dup_person_lookback
+const DEFAULT_PAIN_LOOKBACK = 6;         // anti_dup_pain_lookback
+const DEFAULT_SEMANTIC_DAYS = 90;        // anti_dup_semantic_days
+const DEFAULT_SIMILARITY_THRESHOLD = 85; // anti_dup_similarity_threshold (0-100)
 
-/** Layer 1 — same featured_person must not appear in the last 3 produced videos. */
+async function configInt(key: string, fallback: number): Promise<number> {
+  const raw = await getConfigValue(key);
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * Normalize a person name string for comparison:
+ * - trim leading/trailing whitespace
+ * - collapse internal whitespace to single space
+ * - normalize to NFC (handles full-width / half-width variants)
+ * This prevents LLM output like "田中 角栄" (extra space) bypassing the check.
+ */
+function normalizeName(name: string): string {
+  return name.trim().normalize("NFC").replace(/\s+/g, " ");
+}
+
+/**
+ * Layer 1a — same featured_person must not appear in the last N produced videos.
+ * N is configurable via `anti_dup_person_lookback` (default 3).
+ */
 export async function isPersonRepeated(featuredPerson: string): Promise<boolean> {
   if (!featuredPerson) return false;
-  const recent = await listRecentVideos(RULE_LOOKBACK_VIDEOS);
-  return recent.some((v) => v.featuredPerson === featuredPerson);
+  const lookback = await configInt("anti_dup_person_lookback", DEFAULT_PERSON_LOOKBACK);
+  const recent = await listRecentVideos(lookback);
+  const normalized = normalizeName(featuredPerson);
+  return recent.some((v) => v.featuredPerson != null && normalizeName(v.featuredPerson) === normalized);
+}
+
+/**
+ * Layer 1b — same (featured_person + pain_type) combo must not appear in the
+ * last N produced videos. Prevents same character recycling the same emotional
+ * hook (e.g. 田中角栄 × Pain-A twice in 6 videos).
+ * N is configurable via `anti_dup_pain_lookback` (default 6).
+ */
+export async function isPersonPainRepeated(
+  featuredPerson: string,
+  painType: string,
+): Promise<boolean> {
+  if (!featuredPerson || !painType) return false;
+  const lookback = await configInt("anti_dup_pain_lookback", DEFAULT_PAIN_LOOKBACK);
+  const recent = await listRecentVideos(lookback);
+  const normalizedPerson = normalizeName(featuredPerson);
+  return recent.some(
+    (v) =>
+      v.featuredPerson != null &&
+      normalizeName(v.featuredPerson) === normalizedPerson &&
+      v.painType === painType,
+  );
 }
 
 /**
@@ -21,18 +69,24 @@ export async function isPersonRepeated(featuredPerson: string): Promise<boolean>
  * Postgres expects on the right-hand side of the cast.
  *
  * Cosine distance = 1 - cosine similarity, so "similarity > 0.85" == "distance < 0.15".
+ * Both the lookback window (days) and threshold are configurable via channel_config.
  */
 export async function findSimilarRecentVideo(
   embedding: number[],
 ): Promise<{ id: number; title: string; similarity: number } | null> {
+  const [semanticDays, similarityPct] = await Promise.all([
+    configInt("anti_dup_semantic_days", DEFAULT_SEMANTIC_DAYS),
+    configInt("anti_dup_similarity_threshold", DEFAULT_SIMILARITY_THRESHOLD),
+  ]);
+  const threshold = similarityPct / 100;
   const vectorLiteral = `[${embedding.join(",")}]`;
-  const maxDistance = 1 - SEMANTIC_SIMILARITY_THRESHOLD;
+  const maxDistance = 1 - threshold;
 
   const result = await db.execute<{ id: number; title: string; distance: number }>(sql`
     SELECT id, title, (topic_embedding <=> ${vectorLiteral}::vector) AS distance
     FROM videos
     WHERE topic_embedding IS NOT NULL
-      AND created_at > now() - (${SEMANTIC_LOOKBACK_DAYS} || ' days')::interval
+      AND created_at > now() - (${semanticDays} || ' days')::interval
       AND (topic_embedding <=> ${vectorLiteral}::vector) < ${maxDistance}
     ORDER BY distance ASC
     LIMIT 1
@@ -46,10 +100,24 @@ export async function findSimilarRecentVideo(
 /** Combined gate — true means "reject this topic, it's a duplicate". */
 export async function isDuplicateTopic(input: {
   featuredPerson: string;
+  painType: string;
   embedding: number[];
 }): Promise<{ duplicate: boolean; reason?: string }> {
+  const lookback = await configInt("anti_dup_person_lookback", DEFAULT_PERSON_LOOKBACK);
+  const painLookback = await configInt("anti_dup_pain_lookback", DEFAULT_PAIN_LOOKBACK);
+
   if (await isPersonRepeated(input.featuredPerson)) {
-    return { duplicate: true, reason: `featured_person "${input.featuredPerson}" used in last ${RULE_LOOKBACK_VIDEOS} videos` };
+    return {
+      duplicate: true,
+      reason: `featured_person "${input.featuredPerson}" used in last ${lookback} videos`,
+    };
+  }
+
+  if (await isPersonPainRepeated(input.featuredPerson, input.painType)) {
+    return {
+      duplicate: true,
+      reason: `"${input.featuredPerson}" × pain_type "${input.painType}" combo used in last ${painLookback} videos`,
+    };
   }
 
   const similar = await findSimilarRecentVideo(input.embedding);

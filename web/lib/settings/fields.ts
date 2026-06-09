@@ -55,6 +55,30 @@ export const SETTINGS_FIELDS = [
     schema: intString(1, 100),
   },
   {
+    key: "anti_dup_person_lookback",
+    label: "Chống lặp: lookback người (video)",
+    description: "Số video gần nhất để kiểm tra xem featured_person có bị lặp không. Mặc định: 3.",
+    schema: intString(1, 20),
+  },
+  {
+    key: "anti_dup_pain_lookback",
+    label: "Chống lặp: lookback người+pain (video)",
+    description: "Số video gần nhất để kiểm tra combo người × pain type. Mặc định: 6.",
+    schema: intString(1, 50),
+  },
+  {
+    key: "anti_dup_semantic_days",
+    label: "Chống lặp: cửa sổ ngữ nghĩa (ngày)",
+    description: "Số ngày nhìn lại khi kiểm tra tương đồng ngữ nghĩa qua pgvector. Mặc định: 90.",
+    schema: intString(1, 3650),
+  },
+  {
+    key: "anti_dup_similarity_threshold",
+    label: "Chống lặp: ngưỡng tương đồng (0-100)",
+    description: "Ngưỡng cosine similarity (0-100) để coi là trùng chủ đề. Mặc định: 85 (= 0.85).",
+    schema: intString(50, 99),
+  },
+  {
     key: "tts_voice_map",
     label: "Bản đồ giọng TTS (JSON)",
     description: 'Ánh xạ tên nhân vật (tiếng Anh) sang clone voice ID của AI33.PRO. Ví dụ: {"Kazuo Inamori":"clone_2574216","Tenpu Nakamura":"clone_2572202"}. Khớp không phân biệt hoa thường và cho phép khớp một phần.',

@@ -51,8 +51,21 @@ async function handleP1Done(job: Job) {
   for (const topic of candidates) {
     if (accepted >= batchSize) break;
 
-    const embedding = await embedTopic(topic.topic, topic.title);
-    const verdict = await isDuplicateTopic({ featuredPerson: topic.featured_person, embedding });
+    // Fail-closed: if OpenAI Embeddings API is unavailable, skip this topic
+    // rather than bypassing the semantic check entirely.
+    let embedding: number[];
+    try {
+      embedding = await embedTopic(topic.topic, topic.title);
+    } catch (err) {
+      console.warn(`[anti-dup] embedding failed for "${topic.title}", skipping topic: ${err}`);
+      continue;
+    }
+
+    const verdict = await isDuplicateTopic({
+      featuredPerson: topic.featured_person,
+      painType: topic.pain_type,
+      embedding,
+    });
     if (verdict.duplicate) {
       console.log(`[anti-dup] skipping "${topic.title}" — ${verdict.reason}`);
       continue;
