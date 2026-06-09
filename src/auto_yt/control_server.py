@@ -104,6 +104,19 @@ def _clear_singleton_locks() -> None:
             if f.exists():
                 f.unlink(missing_ok=True)
                 log.info("Removed %s", f)
+        # Remove SQLite -journal and -wal files left by unclean shutdowns.
+        # Chrome sees these and triggers "Something went wrong" dialogs.
+        for jf in list(default_dir.glob("*-journal")) + list(default_dir.glob("*-wal")):
+            try:
+                jf.unlink()
+                log.info("Removed stale journal: %s", jf.name)
+            except OSError as e:
+                log.warning("Could not remove %s: %s", jf, e)
+        # Remove the SQLite LOCK file if present
+        lock_file = default_dir / "LOCK"
+        if lock_file.exists():
+            lock_file.unlink(missing_ok=True)
+            log.info("Removed LOCK file")
 
     # 3. Reset crash markers in each profile's Preferences so Chrome doesn't
     #    show the "Something went wrong opening your profile" dialog.
