@@ -153,19 +153,27 @@ export async function pollTTSTask(
       throw new Error(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
     }
 
+    // Response shape: { success: true, data: { status, metadata: { audio_url }, ... } }
     const json = (await res.json()) as {
-      status?: string;
-      audio_url?: string;
-      error?: string;
+      success?: boolean;
+      data?: {
+        status?: string;
+        metadata?: { audio_url?: string };
+        error?: string;
+      };
     };
 
-    if (json.status === "done") {
-      if (!json.audio_url) throw new Error(`[tts] Task ${taskId} done but no audio_url`);
-      return json.audio_url;
+    const data = json.data;
+    if (!data) throw new Error(`[tts] Unexpected response shape: ${JSON.stringify(json)}`);
+
+    if (data.status === "done") {
+      const audioUrl = data.metadata?.audio_url;
+      if (!audioUrl) throw new Error(`[tts] Task ${taskId} done but no audio_url`);
+      return audioUrl;
     }
 
-    if (json.status === "error") {
-      throw new Error(`[tts] Task ${taskId} failed: ${json.error ?? "unknown"}`);
+    if (data.status === "error") {
+      throw new Error(`[tts] Task ${taskId} failed: ${data.error ?? "unknown"}`);
     }
 
     // status: "pending" | "processing" — keep polling
