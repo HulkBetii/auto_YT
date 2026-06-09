@@ -25,19 +25,43 @@ const MAX_WAIT_MS = 240_000; // 4 minutes — leaves ~1 min headroom within Verc
  *   4. Keeps <#N.N#> pause markers — AI33.PRO Vivoo V3 supports them natively
  *   5. Trims and collapses consecutive blank lines
  */
+/**
+ * Known non-narration preamble patterns that ChatGPT sometimes prepends.
+ * Matched against the FIRST non-blank line of the remaining text, stripped
+ * one-by-one until no more matches (order doesn't matter).
+ */
+/**
+ * Patterns matched against the first non-blank line of the remaining text.
+ * Do NOT include a leading `^` — it is added automatically in the loop below.
+ * Flags (e.g. `i`) are preserved when constructing the final RegExp.
+ */
+const PREAMBLE_PATTERNS: RegExp[] = [
+  /総文字数[：:][^\n]+/,         // "総文字数：約二千六百文字" (kanji or digit)
+  /【[^】]+】[^\n]+/,            // "【田中角栄】タイトル..."
+  /以下[、，,。][^\n]*/,         // "以下、条件に合わせた完全ナレーション台本です。"
+  /Edit(?=\n|$)/i,                // ChatGPT "Edit" artifact (lone word on its own line)
+  /Note[:\s：][^\n]*/i,           // "Note: ..."
+  /Sure[,!、。\s][^\n]*/i,        // "Sure, here is..."
+  /Here\s+is[^\n]*/i,             // "Here is the script..."
+  /以下に[^\n]*/,                // "以下に完全な..."
+  /では[、，,][^\n]*/,            // "では、ナレーション..."
+  /承知[しました][^\n]*/,        // "承知しました..."
+];
+
 export function parseP3ForTTS(raw: string): string {
   let text = raw;
 
-  // 1. Drop header line "総文字数：..." — handles both digit (1000文字) and
-  //    kanji/mixed formats (約二千六百文字, 約2600文字, etc.)
-  text = text.replace(/^総文字数：[^\n]+\n?/, "");
-
-  // 1b. Drop blank lines left after the header, then drop title line if present.
-  //     LLM sometimes includes the video title "【人名】タイトル..." as the
-  //     first non-blank line of the script body. We must strip leading newlines
-  //     first so ^ matches the title correctly.
-  text = text.replace(/^\n+/, "");
-  text = text.replace(/^【[^】]+】[^\n]+\n?/, "");
+  // 1. Strip preamble lines from the top: repeatedly remove leading blank lines
+  //    then check if the first non-blank line matches a known non-narration
+  //    pattern. Loop until the top of the text is actual narration content.
+  let prevText = "";
+  while (prevText !== text) {
+    prevText = text;
+    text = text.replace(/^\n+/, ""); // collapse leading newlines
+    for (const pat of PREAMBLE_PATTERNS) {
+      text = text.replace(new RegExp(`^${pat.source}\\n?`), "");
+    }
+  }
 
   // 2. Drop chapter design section and everything after it
   const chapterIdx = text.indexOf("チャプター設計");
