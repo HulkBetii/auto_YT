@@ -1,4 +1,4 @@
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
 import { db } from "../index";
 import { jobs, type jobStageEnum } from "../schema";
@@ -134,4 +134,26 @@ export async function findJobByCause(causeJobId: number, stage: JobStage, videoI
     .where(and(...conditions))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * Resets jobs that have been stuck in `running` for longer than `thresholdMinutes`.
+ * This handles the case where the Playwright worker crashed mid-job without
+ * marking it failed — the job stays `running` forever until manually reset.
+ *
+ * Safe to call on every cron tick: only touches jobs older than the threshold.
+ * Returns the number of jobs reset (0 is the normal case).
+ */
+export async function resetStaleRunningJobs(thresholdMinutes = 15): Promise<number> {
+  const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000);
+  const reset = await db
+    .update(jobs)
+    .set({
+      status: "pending",
+      startedAt: null,
+      errorMessage: `auto-reset: stuck in running > ${thresholdMinutes}min`,
+    })
+    .where(and(eq(jobs.status, "running"), lt(jobs.startedAt, cutoff)))
+    .returning({ id: jobs.id });
+  return reset.length;
 }

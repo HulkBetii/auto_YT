@@ -1,5 +1,5 @@
 import { getConfigValue } from "../db/repo/channel-config";
-import { getJob, markJobConsumed, listUnconsumedDoneJobs, listUnconsumedFailedJobs } from "../db/repo/jobs";
+import { getJob, markJobConsumed, listUnconsumedDoneJobs, listUnconsumedFailedJobs, resetStaleRunningJobs } from "../db/repo/jobs";
 import { activateNewPromptVersion } from "../db/repo/prompt-versions";
 import { saveVideoContent, getLatestVideoContent } from "../db/repo/video-content";
 import { createVideo, getVideo, updateVideoStatus } from "../db/repo/videos";
@@ -447,6 +447,12 @@ export interface ChainCycleResult {
  * scheduled-tasks) is wired up to hit this on a regular cadence.
  */
 export async function runChainCycle(): Promise<ChainCycleResult> {
+  // Auto-reset jobs stuck in `running` > 15 min (worker crash / timeout).
+  const staleReset = await resetStaleRunningJobs(15);
+  if (staleReset > 0) {
+    console.warn(`[chain] reset ${staleReset} stale running job(s) → pending`);
+  }
+
   const pendingJobs = await listUnconsumedDoneJobs();
   const results: Array<{ jobId: number; ok: boolean; error?: string }> = [];
 
