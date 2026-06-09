@@ -61,15 +61,42 @@ def _is_running() -> bool:
 
 
 def _clear_singleton_locks() -> None:
-    """Remove Chrome SingletonLock files left by crashed sessions."""
+    """Remove Chrome lock files and reset crash markers left by unclean shutdowns."""
+    import json as _json
+
     chrome_data = PROJECT_ROOT / "data" / "chrome_user_data"
-    if chrome_data.exists():
-        for lock in chrome_data.rglob("SingletonLock"):
+    if not chrome_data.exists():
+        return
+
+    # 1. Remove Singleton* lock files
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        for lock in chrome_data.rglob(name):
             try:
                 lock.unlink()
                 log.info("Removed stale lock: %s", lock)
             except OSError as e:
                 log.warning("Could not remove %s: %s", lock, e)
+
+    # 2. Reset exit_type in each profile's Preferences so Chrome doesn't
+    #    show the "Something went wrong opening your profile" dialog.
+    for prefs_path in chrome_data.rglob("Preferences"):
+        try:
+            with open(prefs_path) as f:
+                prefs = _json.load(f)
+            changed = False
+            profile = prefs.setdefault("profile", {})
+            if profile.get("exit_type") != "Normal":
+                profile["exit_type"] = "Normal"
+                changed = True
+            if profile.get("exited_cleanly") is not True:
+                profile["exited_cleanly"] = True
+                changed = True
+            if changed:
+                with open(prefs_path, "w") as f:
+                    _json.dump(prefs, f)
+                log.info("Reset exit_type to Normal in %s", prefs_path)
+        except Exception as e:
+            log.warning("Could not reset Preferences at %s: %s", prefs_path, e)
 
 
 def start_worker() -> dict:
@@ -97,9 +124,13 @@ def stop_worker() -> dict:
         pid = _proc.pid
         log.info("Stopping worker pid=%s", pid)
         try:
-            _proc.send_signal(signal.SIGTERM)
-            _proc.wait(timeout=10)
+            # SIGINT triggers KeyboardInterrupt in Python → worker runs
+            # its finally block → ctx.close() → Chrome shuts down cleanly
+            # (SIGTERM skips the finally block and force-kills Chrome)
+            _proc.send_signal(signal.SIGINT)
+            _proc.wait(timeout=20)
         except subprocess.TimeoutExpired:
+            log.warning("Worker did not stop in 20s, force-killing")
             _proc.kill()
         _proc = None
         return {"ok": True, "pid": pid}
