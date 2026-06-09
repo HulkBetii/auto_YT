@@ -54,6 +54,20 @@ export const SETTINGS_FIELDS = [
     description: "Nếu CTR trung bình của lô mới giảm nhiều hơn tỷ lệ này so với lô trước, prompt sẽ tự động được khôi phục về phiên bản cũ.",
     schema: intString(1, 100),
   },
+  {
+    key: "tts_voice_map",
+    label: "Bản đồ giọng TTS (JSON)",
+    description: 'Ánh xạ tên nhân vật (tiếng Anh) sang clone voice ID của AI33.PRO. Ví dụ: {"Kazuo Inamori":"clone_2574216","Tenpu Nakamura":"clone_2572202"}. Khớp không phân biệt hoa thường và cho phép khớp một phần.',
+    schema: z.string().trim().refine((v) => {
+      try { JSON.parse(v); return true; } catch { return false; }
+    }, "Phải là JSON hợp lệ"),
+  },
+  {
+    key: "tts_default_voice",
+    label: "Giọng TTS mặc định (clone voice ID)",
+    description: "Clone voice ID dùng khi tên nhân vật không có trong bản đồ giọng. Mặc định: clone_2572202 (Tenpu Nakamura).",
+    schema: z.string().trim().min(1).max(100),
+  },
 ] as const;
 
 export type SettingsFieldKey = (typeof SETTINGS_FIELDS)[number]["key"];

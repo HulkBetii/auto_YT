@@ -53,6 +53,27 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
         </section>
       )}
 
+      {video.audioUrl ? (
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Audio TTS
+          </h2>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio controls src={video.audioUrl} className="w-full max-w-lg" />
+          <a
+            href={video.audioUrl}
+            download
+            className="mt-2 inline-block text-xs text-blue-500 hover:underline"
+          >
+            Tải xuống
+          </a>
+        </section>
+      ) : (video.status === "ready_to_publish" || video.status === "published" || video.status === "analyzed") ? (
+        <section className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          Audio TTS chưa được tạo — sẽ tự động tạo ở lần cron tiếp theo.
+        </section>
+      ) : null}
+
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Dòng thời gian pipeline (P1 → P_score)

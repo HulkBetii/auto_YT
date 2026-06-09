@@ -33,3 +33,7 @@ export async function createVideo(input: typeof videos.$inferInsert) {
   const [created] = await db.insert(videos).values(input).returning();
   return created;
 }
+
+export async function updateVideoAudioUrl(videoId: number, audioUrl: string) {
+  await db.update(videos).set({ audioUrl }).where(eq(videos.id, videoId));
+}

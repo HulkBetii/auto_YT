@@ -50,6 +50,8 @@ export const videos = pgTable("videos", {
   /** Filled manually after the video is uploaded — required to poll YouTube Data API for analytics (P5 trigger). */
   youtubeVideoId: text("youtube_video_id"),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  /** CDN URL of the AI33.PRO TTS-generated audio file. NULL until the TTS pass runs after ready_to_publish. */
+  audioUrl: text("audio_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

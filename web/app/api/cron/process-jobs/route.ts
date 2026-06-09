@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { runChainCycle } from "@/lib/pipeline/chain";
+import { runTTSForReadyVideos } from "@/lib/pipeline/tts";
 
 export const maxDuration = 300;
 
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
   }
 
   const { processed, results, failedNotified } = await runChainCycle();
+  const tts = await runTTSForReadyVideos();
 
-  return NextResponse.json({ ok: true, processed, results, failedNotified });
+  return NextResponse.json({ ok: true, processed, results, failedNotified, tts });
 }

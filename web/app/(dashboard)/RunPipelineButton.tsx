@@ -9,6 +9,7 @@ interface CycleResult {
   failedNotified: number;
   results: Array<{ jobId: number; ok: boolean; error?: string }>;
   newBatch?: { triggered: boolean; reason?: string; jobId?: number };
+  tts?: { processed: number; results: Array<{ videoId: number; ok: boolean; audioUrl?: string; error?: string }> };
   error?: string;
 }
 
@@ -89,6 +90,18 @@ export function RunPipelineButton() {
                     </span>
                   )}
                 </div>
+              )}
+              {summary.tts && summary.tts.processed > 0 && (
+                <div className="mt-1 text-emerald-600">
+                  🎙️ Đã tạo {summary.tts.processed} audio TTS.
+                </div>
+              )}
+              {summary.tts && summary.tts.results.filter((r) => !r.ok).length > 0 && (
+                <ul className="mt-1 text-red-600">
+                  {summary.tts.results.filter((r) => !r.ok).map((r) => (
+                    <li key={r.videoId}>TTS video #{r.videoId}: {r.error}</li>
+                  ))}
+                </ul>
               )}
               {failedJobs.length > 0 && (
                 <ul className="mt-1 text-red-600">

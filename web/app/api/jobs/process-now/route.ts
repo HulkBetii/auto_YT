@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { maybeStartNewBatch } from "@/lib/pipeline/batch";
 import { runChainCycle } from "@/lib/pipeline/chain";
+import { runTTSForReadyVideos } from "@/lib/pipeline/tts";
 
 export const maxDuration = 300;
 
@@ -38,6 +39,7 @@ export const maxDuration = 300;
 export async function POST() {
   const { processed, results, failedNotified } = await runChainCycle();
   const newBatch = await maybeStartNewBatch();
+  const tts = await runTTSForReadyVideos();
 
-  return NextResponse.json({ ok: true, processed, results, failedNotified, newBatch });
+  return NextResponse.json({ ok: true, processed, results, failedNotified, newBatch, tts });
 }
