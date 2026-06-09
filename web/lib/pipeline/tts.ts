@@ -181,15 +181,43 @@ export async function pollTTSTask(
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
   const deadline = Date.now() + maxWaitMs;
+  // Allow up to 5 consecutive transient 5xx / network errors before giving up.
+  // 502/503/504 are CDN gateway glitches — the underlying task keeps running.
+  let transientErrors = 0;
+  const MAX_TRANSIENT = 5;
 
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-    const res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
-      headers: { Authorization: apiKey },
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
+        headers: { Authorization: apiKey },
+      });
+    } catch (networkErr) {
+      transientErrors++;
+      console.warn(`[tts] pollTTSTask network error (${transientErrors}/${MAX_TRANSIENT}):`, networkErr);
+      if (transientErrors >= MAX_TRANSIENT) {
+        throw new Error(`[tts] pollTTSTask: ${MAX_TRANSIENT} consecutive network errors on task ${taskId}`);
+      }
+      continue;
+    }
+
+    // Treat 5xx as transient gateway errors — retry up to MAX_TRANSIENT times
+    if (res.status >= 500) {
+      const body = await res.text().catch(() => "");
+      transientErrors++;
+      console.warn(`[tts] pollTTSTask HTTP ${res.status} (${transientErrors}/${MAX_TRANSIENT}): ${body}`);
+      if (transientErrors >= MAX_TRANSIENT) {
+        throw new Error(`[tts] pollTTSTask HTTP ${res.status} after ${MAX_TRANSIENT} retries: ${body}`);
+      }
+      continue;
+    }
+    // Reset on a good response
+    transientErrors = 0;
 
     if (!res.ok) {
+      // 4xx — not transient, fail immediately
       const body = await res.text().catch(() => "");
       throw new Error(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
     }
