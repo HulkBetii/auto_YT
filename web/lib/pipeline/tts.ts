@@ -59,36 +59,45 @@ export function parseP3ForTTS(raw: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Maps a `featured_person` value (English/Latinised, as stored in the DB) to
- * an AI33.PRO clone voice ID.
- *
- * Lookup order:
- *   1. `tts_voice_map` JSON from channel_config  (case-insensitive partial match)
- *   2. `tts_default_voice` from channel_config
- *   3. Hardcoded fallback: Tenpu Nakamura (clone_2572202)
+ * Low-level helper: look up `featured_person` in the parsed voice map object.
+ * Uses case-insensitive exact match first, then partial match.
+ * Returns the clone voice ID, or null if no mapping exists.
  */
-export async function getVoiceId(featuredPerson: string | null): Promise<string> {
+export function lookupVoiceInMap(
+  map: Record<string, string>,
+  featuredPerson: string,
+): string | null {
+  const needle = featuredPerson.toLowerCase();
+  const exactKey = Object.keys(map).find((k) => k.toLowerCase() === needle);
+  if (exactKey) return map[exactKey];
+  const partialKey = Object.keys(map).find(
+    (k) => k.toLowerCase().includes(needle) || needle.includes(k.toLowerCase()),
+  );
+  return partialKey ? map[partialKey] : null;
+}
+
+/**
+ * Maps a `featured_person` value to an AI33.PRO clone voice ID.
+ * Returns null if no mapping exists in `tts_voice_map` — does NOT fall back
+ * to the default voice. Callers should skip TTS for null results and wait
+ * until the operator adds a mapping via Settings.
+ *
+ * (`tts_default_voice` is kept in config for explicit operator use, not as
+ * an automatic fallback for unknown persons.)
+ */
+export async function getVoiceId(featuredPerson: string | null): Promise<string | null> {
+  if (!featuredPerson) return null;
+
   const mapJson = await getConfigValue("tts_voice_map");
-  const defaultVoice = await getConfigValue("tts_default_voice");
+  if (!mapJson) return null;
 
-  if (mapJson && featuredPerson) {
-    try {
-      const map = JSON.parse(mapJson) as Record<string, string>;
-      const needle = featuredPerson.toLowerCase();
-      // Exact match first
-      const exactKey = Object.keys(map).find((k) => k.toLowerCase() === needle);
-      if (exactKey) return map[exactKey];
-      // Partial match (e.g. "Matsushita" matches "Konosuke Matsushita")
-      const partialKey = Object.keys(map).find(
-        (k) => k.toLowerCase().includes(needle) || needle.includes(k.toLowerCase()),
-      );
-      if (partialKey) return map[partialKey];
-    } catch {
-      console.warn("[tts] Failed to parse tts_voice_map JSON, using default voice.");
-    }
+  try {
+    const map = JSON.parse(mapJson) as Record<string, string>;
+    return lookupVoiceInMap(map, featuredPerson);
+  } catch {
+    console.warn("[tts] Failed to parse tts_voice_map JSON");
+    return null;
   }
-
-  return defaultVoice ?? HARDCODED_DEFAULT_VOICE;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,8 +251,13 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
         continue;
       }
 
-      // Get voice for this video's featured person
+      // Get voice for this video's featured person — skip if no mapping
       const voiceId = await getVoiceId(video.featuredPerson);
+      if (!voiceId) {
+        console.log(`[tts] Video #${video.id} (${video.featuredPerson}) — no voice mapping, skipping`);
+        results.push({ videoId: video.id, ok: false, error: "no_voice_mapping" });
+        continue;
+      }
 
       // Submit TTS job
       const taskId = await submitTTS(ttsText, voiceId);
@@ -264,16 +278,20 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
   }
 
   const succeeded = results.filter((r) => r.ok);
-  const failed = results.filter((r) => !r.ok);
+  const skipped = results.filter((r) => !r.ok && r.error === "no_voice_mapping");
+  const failed = results.filter((r) => !r.ok && r.error !== "no_voice_mapping");
 
-  // Notify if anything happened
-  if (results.length > 0) {
+  // Only notify for real successes/failures (skip "no mapping" silently)
+  if (succeeded.length > 0 || failed.length > 0) {
     const lines = [
-      `🎙️ TTS: ${succeeded.length} audio generated, ${failed.length} failed`,
+      `🎙️ TTS: ${succeeded.length} audio generated${failed.length > 0 ? `, ${failed.length} lỗi` : ""}`,
       ...succeeded.map((r) => `  ✓ Video #${r.videoId}`),
       ...failed.map((r) => `  ✗ Video #${r.videoId}: ${r.error}`),
     ];
     await notify(lines.join("\n")).catch(() => {});
+  }
+  if (skipped.length > 0) {
+    console.log(`[tts] Skipped ${skipped.length} video(s) with no voice mapping`);
   }
 
   return { processed: succeeded.length, results };

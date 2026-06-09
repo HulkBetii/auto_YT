@@ -35,6 +35,7 @@ for (const video of toProcess) {
     if (!text) { console.log(`⚠️  ${tag} — P3 parsed to empty, skipping`); failed++; continue; }
 
     const voiceId = await getVoiceId(video.featuredPerson);
+    if (!voiceId) { console.log(`⚠️  ${tag} — no voice mapping, skipping`); failed++; continue; }
     console.log(`🎙️  ${tag} → voice=${voiceId} (${text.length} chars)`);
 
     const taskId = await submitTTS(text, voiceId);

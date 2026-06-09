@@ -4,8 +4,32 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { videos, videoStatusEnum } from "@/lib/db/schema";
 import { formatDateTime, statusBadgeClass } from "@/lib/ui/format";
+import { buildTTSStatusChecker, type TTSStatus } from "@/lib/pipeline/ttsVoiceMap";
 
 export const dynamic = "force-dynamic";
+
+function TTSBadge({ status }: { status: TTSStatus }) {
+  if (status === "done") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+        🔊 Xong
+      </span>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-400">
+        ⏳ Chờ
+      </span>
+    );
+  }
+  // no_mapping
+  return (
+    <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+      ⚠ Chưa có giọng
+    </span>
+  );
+}
 
 const ALL = "all";
 type StatusFilter = (typeof videoStatusEnum.enumValues)[number] | typeof ALL;
@@ -27,7 +51,10 @@ export default async function VideosPage({
     ? (status as StatusFilter)
     : ALL;
 
-  const rows = await getVideos(filter);
+  const [rows, ttsStatus] = await Promise.all([
+    getVideos(filter),
+    buildTTSStatusChecker(),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -61,6 +88,7 @@ export default async function VideosPage({
               <th className="px-4 py-2">Trạng thái</th>
               <th className="px-4 py-2">Nhân vật</th>
               <th className="px-4 py-2">Điểm</th>
+              <th className="px-4 py-2">Audio</th>
               <th className="px-4 py-2">Số lần thử lại</th>
               <th className="px-4 py-2">Tạo lúc</th>
             </tr>
@@ -79,13 +107,16 @@ export default async function VideosPage({
                 </td>
                 <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{video.featuredPerson ?? "—"}</td>
                 <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{video.score ?? "—"}</td>
+                <td className="px-4 py-2">
+                  <TTSBadge status={ttsStatus(video.featuredPerson, video.audioUrl)} />
+                </td>
                 <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{video.retryCount}</td>
                 <td className="px-4 py-2 text-zinc-500">{formatDateTime(video.createdAt)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
                   Không có video nào khớp bộ lọc này.
                 </td>
               </tr>
