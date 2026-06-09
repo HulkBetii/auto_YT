@@ -1,4 +1,4 @@
-import { isNull, eq } from "drizzle-orm";
+import { and, isNull, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { videos } from "@/lib/db/schema";
@@ -221,13 +221,12 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
   // Clone voice synthesis takes ~4-5 min per video. Vercel functions cap at 5 min
   // (maxDuration=300). Process 1 video per call — cron fires every 5 min so all
   // ready_to_publish videos get audio within minutes×count ticks.
-  const pending = await db
+  const toProcess = await db
     .select()
     .from(videos)
-    .where(eq(videos.status, "ready_to_publish"))
-    .limit(5); // fetch a few, take only first null
-
-  const toProcess = pending.filter((v) => v.audioUrl === null || v.audioUrl === undefined).slice(0, 1);
+    .where(and(eq(videos.status, "ready_to_publish"), isNull(videos.audioUrl)))
+    .orderBy(videos.id)
+    .limit(1);
 
   if (toProcess.length === 0) {
     return { processed: 0, results: [] };
