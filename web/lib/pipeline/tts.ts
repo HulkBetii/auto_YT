@@ -28,8 +28,16 @@ const MAX_WAIT_MS = 240_000; // 4 minutes — leaves ~1 min headroom within Verc
 export function parseP3ForTTS(raw: string): string {
   let text = raw;
 
-  // 1. Drop header line "総文字数：N文字"
-  text = text.replace(/^総文字数：\d+文字\s*\n?/, "");
+  // 1. Drop header line "総文字数：..." — handles both digit (1000文字) and
+  //    kanji/mixed formats (約二千六百文字, 約2600文字, etc.)
+  text = text.replace(/^総文字数：[^\n]+\n?/, "");
+
+  // 1b. Drop blank lines left after the header, then drop title line if present.
+  //     LLM sometimes includes the video title "【人名】タイトル..." as the
+  //     first non-blank line of the script body. We must strip leading newlines
+  //     first so ^ matches the title correctly.
+  text = text.replace(/^\n+/, "");
+  text = text.replace(/^【[^】]+】[^\n]+\n?/, "");
 
   // 2. Drop chapter design section and everything after it
   const chapterIdx = text.indexOf("チャプター設計");
