@@ -36,6 +36,13 @@
       "when": 1780972645963,
       "tag": "0004_lonely_puck",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780993799787,
+      "tag": "0005_hard_wendigo",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import { logEvent } from "../observability/log";
 import { notify } from "../notifications";
 import { isDuplicateTopic } from "./antiDuplication";
 import { enqueueStage } from "./createJob";
+import { generateAndSaveDescription } from "./descriptionBuilder";
 import { extractJson } from "./json";
 
 type Job = typeof jobs.$inferSelect;
@@ -218,6 +219,15 @@ async function handlePScoreDone(job: Job) {
 
   if (score.total_score >= threshold) {
     await updateVideoStatus(video.id, "ready_to_publish", { score: score.total_score });
+
+    // Build & save YouTube description from P2/P3/P4 outputs (no LLM, code-only).
+    // Non-blocking: a description failure should not block ready_to_publish.
+    try {
+      await generateAndSaveDescription(video.id);
+    } catch (err) {
+      console.error(`[desc] Video #${video.id} description build failed:`, err);
+    }
+
     // One-way state transition (scoring -> ready_to_publish happens at most once
     // per video), so this fires exactly once — no extra idempotency flag needed.
     await notify(`✅ <b>${video.title}</b> đã sẵn sàng để đăng (điểm ${score.total_score}).`);

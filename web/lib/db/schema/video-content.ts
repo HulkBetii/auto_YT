@@ -19,6 +19,7 @@ export const contentStageEnum = pgEnum("content_stage", [
   "P4",
   "P_score",
   "P5",
+  "P_desc",
 ]);
 
 export const videoContent = pgTable("video_content", {

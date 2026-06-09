@@ -13,6 +13,12 @@ const intString = (min: number, max: number) =>
  */
 export const SETTINGS_FIELDS = [
   {
+    key: "contact_email",
+    label: "Email liên hệ",
+    description: "Hiển thị trong phần ⚠️ 免責事項 của mô tả video YouTube.",
+    schema: z.string().trim().email("Phải là địa chỉ email hợp lệ").max(200),
+  },
+  {
     key: "channel_name",
     label: "Tên kênh",
     description: "Dùng để điền vào [CHANNEL_NAME] trong các mẫu prompt.",
