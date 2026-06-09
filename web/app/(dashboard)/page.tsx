@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { desc, eq, isNotNull, sql } from "drizzle-orm";
+import { desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { jobs, videoContent, videos } from "@/lib/db/schema";
 import { formatDuration, formatRelative, statusBadgeClass } from "@/lib/ui/format";
+import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
 import { RunPipelineButton } from "./RunPipelineButton";
 
 export const dynamic = "force-dynamic";
@@ -51,13 +52,36 @@ async function getRecentActivity() {
   return recentContent;
 }
 
+async function getTTSStats() {
+  // Fetch all ready_to_publish + published + analyzed videos and their TTS state
+  const rows = await db
+    .select({ featuredPerson: videos.featuredPerson, audioUrl: videos.audioUrl })
+    .from(videos)
+    .where(
+      sql`${videos.status} in ('ready_to_publish', 'published', 'analyzed')`,
+    );
+  return rows;
+}
+
 export default async function DashboardPage() {
-  const [videoCounts, jobCounts, avgDurations, recentActivity] = await Promise.all([
-    getVideoStatusCounts(),
-    getJobStatusCounts(),
-    getAvgStageDuration(),
-    getRecentActivity(),
-  ]);
+  const [videoCounts, jobCounts, avgDurations, recentActivity, ttsRows, ttsStatusFn] =
+    await Promise.all([
+      getVideoStatusCounts(),
+      getJobStatusCounts(),
+      getAvgStageDuration(),
+      getRecentActivity(),
+      getTTSStats(),
+      buildTTSStatusChecker(),
+    ]);
+
+  const ttsStats = ttsRows.reduce(
+    (acc, r) => {
+      const s = ttsStatusFn(r.featuredPerson, r.audioUrl);
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   const videoTotal = videoCounts.reduce((acc, r) => acc + r.count, 0);
   const jobTotal = jobCounts.reduce((acc, r) => acc + r.count, 0);
@@ -96,6 +120,44 @@ export default async function DashboardPage() {
           {videoCounts.length === 0 && <p className="text-sm text-zinc-500">Chưa có video nào.</p>}
         </div>
       </section>
+
+      {ttsRows.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Audio TTS ({ttsRows.length} video đã hoàn thành pipeline)
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {ttsStats["done"] != null && (
+              <div className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <span className="w-fit rounded px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                  🔊 Đã có audio
+                </span>
+                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{ttsStats["done"]}</span>
+              </div>
+            )}
+            {ttsStats["pending"] != null && (
+              <div className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <span className="w-fit rounded px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400">
+                  ⏳ Chờ tạo audio
+                </span>
+                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{ttsStats["pending"]}</span>
+              </div>
+            )}
+            {ttsStats["no_mapping"] != null && (
+              <Link
+                href="/settings"
+                className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-amber-200 bg-white p-4 hover:bg-amber-50 dark:border-amber-800 dark:bg-zinc-950 dark:hover:bg-amber-950/30"
+              >
+                <span className="w-fit rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                  ⚠ Chưa có giọng
+                </span>
+                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{ttsStats["no_mapping"]}</span>
+                <span className="text-[10px] text-zinc-400">Nhấn để vào Cài đặt</span>
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
