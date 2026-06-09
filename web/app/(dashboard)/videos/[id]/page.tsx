@@ -9,6 +9,7 @@ import { getVideo } from "@/lib/db/repo/videos";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
 
 import { YoutubeIdForm } from "./YoutubeIdForm";
+import { AnalyticsForm } from "./AnalyticsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -161,6 +162,24 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
           </table>
         </div>
       </section>
+
+      {(video.status === "published" || video.status === "analyzed") && (
+        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Nhập CTR &amp; AVD thủ công
+          </h2>
+          {(() => {
+            const latest = analytics.at(-1);
+            return (
+              <AnalyticsForm
+                videoId={video.id}
+                currentCtrPct={latest?.ctrBasisPoints != null ? latest.ctrBasisPoints / 100 : null}
+                currentAvdMinutes={latest?.averageViewDurationSeconds != null ? latest.averageViewDurationSeconds / 60 : null}
+              />
+            );
+          })()}
+        </section>
+      )}
 
       {analytics.length > 0 && (
         <section>

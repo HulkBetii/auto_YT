@@ -31,16 +31,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .orderBy(desc(videoAnalytics.fetchedAt))
     .limit(1);
   if (!latest) {
-    return NextResponse.json({ ok: false, error: "Video này chưa có dữ liệu analytics nào" }, { status: 404 });
-  }
-
-  await db
-    .update(videoAnalytics)
-    .set({
+    // No snapshot yet — create one with views=0 so the manual CTR/AVD is saved.
+    // The check-analytics cron will backfill real view counts later.
+    await db.insert(videoAnalytics).values({
+      videoId,
+      views: 0,
       ctrBasisPoints: Math.round(parsed.data.ctrPct * 100),
       averageViewDurationSeconds: Math.round(parsed.data.avdMinutes * 60),
-    })
-    .where(eq(videoAnalytics.id, latest.id));
+    });
+  } else {
+    await db
+      .update(videoAnalytics)
+      .set({
+        ctrBasisPoints: Math.round(parsed.data.ctrPct * 100),
+        averageViewDurationSeconds: Math.round(parsed.data.avdMinutes * 60),
+      })
+      .where(eq(videoAnalytics.id, latest.id));
+  }
 
   return NextResponse.json({ ok: true });
 }
