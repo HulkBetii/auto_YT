@@ -2,7 +2,7 @@
 
 import { Play } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -19,11 +19,12 @@ interface CycleResult {
 export function RunPipelineButton() {
   const router = useRouter();
   const [summary, setSummary] = useState<CycleResult | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
 
-  function onClick() {
+  async function onClick() {
     setSummary(null);
-    startTransition(async () => {
+    setIsLoading(true);
+    try {
       const res = await fetch("/api/jobs/process-now", { method: "POST" });
       const json = (await res.json().catch(() => null)) as CycleResult | null;
       if (!res.ok || !json) {
@@ -32,7 +33,11 @@ export function RunPipelineButton() {
       }
       setSummary(json);
       router.refresh();
-    });
+    } catch {
+      setSummary({ ok: false, processed: 0, failedNotified: 0, results: [], error: "Không thể kết nối tới server." });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const failedJobs = summary?.results.filter((r) => !r.ok) ?? [];
@@ -42,12 +47,12 @@ export function RunPipelineButton() {
     <div className="flex flex-col items-end gap-2">
       <Button
         onClick={onClick}
-        disabled={isPending}
+        disabled={isLoading}
         size="sm"
         className="gap-1.5 bg-[#007AFF] text-white hover:bg-[#0062CC] disabled:opacity-50"
       >
         <Play className="h-3.5 w-3.5" />
-        {isPending ? "Đang chạy…" : "Chạy pipeline"}
+        {isLoading ? "Đang chạy…" : "Chạy pipeline"}
       </Button>
 
       {summary && (
