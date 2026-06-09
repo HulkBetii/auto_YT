@@ -10,6 +10,7 @@ import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
 
 import { YoutubeIdForm } from "./YoutubeIdForm";
 import { AnalyticsForm } from "./AnalyticsForm";
+import { AudioPlayer } from "./AudioPlayer";
 
 export const dynamic = "force-dynamic";
 
@@ -58,34 +59,60 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
       )}
 
       {ttsStatus === "done" && video.audioUrl ? (
-        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Audio TTS
           </h2>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio controls src={video.audioUrl} className="w-full max-w-lg" />
-          <a
-            href={video.audioUrl}
-            download
-            className="mt-2 inline-block text-xs text-blue-500 hover:underline"
-          >
-            Tải xuống
-          </a>
+          <div className="max-w-md">
+            <AudioPlayer
+              src={video.audioUrl}
+              filename={`${video.featuredPerson ?? "audio"} — ${video.title.slice(0, 40)}`}
+            />
+          </div>
         </section>
       ) : ttsStatus === "pending" ? (
-        <section className="rounded-lg border border-dashed border-blue-300 p-4 text-center text-sm text-blue-600 dark:border-blue-800 dark:text-blue-400">
-          ⏳ Audio TTS đang chờ xử lý — sẽ tự động tạo ở cron tick tiếp theo (~5 phút).
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Audio TTS
+          </h2>
+          <div className="flex max-w-md items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 dark:border-blue-900/40 dark:bg-blue-950/30">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
+              <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Đang chờ tạo audio…</p>
+              <p className="mt-0.5 text-xs text-blue-600/70 dark:text-blue-400/60">Tự động xử lý ở cron tick tiếp theo (~5 phút)</p>
+            </div>
+          </div>
         </section>
       ) : ttsStatus === "no_mapping" && (video.status === "ready_to_publish" || video.status === "published" || video.status === "analyzed") ? (
-        <section className="rounded-lg border border-dashed border-amber-300 p-4 dark:border-amber-800">
-          <p className="text-center text-sm text-amber-700 dark:text-amber-400">
-            ⚠ Chưa có clone voice cho <strong>{video.featuredPerson ?? "nhân vật này"}</strong>.
-          </p>
-          <p className="mt-1 text-center text-xs text-zinc-500">
-            Thêm mapping vào{" "}
-            <a href="/settings" className="text-blue-500 hover:underline">Cài đặt → Bản đồ giọng TTS</a>
-            {" "}rồi chạy pipeline để tạo audio.
-          </p>
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Audio TTS
+          </h2>
+          <div className="flex max-w-md items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 dark:border-amber-800/40 dark:bg-amber-950/20">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+              <svg className="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Chưa có clone voice cho{" "}
+                <span className="font-semibold">{video.featuredPerson ?? "nhân vật này"}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700/70 dark:text-amber-400/60">
+                Thêm mapping giọng tại{" "}
+                <a href="/settings" className="font-medium underline underline-offset-2 hover:text-amber-600">
+                  Cài đặt → Bản đồ giọng TTS
+                </a>{" "}
+                rồi chạy lại pipeline.
+              </p>
+            </div>
+          </div>
         </section>
       ) : null}
 
