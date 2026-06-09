@@ -82,7 +82,30 @@ def _clear_singleton_locks() -> None:
             except OSError as e:
                 log.warning("Could not remove %s: %s", lock, e)
 
-    # 2. Reset crash markers in each profile's Preferences so Chrome doesn't
+    # 2. Delete stale session files — each crashed tab generates one dialog.
+    #    The worker creates fresh tabs on every start, so restoring old sessions
+    #    is not needed and only causes "Something went wrong" spam.
+    import shutil as _shutil
+    for profile_dir in chrome_data.iterdir():
+        if not profile_dir.is_dir():
+            continue
+        default_dir = profile_dir / "Default"
+        if not default_dir.exists():
+            continue
+        # Clear Sessions directory
+        sessions_dir = default_dir / "Sessions"
+        if sessions_dir.exists():
+            _shutil.rmtree(sessions_dir, ignore_errors=True)
+            sessions_dir.mkdir(exist_ok=True)
+            log.info("Cleared sessions: %s", sessions_dir)
+        # Remove individual session snapshot files
+        for fname in ("Current Session", "Current Tabs", "Last Session", "Last Tabs"):
+            f = default_dir / fname
+            if f.exists():
+                f.unlink(missing_ok=True)
+                log.info("Removed %s", f)
+
+    # 3. Reset crash markers in each profile's Preferences so Chrome doesn't
     #    show the "Something went wrong opening your profile" dialog.
     for prefs_path in chrome_data.rglob("Preferences"):
         try:
