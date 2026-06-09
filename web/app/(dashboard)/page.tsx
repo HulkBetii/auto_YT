@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, eq, isNotNull, sql } from "drizzle-orm";
+import { desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { jobs, videoContent, videos } from "@/lib/db/schema";
@@ -53,6 +53,66 @@ async function getRecentActivity() {
     .limit(12);
 }
 
+const IN_FLIGHT_STATUSES = ["topic", "outline", "scripted", "seo_done", "scoring", "needs_retry"] as const;
+
+// Stage order for the mini-stepper
+const PIPELINE_STEPS = ["P1", "P2", "P3", "P4", "Score"] as const;
+type PipelineStep = (typeof PIPELINE_STEPS)[number];
+
+/** Map video status → how many steps are "done" (green) */
+const STATUS_DONE_STEPS: Record<string, number> = {
+  topic: 1,        // P1 done
+  outline: 2,      // P1+P2 done
+  scripted: 3,     // P1+P2+P3 done
+  seo_done: 4,     // P1+P2+P3+P4 done
+  scoring: 4,      // same as seo_done, Score is "running"
+  needs_retry: 2,  // back to P3
+};
+
+/** Map video status → which step is currently "running" (pulse) */
+const STATUS_RUNNING_STEP: Record<string, PipelineStep | null> = {
+  topic: "P2",
+  outline: "P3",
+  scripted: "P4",
+  seo_done: "Score",
+  scoring: "Score",
+  needs_retry: "P3",
+};
+
+async function getInFlightVideos() {
+  const inFlight = await db
+    .select({ id: videos.id, title: videos.title, featuredPerson: videos.featuredPerson, status: videos.status })
+    .from(videos)
+    .where(inArray(videos.status, [...IN_FLIGHT_STATUSES]))
+    .orderBy(videos.id);
+
+  if (inFlight.length === 0) return [];
+
+  // Get the latest pending/running job for each in-flight video
+  const videoIds = inFlight.map((v) => v.id);
+  const runningJobs = await db
+    .select({ videoId: jobs.videoId, stage: jobs.stage, status: jobs.status })
+    .from(jobs)
+    .where(
+      sql`${jobs.videoId} = ANY(ARRAY[${sql.join(videoIds.map((id) => sql`${id}`), sql`, `)}]::int[])
+        AND ${jobs.status} IN ('pending', 'running')`,
+    )
+    .orderBy(desc(jobs.id));
+
+  // Keep only the latest job per video
+  const latestJobByVideo = new Map<number, { stage: string; status: string }>();
+  for (const j of runningJobs) {
+    if (j.videoId != null && !latestJobByVideo.has(j.videoId)) {
+      latestJobByVideo.set(j.videoId, { stage: j.stage, status: j.status });
+    }
+  }
+
+  return inFlight.map((v) => ({
+    ...v,
+    runningJob: latestJobByVideo.get(v.id) ?? null,
+  }));
+}
+
 async function getTTSRows() {
   return db
     .select({ featuredPerson: videos.featuredPerson, audioUrl: videos.audioUrl })
@@ -61,7 +121,7 @@ async function getTTSRows() {
 }
 
 export default async function DashboardPage() {
-  const [videoCounts, jobCounts, avgDurations, recentActivity, ttsRows, ttsStatusFn] =
+  const [videoCounts, jobCounts, avgDurations, recentActivity, ttsRows, ttsStatusFn, inFlightVideos] =
     await Promise.all([
       getVideoStatusCounts(),
       getJobStatusCounts(),
@@ -69,6 +129,7 @@ export default async function DashboardPage() {
       getRecentActivity(),
       getTTSRows(),
       buildTTSStatusChecker(),
+      getInFlightVideos(),
     ]);
 
   const ttsStats = ttsRows.reduce(
@@ -129,6 +190,75 @@ export default async function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {/* In-flight pipeline */}
+      {inFlightVideos.length > 0 && (
+        <section>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+            ĐANG XỬ LÝ — {inFlightVideos.length} video
+          </p>
+          <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+            <CardContent className="p-0 divide-y divide-black/[.06] dark:divide-white/[.08]">
+              {inFlightVideos.map((v) => {
+                const doneCount = STATUS_DONE_STEPS[v.status] ?? 0;
+                const runningStep = STATUS_RUNNING_STEP[v.status] ?? null;
+                return (
+                  <div key={v.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    {/* Mini stepper */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {PIPELINE_STEPS.map((step, i) => {
+                        const isDone = i < doneCount;
+                        const isRunning = step === runningStep;
+                        return (
+                          <div key={step} className="flex items-center gap-1">
+                            <div
+                              className={[
+                                "flex items-center justify-center rounded-full text-[10px] font-medium",
+                                isRunning
+                                  ? "h-6 px-2 bg-[#FF9F0A] text-white animate-pulse"
+                                  : isDone
+                                    ? "h-6 px-2 bg-[#34C759] text-white"
+                                    : "h-6 px-2 bg-[#E5E5EA] text-[#AEAEB2] dark:bg-white/[.08] dark:text-[#6E6E73]",
+                              ].join(" ")}
+                            >
+                              {step}
+                            </div>
+                            {i < PIPELINE_STEPS.length - 1 && (
+                              <div className={`h-px w-3 ${i < doneCount ? "bg-[#34C759]" : "bg-[#E5E5EA] dark:bg-white/[.08]"}`} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Title + person */}
+                    <Link
+                      href={`/videos/${v.id}`}
+                      className="min-w-0 flex-1 truncate text-[15px] text-[#1C1C1E] hover:text-[#007AFF] dark:text-white transition-colors duration-150"
+                    >
+                      {v.title ?? `Video #${v.id}`}
+                    </Link>
+
+                    {/* Running job badge */}
+                    {v.runningJob && (
+                      <Badge
+                        className={[
+                          "shrink-0 font-mono text-[11px] border-0",
+                          v.runningJob.status === "running"
+                            ? "bg-[#FFF3D1] text-[#FF9F0A]"
+                            : "bg-[#E5E5EA] text-[#3C3C43] dark:bg-white/[.10] dark:text-[#AEAEB2]",
+                        ].join(" ")}
+                      >
+                        {v.runningJob.status === "running" ? "running" : "pending"} {v.runningJob.stage}
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* Two-column: processing time + activity */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
