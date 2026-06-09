@@ -1,12 +1,9 @@
-import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { videos, videoStatusEnum } from "@/lib/db/schema";
-import { formatDateTime, scoreColorClass } from "@/lib/ui/format";
-import { StatusBadge } from "@/components/StatusBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusTabs } from "./StatusTabs";
+import { VideosTable } from "./VideosTable";
 
 export const dynamic = "force-dynamic";
 
@@ -42,84 +39,7 @@ export default async function VideosPage({
 
       <StatusTabs current={filter} statuses={videoStatusEnum.enumValues} />
 
-      <div className="overflow-hidden rounded-xl border border-black/[.08] bg-white dark:border-white/[.10] dark:bg-[#1C1C1E]">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-black/[.06] hover:bg-transparent dark:border-white/[.08]">
-              <TableHead className="w-12 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                ID
-              </TableHead>
-              <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                Title
-              </TableHead>
-              <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                Character
-              </TableHead>
-              <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                Status
-              </TableHead>
-              <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                Score
-              </TableHead>
-              <TableHead className="w-16 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                Audio
-              </TableHead>
-              <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                Created
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((video) => (
-              <TableRow
-                key={video.id}
-                className="border-black/[.06] hover:bg-black/[.02] dark:border-white/[.08] dark:hover:bg-white/[.03]"
-              >
-                <TableCell className="text-[13px] text-[#AEAEB2]">#{video.id}</TableCell>
-                <TableCell className="max-w-[320px]">
-                  <Link
-                    href={`/videos/${video.id}`}
-                    title={video.title}
-                    className="block truncate text-[15px] font-medium text-[#1C1C1E] transition-colors duration-150 hover:text-[#007AFF] dark:text-white"
-                  >
-                    {video.title}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-[15px] text-[#6E6E73]">
-                  {video.featuredPerson ?? "—"}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge status={video.status} />
-                </TableCell>
-                <TableCell>
-                  <span className={`text-[15px] font-medium ${scoreColorClass(video.score)}`}>
-                    {video.score != null ? `${video.score} / 100` : "—"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {video.audioUrl ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#D1F2D1] px-2 py-0.5 text-[11px] font-medium text-[#1A7A1A]">
-                      ♪ Audio
-                    </span>
-                  ) : (
-                    <span className="text-[#AEAEB2]">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-[13px] text-[#6E6E73]">
-                  {formatDateTime(video.createdAt)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center text-[15px] text-[#AEAEB2]">
-                  Không có video nào khớp bộ lọc này.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <VideosTable rows={rows} />
     </>
   );
 }
