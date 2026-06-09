@@ -53,20 +53,22 @@ async function getRecentActivity() {
     .limit(12);
 }
 
-const IN_FLIGHT_STATUSES = ["topic", "outline", "scripted", "seo_done", "scoring", "needs_retry"] as const;
+// Pipeline statuses + ready_to_publish (TTS pending) — filtered in JS below
+const IN_FLIGHT_STATUSES = ["topic", "outline", "scripted", "seo_done", "scoring", "needs_retry", "ready_to_publish"] as const;
 
-// Stage order for the mini-stepper
-const PIPELINE_STEPS = ["P1", "P2", "P3", "P4", "Score"] as const;
+// Stage order for the mini-stepper (P1→P2→P3→P4→Score→TTS)
+const PIPELINE_STEPS = ["P1", "P2", "P3", "P4", "Score", "TTS"] as const;
 type PipelineStep = (typeof PIPELINE_STEPS)[number];
 
 /** Map video status → how many steps are "done" (green) */
 const STATUS_DONE_STEPS: Record<string, number> = {
-  topic: 1,        // P1 done
-  outline: 2,      // P1+P2 done
-  scripted: 3,     // P1+P2+P3 done
-  seo_done: 4,     // P1+P2+P3+P4 done
-  scoring: 4,      // same as seo_done, Score is "running"
-  needs_retry: 2,  // back to P3
+  topic: 1,              // P1 done
+  outline: 2,            // P1+P2 done
+  scripted: 3,           // P1+P2+P3 done
+  seo_done: 4,           // P1+P2+P3+P4 done
+  scoring: 4,            // same as seo_done, Score is "running"
+  needs_retry: 2,        // back to P3
+  ready_to_publish: 5,   // Score done, TTS pending/running
 };
 
 /** Map video status → which step is currently "running" (pulse) */
@@ -77,19 +79,25 @@ const STATUS_RUNNING_STEP: Record<string, PipelineStep | null> = {
   seo_done: "Score",
   scoring: "Score",
   needs_retry: "P3",
+  ready_to_publish: "TTS",
 };
 
 async function getInFlightVideos() {
   const inFlight = await db
-    .select({ id: videos.id, title: videos.title, featuredPerson: videos.featuredPerson, status: videos.status })
+    .select({ id: videos.id, title: videos.title, featuredPerson: videos.featuredPerson, status: videos.status, audioUrl: videos.audioUrl })
     .from(videos)
     .where(inArray(videos.status, [...IN_FLIGHT_STATUSES]))
     .orderBy(videos.id);
 
-  if (inFlight.length === 0) return [];
+  // For ready_to_publish: only show if TTS not yet done (audio_url IS NULL)
+  const filtered = inFlight.filter(
+    (v) => v.status !== "ready_to_publish" || v.audioUrl === null,
+  );
+
+  if (filtered.length === 0) return [];
 
   // Get the latest pending/running job for each in-flight video
-  const videoIds = inFlight.map((v) => v.id);
+  const videoIds = filtered.map((v) => v.id);
   const runningJobs = await db
     .select({ videoId: jobs.videoId, stage: jobs.stage, status: jobs.status })
     .from(jobs)
@@ -107,7 +115,7 @@ async function getInFlightVideos() {
     }
   }
 
-  return inFlight.map((v) => ({
+  return filtered.map((v) => ({
     ...v,
     runningJob: latestJobByVideo.get(v.id) ?? null,
   }));

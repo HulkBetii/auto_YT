@@ -61,6 +61,9 @@ export default async function VideosPage({
               <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
                 Score
               </TableHead>
+              <TableHead className="w-16 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                Audio
+              </TableHead>
               <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
                 Created
               </TableHead>
@@ -93,6 +96,15 @@ export default async function VideosPage({
                     {video.score != null ? `${video.score} / 100` : "—"}
                   </span>
                 </TableCell>
+                <TableCell>
+                  {video.audioUrl ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#D1F2D1] px-2 py-0.5 text-[11px] font-medium text-[#1A7A1A]">
+                      ♪ Audio
+                    </span>
+                  ) : (
+                    <span className="text-[#AEAEB2]">—</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-[13px] text-[#6E6E73]">
                   {formatDateTime(video.createdAt)}
                 </TableCell>
@@ -100,7 +112,7 @@ export default async function VideosPage({
             ))}
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-12 text-center text-[15px] text-[#AEAEB2]">
+                <TableCell colSpan={7} className="py-12 text-center text-[15px] text-[#AEAEB2]">
                   Không có video nào khớp bộ lọc này.
                 </TableCell>
               </TableRow>
