@@ -30,7 +30,7 @@ from threading import Lock
 PORT = 4242
 ALLOW_ORIGIN = "*"   # localhost-only server, safe to allow *
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]  # .../auto_YT
+PROJECT_ROOT = Path(__file__).resolve().parents[2]  # .../auto_YT
 WORKER_CMD = [sys.executable, "-m", "auto_yt.worker"]
 WORKER_CWD = str(PROJECT_ROOT / "src")
 
@@ -60,11 +60,24 @@ def _is_running() -> bool:
     return True
 
 
+def _clear_singleton_locks() -> None:
+    """Remove Chrome SingletonLock files left by crashed sessions."""
+    chrome_data = PROJECT_ROOT / "data" / "chrome_user_data"
+    if chrome_data.exists():
+        for lock in chrome_data.rglob("SingletonLock"):
+            try:
+                lock.unlink()
+                log.info("Removed stale lock: %s", lock)
+            except OSError as e:
+                log.warning("Could not remove %s: %s", lock, e)
+
+
 def start_worker() -> dict:
     global _proc
     with _lock:
         if _is_running():
             return {"ok": False, "reason": "already_running", "pid": _proc.pid}
+        _clear_singleton_locks()
         log.info("Starting worker: %s (cwd=%s)", " ".join(WORKER_CMD), WORKER_CWD)
         _proc = subprocess.Popen(
             WORKER_CMD,
@@ -132,12 +145,16 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not_found"}, 404)
 
     def do_POST(self):
-        if self.path == "/start":
-            self._json(start_worker())
-        elif self.path == "/stop":
-            self._json(stop_worker())
-        else:
-            self._json({"error": "not_found"}, 404)
+        try:
+            if self.path == "/start":
+                self._json(start_worker())
+            elif self.path == "/stop":
+                self._json(stop_worker())
+            else:
+                self._json({"error": "not_found"}, 404)
+        except Exception as exc:
+            log.exception("Error handling POST %s", self.path)
+            self._json({"ok": False, "error": str(exc)}, 500)
 
     def log_message(self, fmt, *args):
         log.info("%s - %s", self.address_string(), fmt % args)
