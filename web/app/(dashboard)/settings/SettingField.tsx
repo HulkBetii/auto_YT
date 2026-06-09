@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+
 export function SettingField({
   fieldKey,
   label,
@@ -41,30 +45,31 @@ export function SettingField({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <label className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{label}</span>
-        <span className="text-xs text-zinc-500">{description}</span>
-        <div className="mt-1 flex gap-2">
-          <input
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              setSaved(false);
-            }}
-            className="flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-          />
-          <button
-            type="submit"
-            disabled={isPending || value === initialValue}
-            className="rounded bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            {isPending ? "Đang lưu…" : "Lưu"}
-          </button>
-        </div>
-      </label>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      {saved && !error && <p className="text-xs text-emerald-600">Đã lưu.</p>}
-    </form>
+    <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+      <CardContent className="p-5">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <div>
+            <p className="text-[15px] font-medium text-[#1C1C1E] dark:text-white">{label}</p>
+            <p className="mt-0.5 text-[13px] text-[#6E6E73]">{description}</p>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={value}
+              onChange={(e) => { setValue(e.target.value); setSaved(false); }}
+              className="flex-1 text-[15px]"
+            />
+            <Button
+              type="submit"
+              disabled={isPending || value === initialValue}
+              className="shrink-0 bg-[#007AFF] text-white hover:bg-[#0062CC] disabled:opacity-50"
+            >
+              {isPending ? "Đang lưu…" : "Lưu"}
+            </Button>
+          </div>
+          {error && <p className="text-[13px] text-[#FF3B30]">{error}</p>}
+          {saved && !error && <p className="text-[13px] text-[#34C759]">Đã lưu.</p>}
+        </form>
+      </CardContent>
+    </Card>
   );
 }
