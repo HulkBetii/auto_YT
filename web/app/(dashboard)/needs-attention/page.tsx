@@ -7,7 +7,7 @@ import { getLatestAnalytics } from "@/lib/db/repo/video-analytics";
 import { jobs, promptVersions, videos } from "@/lib/db/schema";
 import { formatDateTime } from "@/lib/ui/format";
 
-import { YoutubeIdForm } from "../videos/[id]/YoutubeIdForm";
+import { YoutubeIdInline } from "../videos/[id]/YoutubeIdInline";
 import { AnalyticsForm } from "./AnalyticsForm";
 import { RetryJobButton } from "./RetryJobButton";
 
@@ -103,7 +103,7 @@ export default async function NeedsAttentionPage() {
               <Link href={`/videos/${video.id}`} className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
                 {video.title}
               </Link>
-              <YoutubeIdForm videoId={video.id} currentValue={video.youtubeVideoId} />
+              <YoutubeIdInline videoId={video.id} currentValue={video.youtubeVideoId} />
             </div>
           ))}
           {missingYoutubeId.length === 0 && <EmptyRow>Không có gì cần xử lý — mọi video đã đăng đều có YouTube ID.</EmptyRow>}

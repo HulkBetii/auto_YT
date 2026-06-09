@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { jobs, videoContent, videos } from "@/lib/db/schema";
-import { formatDuration, formatRelative, statusBadgeClass } from "@/lib/ui/format";
+import { formatDuration, formatRelative } from "@/lib/ui/format";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RunPipelineButton } from "./RunPipelineButton";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +39,7 @@ async function getAvgStageDuration() {
 }
 
 async function getRecentActivity() {
-  const recentContent = await db
+  return db
     .select({
       id: videoContent.id,
       videoId: videoContent.videoId,
@@ -48,19 +51,13 @@ async function getRecentActivity() {
     .leftJoin(videos, eq(videoContent.videoId, videos.id))
     .orderBy(desc(videoContent.createdAt))
     .limit(12);
-
-  return recentContent;
 }
 
-async function getTTSStats() {
-  // Fetch all ready_to_publish + published + analyzed videos and their TTS state
-  const rows = await db
+async function getTTSRows() {
+  return db
     .select({ featuredPerson: videos.featuredPerson, audioUrl: videos.audioUrl })
     .from(videos)
-    .where(
-      sql`${videos.status} in ('ready_to_publish', 'published', 'analyzed')`,
-    );
-  return rows;
+    .where(sql`${videos.status} in ('ready_to_publish', 'published', 'analyzed')`);
 }
 
 export default async function DashboardPage() {
@@ -70,7 +67,7 @@ export default async function DashboardPage() {
       getJobStatusCounts(),
       getAvgStageDuration(),
       getRecentActivity(),
-      getTTSStats(),
+      getTTSRows(),
       buildTTSStatusChecker(),
     ]);
 
@@ -83,154 +80,135 @@ export default async function DashboardPage() {
     {} as Record<string, number>,
   );
 
-  const videoTotal = videoCounts.reduce((acc, r) => acc + r.count, 0);
-  const jobTotal = jobCounts.reduce((acc, r) => acc + r.count, 0);
+  const readyCount = videoCounts.find((r) => r.status === "ready_to_publish")?.count ?? 0;
+  const jobsDoneCount = jobCounts.find((r) => r.status === "done")?.count ?? 0;
+  const audioCount = ttsStats["done"] ?? 0;
+
+  const statCards = [
+    { label: "READY TO PUBLISH", value: readyCount },
+    { label: "AUDIO DONE", value: audioCount },
+    { label: "JOBS DONE", value: jobsDoneCount },
+  ];
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Tổng quan</h1>
-          <span
-            title="Trang tự động làm mới dữ liệu mỗi 15 giây khi đang mở"
-            className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-            Tự động cập nhật
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-[28px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
+            Tổng quan
+          </h1>
+          <span className="flex items-center gap-1.5 rounded-full bg-[#D1F2D1] px-2.5 py-0.5 text-[11px] font-medium text-[#1A7A1A]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#34C759]" />
+            Live
           </span>
         </div>
         <RunPipelineButton />
       </div>
+
+      {/* Stat cards */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Video theo trạng thái (tổng {videoTotal})
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          {videoCounts.map((row) => (
-            <div
-              key={row.status}
-              className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+          PIPELINE STATUS
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          {statCards.map((card) => (
+            <Card
+              key={card.label}
+              className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]"
             >
-              <span className={`w-fit rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}>
-                {row.status}
-              </span>
-              <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{row.count}</span>
-            </div>
+              <CardContent className="p-5">
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                  {card.label}
+                </p>
+                <p className="mt-1 text-[34px] font-semibold leading-none text-[#1C1C1E] dark:text-white">
+                  {card.value}
+                </p>
+              </CardContent>
+            </Card>
           ))}
-          {videoCounts.length === 0 && <p className="text-sm text-zinc-500">Chưa có video nào.</p>}
         </div>
       </section>
 
-      {ttsRows.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Audio TTS ({ttsRows.length} video đã hoàn thành pipeline)
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            {ttsStats["done"] != null && (
-              <div className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                <span className="w-fit rounded px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-                  🔊 Đã có audio
-                </span>
-                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{ttsStats["done"]}</span>
-              </div>
-            )}
-            {ttsStats["pending"] != null && (
-              <div className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                <span className="w-fit rounded px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400">
-                  ⏳ Chờ tạo audio
-                </span>
-                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{ttsStats["pending"]}</span>
-              </div>
-            )}
-            {ttsStats["no_mapping"] != null && (
-              <Link
-                href="/settings"
-                className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-amber-200 bg-white p-4 hover:bg-amber-50 dark:border-amber-800 dark:bg-zinc-950 dark:hover:bg-amber-950/30"
-              >
-                <span className="w-fit rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
-                  ⚠ Chưa có giọng
-                </span>
-                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{ttsStats["no_mapping"]}</span>
-                <span className="text-[10px] text-zinc-400">Nhấn để vào Cài đặt</span>
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Job theo trạng thái (tổng {jobTotal})
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          {jobCounts.map((row) => (
-            <div
-              key={row.status}
-              className="flex min-w-[140px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-            >
-              <span className={`w-fit rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}>
-                {row.status}
-              </span>
-              <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{row.count}</span>
-            </div>
-          ))}
-          {jobCounts.length === 0 && <p className="text-sm text-zinc-500">Chưa có job nào.</p>}
-        </div>
-      </section>
-
+      {/* Two-column: processing time + activity */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Thời gian xử lý trung bình theo giai đoạn
-          </h2>
-          <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                <tr>
-                  <th className="px-4 py-2">Giai đoạn</th>
-                  <th className="px-4 py-2">Thời lượng TB</th>
-                  <th className="px-4 py-2">Số lượng mẫu</th>
-                </tr>
-              </thead>
-              <tbody>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+            PROCESSING TIME
+          </p>
+          <div className="overflow-hidden rounded-xl border border-black/[.08] bg-white dark:border-white/[.10] dark:bg-[#1C1C1E]">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-black/[.06] hover:bg-transparent dark:border-white/[.08]">
+                  <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                    Stage
+                  </TableHead>
+                  <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                    Avg
+                  </TableHead>
+                  <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                    Samples
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {avgDurations.map((row) => (
-                  <tr key={row.stage} className="border-t border-zinc-100 dark:border-zinc-800">
-                    <td className="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-50">{row.stage}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{formatDuration(row.avgSeconds)}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{row.count}</td>
-                  </tr>
+                  <TableRow
+                    key={row.stage}
+                    className="border-black/[.06] hover:bg-black/[.02] dark:border-white/[.08] dark:hover:bg-white/[.03]"
+                  >
+                    <TableCell className="text-[15px] font-medium text-[#1C1C1E] dark:text-white">
+                      {row.stage}
+                    </TableCell>
+                    <TableCell className="text-[15px] text-[#6E6E73]">
+                      {formatDuration(row.avgSeconds)}
+                    </TableCell>
+                    <TableCell className="text-[15px] text-[#6E6E73]">{row.count}</TableCell>
+                  </TableRow>
                 ))}
                 {avgDurations.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
-                      Chưa có job nào hoàn thành.
-                    </td>
-                  </tr>
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-8 text-center text-[15px] text-[#AEAEB2]">
+                      Chưa có dữ liệu.
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Hoạt động gần đây
-          </h2>
-          <ul className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
-            {recentActivity.map((row) => (
-              <li key={row.id} className="flex items-center justify-between gap-3 rounded px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900">
-                <Link href={`/videos/${row.videoId}`} className="truncate text-zinc-700 hover:underline dark:text-zinc-300">
-                  <span className="font-medium text-zinc-900 dark:text-zinc-50">{row.stage}</span>{" "}
-                  đã tạo cho <span className="truncate">{row.videoTitle ?? `video #${row.videoId}`}</span>
-                </Link>
-                <span className="shrink-0 text-xs text-zinc-500">{formatRelative(row.createdAt)}</span>
-              </li>
-            ))}
-            {recentActivity.length === 0 && <li className="px-3 py-6 text-center text-sm text-zinc-500">Chưa có hoạt động nào.</li>}
-          </ul>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+            RECENT ACTIVITY
+          </p>
+          <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+            <CardContent className="p-0 divide-y divide-black/[.06] dark:divide-white/[.08]">
+              {recentActivity.map((row) => (
+                <div key={row.id} className="flex items-center gap-3 px-4 py-3">
+                  <Badge className="shrink-0 font-mono text-[12px] bg-[#E5E5EA] text-[#3C3C43] border-0 dark:bg-white/[.10] dark:text-[#AEAEB2]">
+                    {row.stage}
+                  </Badge>
+                  <Link
+                    href={`/videos/${row.videoId}`}
+                    className="min-w-0 flex-1 truncate text-[15px] text-[#1C1C1E] transition-colors duration-150 hover:text-[#007AFF] dark:text-white"
+                  >
+                    {row.videoTitle ?? `Video #${row.videoId}`}
+                  </Link>
+                  <span className="shrink-0 text-[13px] text-[#AEAEB2]">
+                    {formatRelative(row.createdAt)}
+                  </span>
+                </div>
+              ))}
+              {recentActivity.length === 0 && (
+                <p className="px-4 py-8 text-center text-[15px] text-[#AEAEB2]">
+                  Chưa có hoạt động nào.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </section>
       </div>
-    </div>
+    </>
   );
 }

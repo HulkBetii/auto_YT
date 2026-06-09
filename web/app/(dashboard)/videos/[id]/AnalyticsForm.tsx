@@ -3,14 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
 /**
- * Manual CTR + AVD entry form for published videos.
- *
- * YouTube Data API (API key) fetches views/likes/comments automatically via
- * the check-analytics cron. But CTR and AVD require YouTube Analytics OAuth —
- * so the operator copies them from YouTube Studio and enters them here.
- * Once both are entered AND views >= threshold, P5 triggers automatically
- * on the next check-analytics run.
+ * Manual CTR + AVD entry for published videos.
+ * YouTube Data API fetches views automatically; CTR/AVD require Analytics OAuth
+ * so the operator enters them manually from YouTube Studio.
  */
 export function AnalyticsForm({
   videoId,
@@ -60,47 +59,49 @@ export function AnalyticsForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <p className="text-xs text-zinc-500">
-        Sao chép từ YouTube Studio Analytics. Khi đủ lượt xem + có CTR/AVD, P5 tự động kích hoạt.
+      <p className="text-[13px] text-[#6E6E73]">
+        Sao chép từ YouTube Studio. Khi đủ lượt xem + có CTR/AVD, P5 tự động kích hoạt.
       </p>
-      <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          CTR (%)
-          <input
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+            CTR (%)
+          </span>
+          <Input
             type="number"
             step="0.01"
             min="0"
             max="100"
             value={ctr}
             onChange={(e) => setCtr(e.target.value)}
-            placeholder="vd: 4.25"
-            className="w-32 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            placeholder="4.25"
+            className="w-28 text-[15px]"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          AVD (phút)
-          <input
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+            AVD (phút)
+          </span>
+          <Input
             type="number"
             step="0.1"
             min="0"
             value={avd}
             onChange={(e) => setAvd(e.target.value)}
-            placeholder="vd: 3.5"
-            className="w-32 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            placeholder="3.5"
+            className="w-28 text-[15px]"
           />
         </label>
-        <div className="flex items-end">
-          <button
-            type="submit"
-            disabled={isPending || !ctr || !avd}
-            className="rounded bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            {isPending ? "Đang lưu…" : "Lưu"}
-          </button>
-        </div>
+        <Button
+          type="submit"
+          disabled={isPending || !ctr || !avd}
+          className="bg-[#007AFF] text-white hover:bg-[#0062CC] disabled:opacity-50"
+        >
+          {isPending ? "Đang lưu…" : "Lưu"}
+        </Button>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {saved && <p className="text-sm text-emerald-600">✓ Đã lưu. P5 sẽ tự kích hoạt khi đủ lượt xem.</p>}
+      {error && <p className="text-[13px] text-[#FF3B30]">{error}</p>}
+      {saved && <p className="text-[13px] text-[#34C759]">Đã lưu. P5 sẽ tự kích hoạt khi đủ lượt xem.</p>}
     </form>
   );
 }

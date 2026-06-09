@@ -1,16 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { ChevronLeft } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { jobs, videoAnalytics, videoContent } from "@/lib/db/schema";
-import { formatDateTime, formatDuration, statusBadgeClass } from "@/lib/ui/format";
+import { formatDateTime, scoreColorClass } from "@/lib/ui/format";
 import { getVideo } from "@/lib/db/repo/videos";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { YoutubeIdForm } from "./YoutubeIdForm";
+import { YoutubeIdInline } from "./YoutubeIdInline";
 import { AnalyticsForm } from "./AnalyticsForm";
-import { AudioPlayer } from "./AudioPlayer";
+import { PipelineTimeline } from "./PipelineTimeline";
+import { AudioCard, AudioCardPending, AudioCardNoMapping } from "./AudioCard";
 
 export const dynamic = "force-dynamic";
 
@@ -28,219 +35,228 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
     db.select().from(videoAnalytics).where(eq(videoAnalytics.videoId, videoId)).orderBy(videoAnalytics.fetchedAt),
     buildTTSStatusChecker(),
   ]);
+
   const ttsStatus = ttsStatusFn(video.featuredPerson, video.audioUrl);
+  const latestAnalytics = analytics.at(-1);
+  const showAnalyticsForm = video.status === "published" || video.status === "analyzed";
+  const showAudio = video.status === "ready_to_publish" || video.status === "published" || video.status === "analyzed";
+
+  const metaRows: { label: string; value: React.ReactNode }[] = [
+    { label: "Nhân vật", value: video.featuredPerson ?? "—" },
+    { label: "Loại nỗi đau", value: video.painType ?? "—" },
+    { label: "Nhiệt độ", value: video.temperature ?? "—" },
+    {
+      label: "Điểm",
+      value: (
+        <div>
+          <span className={`text-[15px] font-medium ${scoreColorClass(video.score)}`}>
+            {video.score != null ? `${video.score} / 100` : "—"}
+          </span>
+          {video.score != null && (
+            <Progress
+              value={video.score}
+              className="mt-1.5 h-[3px] rounded-full [&>div]:bg-[#007AFF]"
+            />
+          )}
+        </div>
+      ),
+    },
+    { label: "Thử lại", value: video.retryCount },
+    {
+      label: "YouTube ID",
+      value: (
+        <YoutubeIdInline videoId={video.id} currentValue={video.youtubeVideoId} />
+      ),
+    },
+  ];
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <Link href="/videos" className="text-sm text-zinc-500 hover:underline">
-          ← Tất cả video
+    <>
+      {/* Back link */}
+      <div>
+        <Link
+          href="/videos"
+          className="inline-flex items-center gap-1 text-[15px] text-[#007AFF] transition-colors duration-150 hover:text-[#0062CC]"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Tất cả video
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{video.title}</h1>
-          <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(video.status)}`}>{video.status}</span>
-        </div>
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400 sm:grid-cols-4">
-          <div><dt className="text-xs uppercase text-zinc-400">Nhân vật</dt><dd>{video.featuredPerson ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Loại nỗi đau</dt><dd>{video.painType ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Nhiệt độ</dt><dd>{video.temperature ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Định dạng</dt><dd>{video.format}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Điểm</dt><dd>{video.score ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Số lần thử lại</dt><dd>{video.retryCount}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">YouTube ID</dt><dd>{video.youtubeVideoId ?? "—"}</dd></div>
-          <div><dt className="text-xs uppercase text-zinc-400">Ngày đăng</dt><dd>{formatDateTime(video.publishedAt)}</dd></div>
-        </dl>
       </div>
 
-      {(video.status === "ready_to_publish" || video.status === "published" || video.status === "analyzed") && (
-        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <YoutubeIdForm videoId={video.id} currentValue={video.youtubeVideoId} />
-        </section>
-      )}
+      {/* Main 2-column layout */}
+      <div className="md:grid md:grid-cols-[280px_1fr] gap-6 items-start">
 
-      {ttsStatus === "done" && video.audioUrl ? (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Audio TTS
-          </h2>
-          <div className="max-w-md">
-            <AudioPlayer
-              src={video.audioUrl}
-              filename={`${video.featuredPerson ?? "audio"} — ${video.title.slice(0, 40)}`}
-            />
-          </div>
-        </section>
-      ) : ttsStatus === "pending" ? (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Audio TTS
-          </h2>
-          <div className="flex max-w-md items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 dark:border-blue-900/40 dark:bg-blue-950/30">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
-              <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Đang chờ tạo audio…</p>
-              <p className="mt-0.5 text-xs text-blue-600/70 dark:text-blue-400/60">Tự động xử lý ở cron tick tiếp theo (~5 phút)</p>
-            </div>
-          </div>
-        </section>
-      ) : ttsStatus === "no_mapping" && (video.status === "ready_to_publish" || video.status === "published" || video.status === "analyzed") ? (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Audio TTS
-          </h2>
-          <div className="flex max-w-md items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 dark:border-amber-800/40 dark:bg-amber-950/20">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
-              <svg className="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                Chưa có clone voice cho{" "}
-                <span className="font-semibold">{video.featuredPerson ?? "nhân vật này"}</span>
+        {/* LEFT — Metadata card */}
+        <Card className="sticky top-[68px] border-black/[.08] shadow-none rounded-xl overflow-hidden dark:border-white/[.10] dark:bg-[#1C1C1E]">
+          <CardContent className="p-0">
+            {/* Title + status */}
+            <div className="px-5 pt-5 pb-4">
+              <p className="text-[17px] font-semibold text-[#1C1C1E] dark:text-white leading-snug">
+                {video.title}
               </p>
-              <p className="mt-0.5 text-xs text-amber-700/70 dark:text-amber-400/60">
-                Thêm mapping giọng tại{" "}
-                <a href="/settings" className="font-medium underline underline-offset-2 hover:text-amber-600">
-                  Cài đặt → Bản đồ giọng TTS
-                </a>{" "}
-                rồi chạy lại pipeline.
-              </p>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Dòng thời gian pipeline (P1 → P_score)
-        </h2>
-        <ol className="flex flex-col gap-3">
-          {content.map((row) => (
-            <li key={row.id} className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  {row.stage}
-                </span>
-                <span className="text-xs text-zinc-500">{formatDateTime(row.createdAt)}</span>
+              <div className="mt-2">
+                <StatusBadge status={video.status} />
               </div>
-              <details>
-                <summary className="cursor-pointer text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50">
-                  Xem nội dung ({row.output.length.toLocaleString()} ký tự)
-                </summary>
-                <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                  {row.output}
-                </pre>
-              </details>
-            </li>
-          ))}
-          {content.length === 0 && (
-            <li className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-              Chưa có nội dung nào được tạo.
-            </li>
+            </div>
+
+            <Separator className="bg-black/[.06] dark:bg-white/[.08]" />
+
+            {/* Meta rows */}
+            <div className="divide-y divide-black/[.06] dark:divide-white/[.08]">
+              {metaRows.map((row) => (
+                <div key={row.label} className="flex items-center gap-3 min-h-[44px] px-4 py-3">
+                  <span className="w-24 shrink-0 text-[13px] text-[#6E6E73]">{row.label}</span>
+                  <div className="flex-1 text-[15px] text-[#1C1C1E] dark:text-white">{row.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Analytics form */}
+            {showAnalyticsForm && (
+              <>
+                <Separator className="bg-black/[.06] dark:bg-white/[.08]" />
+                <div className="p-4">
+                  <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                    CTR &amp; AVD
+                  </p>
+                  <AnalyticsForm
+                    videoId={video.id}
+                    currentCtrPct={latestAnalytics?.ctrBasisPoints != null ? latestAnalytics.ctrBasisPoints / 100 : null}
+                    currentAvdMinutes={latestAnalytics?.averageViewDurationSeconds != null ? latestAnalytics.averageViewDurationSeconds / 60 : null}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* RIGHT — Timeline + audio */}
+        <div className="flex flex-col gap-6 min-w-0">
+          {/* Pipeline timeline */}
+          <section>
+            <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+              PIPELINE TIMELINE
+            </p>
+            <PipelineTimeline content={content} jobs={videoJobs} />
+          </section>
+
+          {/* Jobs table */}
+          <section>
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+              JOBS
+            </p>
+            <div className="overflow-hidden rounded-xl border border-black/[.08] bg-white dark:border-white/[.10] dark:bg-[#1C1C1E]">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-black/[.06] hover:bg-transparent dark:border-white/[.08]">
+                    {["Stage", "Status", "Retries", "Duration", "Error", "Created"].map((h) => (
+                      <TableHead key={h} className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                        {h}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {videoJobs.map((job) => {
+                    const durationSec =
+                      job.startedAt && job.finishedAt
+                        ? (job.finishedAt.getTime() - job.startedAt.getTime()) / 1000
+                        : null;
+                    const durationStr =
+                      durationSec != null
+                        ? durationSec < 60
+                          ? `${Math.round(durationSec)}s`
+                          : `${(durationSec / 60).toFixed(1)}m`
+                        : "—";
+                    return (
+                      <TableRow key={job.id} className="border-black/[.06] hover:bg-black/[.02] dark:border-white/[.08] dark:hover:bg-white/[.03]">
+                        <TableCell className="text-[15px] font-medium text-[#1C1C1E] dark:text-white">
+                          {job.stage}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={job.status} />
+                        </TableCell>
+                        <TableCell className="text-[15px] text-[#6E6E73]">{job.retryCount}</TableCell>
+                        <TableCell className="text-[15px] text-[#6E6E73]">{durationStr}</TableCell>
+                        <TableCell className="max-w-[180px] truncate text-[13px] text-[#FF3B30]">
+                          {job.errorMessage ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-[13px] text-[#6E6E73]">
+                          {formatDateTime(job.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {videoJobs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-[15px] text-[#AEAEB2]">
+                        Chưa có job nào.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </section>
+
+          {/* Analytics snapshots */}
+          {analytics.length > 0 && (
+            <section>
+              <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                ANALYTICS SNAPSHOTS
+              </p>
+              <div className="overflow-hidden rounded-xl border border-black/[.08] bg-white dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-black/[.06] hover:bg-transparent dark:border-white/[.08]">
+                      {["Fetched", "Views", "Likes", "Comments", "CTR", "AVD"].map((h) => (
+                        <TableHead key={h} className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                          {h}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {analytics.map((row) => (
+                      <TableRow key={row.id} className="border-black/[.06] hover:bg-black/[.02] dark:border-white/[.08]">
+                        <TableCell className="text-[13px] text-[#6E6E73]">{formatDateTime(row.fetchedAt)}</TableCell>
+                        <TableCell className="text-[15px] text-[#1C1C1E] dark:text-white">{row.views}</TableCell>
+                        <TableCell className="text-[15px] text-[#6E6E73]">{row.likes ?? "—"}</TableCell>
+                        <TableCell className="text-[15px] text-[#6E6E73]">{row.comments ?? "—"}</TableCell>
+                        <TableCell className="text-[15px] text-[#6E6E73]">
+                          {row.ctrBasisPoints != null ? `${(row.ctrBasisPoints / 100).toFixed(2)}%` : "—"}
+                        </TableCell>
+                        <TableCell className="text-[15px] text-[#6E6E73]">
+                          {row.averageViewDurationSeconds != null
+                            ? `${(row.averageViewDurationSeconds / 60).toFixed(1)}m`
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
           )}
-        </ol>
-      </section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Job</h2>
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-              <tr>
-                <th className="px-4 py-2">Giai đoạn</th>
-                <th className="px-4 py-2">Trạng thái</th>
-                <th className="px-4 py-2">Số lần thử lại</th>
-                <th className="px-4 py-2">Thời lượng</th>
-                <th className="px-4 py-2">Lỗi</th>
-                <th className="px-4 py-2">Tạo lúc</th>
-              </tr>
-            </thead>
-            <tbody>
-              {videoJobs.map((job) => {
-                const durationSec =
-                  job.startedAt && job.finishedAt
-                    ? (job.finishedAt.getTime() - job.startedAt.getTime()) / 1000
-                    : null;
-                return (
-                  <tr key={job.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                    <td className="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-50">{job.stage}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(job.status)}`}>{job.status}</span>
-                    </td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{job.retryCount}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{formatDuration(durationSec)}</td>
-                    <td className="px-4 py-2 max-w-xs truncate text-red-600 dark:text-red-400">{job.errorMessage ?? "—"}</td>
-                    <td className="px-4 py-2 text-zinc-500">{formatDateTime(job.createdAt)}</td>
-                  </tr>
-                );
-              })}
-              {videoJobs.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">Video này chưa có job nào.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {/* Audio section */}
+          {showAudio && (
+            <section>
+              {ttsStatus === "done" && video.audioUrl ? (
+                <AudioCard
+                  src={video.audioUrl}
+                  character={video.featuredPerson}
+                  title={video.title}
+                />
+              ) : ttsStatus === "pending" ? (
+                <AudioCardPending />
+              ) : ttsStatus === "no_mapping" ? (
+                <AudioCardNoMapping featuredPerson={video.featuredPerson} />
+              ) : null}
+            </section>
+          )}
         </div>
-      </section>
-
-      {(video.status === "published" || video.status === "analyzed") && (
-        <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Nhập CTR &amp; AVD thủ công
-          </h2>
-          {(() => {
-            const latest = analytics.at(-1);
-            return (
-              <AnalyticsForm
-                videoId={video.id}
-                currentCtrPct={latest?.ctrBasisPoints != null ? latest.ctrBasisPoints / 100 : null}
-                currentAvdMinutes={latest?.averageViewDurationSeconds != null ? latest.averageViewDurationSeconds / 60 : null}
-              />
-            );
-          })()}
-        </section>
-      )}
-
-      {analytics.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Ảnh chụp Analytics</h2>
-          <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                <tr>
-                  <th className="px-4 py-2">Lấy lúc</th>
-                  <th className="px-4 py-2">Lượt xem</th>
-                  <th className="px-4 py-2">Lượt thích</th>
-                  <th className="px-4 py-2">Bình luận</th>
-                  <th className="px-4 py-2">CTR</th>
-                  <th className="px-4 py-2">Thời lượng xem TB</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analytics.map((row) => (
-                  <tr key={row.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                    <td className="px-4 py-2 text-zinc-500">{formatDateTime(row.fetchedAt)}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{row.views}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{row.likes ?? "—"}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{row.comments ?? "—"}</td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
-                      {row.ctrBasisPoints != null ? `${(row.ctrBasisPoints / 100).toFixed(2)}%` : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{formatDuration(row.averageViewDurationSeconds)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

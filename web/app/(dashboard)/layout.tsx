@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { AutoRefresh } from "./AutoRefresh";
+import { NavLink } from "./NavLink";
 
 const NAV_ITEMS = [
   { href: "/", label: "Tổng quan" },
@@ -12,25 +11,23 @@ const NAV_ITEMS = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 flex-col bg-[#F2F2F7] dark:bg-black">
       <AutoRefresh />
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4">
-          <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">哲人の刻</span>
-          <nav className="flex gap-4 text-sm">
+      {/* Fixed top navbar */}
+      <header className="fixed inset-x-0 top-0 z-50 h-[52px] border-b border-black/[.08] bg-white/90 backdrop-blur dark:border-white/[.10] dark:bg-[#1C1C1E]/90">
+        <div className="mx-auto flex h-full max-w-5xl items-center justify-between px-6">
+          <span className="text-[17px] font-semibold text-[#1C1C1E] dark:text-white">哲人の刻</span>
+          <nav className="flex gap-6">
             {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-              >
-                {item.label}
-              </Link>
+              <NavLink key={item.href} href={item.href} label={item.label} />
             ))}
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
+      {/* Content — offset for fixed header */}
+      <main className="flex-1 pt-[52px]">
+        <div className="mx-auto max-w-5xl px-6 py-8 space-y-8">{children}</div>
+      </main>
     </div>
   );
 }

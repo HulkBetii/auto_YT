@@ -1,7 +1,10 @@
 "use client";
 
+import { Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+
+import { Button } from "@/components/ui/button";
 
 interface CycleResult {
   ok: boolean;
@@ -13,26 +16,6 @@ interface CycleResult {
   error?: string;
 }
 
-/**
- * Manual "advance the pipeline by one tick" button — POSTs to
- * /api/jobs/process-now (see that route's docstring for why this exists:
- * /api/cron/process-jobs is documented as running every minute but is NOT
- * actually registered in vercel.json, so without this button or an external
- * scheduler, completed jobs pile up with consumed_at = NULL and the pipeline
- * visibly stalls after each stage).
- *
- * As of the 2026-06-08 update, one click now does TWO things server-side (see
- * /api/jobs/process-now): (1) chains forward any finished jobs, AND (2) tries
- * to start a brand-new P1 batch (more videos!) if nothing is currently in
- * flight — the same guarded check generate-topics uses, which on this project
- * only runs weekly. So this is a genuine "chạy thêm 1 lượt worker, tạo thêm
- * video" button, not just an unstall button for the current batch.
- *
- * Shows a short summary of what just got chained, any per-job errors, and
- * whether a new batch was started (or why not) — the operator gets the same
- * feedback `curl .../process-jobs` + `curl .../generate-topics` would give,
- * without needing the bearer secret.
- */
 export function RunPipelineButton() {
   const router = useRouter();
   const [summary, setSummary] = useState<CycleResult | null>(null);
@@ -53,62 +36,51 @@ export function RunPipelineButton() {
   }
 
   const failedJobs = summary?.results.filter((r) => !r.ok) ?? [];
+  const ttsErrors = summary?.tts?.results.filter((r) => !r.ok) ?? [];
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
+    <div className="flex flex-col items-end gap-2">
+      <Button
         onClick={onClick}
         disabled={isPending}
-        title="Đẩy các job đã xong sang giai đoạn tiếp theo ngay (bù cho việc process-jobs chưa chạy tự động)"
-        className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+        size="sm"
+        className="gap-1.5 bg-[#007AFF] text-white hover:bg-[#0062CC] disabled:opacity-50"
       >
-        {isPending ? "Đang chạy…" : "▶ Chạy pipeline ngay"}
-      </button>
+        <Play className="h-3.5 w-3.5" />
+        {isPending ? "Đang chạy…" : "Chạy pipeline"}
+      </Button>
+
       {summary && (
-        <div className="max-w-xs text-right text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="max-w-xs text-right text-[13px] text-[#6E6E73]">
           {summary.error ? (
-            <span className="text-red-600">{summary.error}</span>
+            <span className="text-[#FF3B30]">{summary.error}</span>
           ) : (
             <>
               <span>
                 Đã xử lý {summary.processed} job
-                {summary.failedNotified > 0 ? `, cảnh báo ${summary.failedNotified} job lỗi` : ""}.
+                {summary.failedNotified > 0 ? `, cảnh báo ${summary.failedNotified} lỗi` : ""}.
               </span>
-              {summary.newBatch && (
-                <div className="mt-1">
-                  {summary.newBatch.triggered ? (
-                    <span className="text-emerald-600">
-                      ✓ Đã khởi động lô video mới (job #{summary.newBatch.jobId}).
-                    </span>
-                  ) : (
-                    <span>
-                      Chưa tạo lô mới — {summary.newBatch.reason === "a batch is already in flight (videos not yet ready_to_publish/published)"
-                        ? "lô hiện tại chưa xong."
-                        : summary.newBatch.reason === "a job is already pending/running"
-                          ? "đang có job đang chạy."
-                          : summary.newBatch.reason}
-                    </span>
-                  )}
+              {summary.newBatch?.triggered && (
+                <div className="mt-1 text-[#34C759]">
+                  Đã khởi động lô mới (job #{summary.newBatch.jobId}).
                 </div>
               )}
-              {summary.tts && summary.tts.processed > 0 && (
-                <div className="mt-1 text-emerald-600">
-                  🎙️ Đã tạo {summary.tts.processed} audio TTS.
+              {(summary.tts?.processed ?? 0) > 0 && (
+                <div className="mt-1 text-[#34C759]">
+                  Đã tạo {summary.tts!.processed} audio TTS.
                 </div>
               )}
-              {summary.tts && summary.tts.results.filter((r) => !r.ok).length > 0 && (
-                <ul className="mt-1 text-red-600">
-                  {summary.tts.results.filter((r) => !r.ok).map((r) => (
-                    <li key={r.videoId}>TTS video #{r.videoId}: {r.error}</li>
+              {ttsErrors.length > 0 && (
+                <ul className="mt-1 text-[#FF3B30]">
+                  {ttsErrors.map((r) => (
+                    <li key={r.videoId}>TTS #{r.videoId}: {r.error}</li>
                   ))}
                 </ul>
               )}
               {failedJobs.length > 0 && (
-                <ul className="mt-1 text-red-600">
+                <ul className="mt-1 text-[#FF3B30]">
                   {failedJobs.map((r) => (
-                    <li key={r.jobId}>
-                      Job #{r.jobId}: {r.error}
-                    </li>
+                    <li key={r.jobId}>Job #{r.jobId}: {r.error}</li>
                   ))}
                 </ul>
               )}

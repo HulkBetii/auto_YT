@@ -1,23 +1,55 @@
+// ── Status badge ─────────────────────────────────────────────────────────────
+
 const STATUS_COLORS: Record<string, string> = {
-  topic: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  outline: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  scripted: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  seo_done: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  scoring: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  needs_retry: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
-  ready_to_publish: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  published: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  analyzed: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-  needs_attention: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  pending: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  running: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  failed: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  // Video statuses
+  ready_to_publish: "bg-[#D1F2D1] text-[#1A7A1A] border-0",
+  published:        "bg-[#D1E8FF] text-[#0A52A8] border-0",
+  needs_attention:  "bg-[#FFE8D1] text-[#A84F0A] border-0",
+  needs_retry:      "bg-[#FFE8D1] text-[#A84F0A] border-0",
+  scoring:          "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  topic:            "bg-[#F2F2F7] text-[#6E6E73] border-0",
+  outline:          "bg-[#F2F2F7] text-[#6E6E73] border-0",
+  scripted:         "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  seo_done:         "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  analyzed:         "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  // Job statuses
+  pending: "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  running: "bg-[#FFF3D1] text-[#FF9F0A] border-0",
+  done:    "bg-[#D1F2D1] text-[#1A7A1A] border-0",
+  failed:  "bg-[#FFE5E5] text-[#FF3B30] border-0",
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  ready_to_publish: "Ready",
+  published:        "Published",
+  needs_attention:  "Needs review",
+  needs_retry:      "Retry",
+  scoring:          "Scoring",
+  topic:            "Topic",
+  outline:          "Outline",
+  scripted:         "Scripted",
+  seo_done:         "SEO done",
+  analyzed:         "Analyzed",
+  pending:          "Pending",
+  running:          "Running",
+  done:             "Done",
+  failed:           "Failed",
 };
 
 export function statusBadgeClass(status: string): string {
-  return STATUS_COLORS[status] ?? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  return STATUS_COLORS[status] ?? "bg-[#E5E5EA] text-[#3C3C43] border-0";
 }
+
+// ── Score color ───────────────────────────────────────────────────────────────
+
+export function scoreColorClass(score: number | null | undefined): string {
+  if (score == null) return "text-[#AEAEB2]";
+  if (score >= 85) return "text-[#34C759]";
+  if (score >= 70) return "text-[#FF9F0A]";
+  return "text-[#FF3B30]";
+}
+
+// ── Date / time ───────────────────────────────────────────────────────────────
 
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "—";
