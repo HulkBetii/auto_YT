@@ -4,20 +4,44 @@ import { useCallback, useEffect, useState } from "react";
 
 const LOCAL_URL = "http://localhost:4242";
 
-type WorkerState = "unknown" | "running" | "stopped" | "offline";
+type ProcState = "unknown" | "running" | "stopped" | "offline";
+
+async function callEndpoint(path: string, timeout = 8000): Promise<{ ok: boolean; reason?: string }> {
+  const res = await fetch(`${LOCAL_URL}${path}`, {
+    method: "POST",
+    signal: AbortSignal.timeout(timeout),
+  });
+  return res.json();
+}
+
+function StatusDot({ state, label }: { state: ProcState; label: string }) {
+  const color =
+    state === "running" ? "bg-[#34C759]" :
+    state === "stopped" ? "bg-[#FF3B30]" : "bg-[#AEAEB2]";
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`h-2 w-2 rounded-full ${color} ${state === "running" ? "animate-pulse" : ""}`} />
+      <span className="text-[14px] text-[#6E6E73]">{label}</span>
+    </div>
+  );
+}
 
 export function WorkerControl() {
-  const [state, setState] = useState<WorkerState>("unknown");
-  const [busy, setBusy] = useState(false);
+  const [workerState, setWorkerState] = useState<ProcState>("unknown");
+  const [appState, setAppState] = useState<ProcState>("unknown");
+  const [busyWorker, setBusyWorker] = useState(false);
+  const [busyApp, setBusyApp] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
   const poll = useCallback(async () => {
     try {
       const res = await fetch(`${LOCAL_URL}/status`, { signal: AbortSignal.timeout(2000) });
       const data = await res.json();
-      setState(data.running ? "running" : "stopped");
+      setWorkerState(data.running ? "running" : "stopped");
+      setAppState(data.app_running ? "running" : "stopped");
     } catch {
-      setState("offline");
+      setWorkerState("offline");
+      setAppState("offline");
     }
     setLastChecked(new Date());
   }, []);
@@ -28,106 +52,105 @@ export function WorkerControl() {
     return () => clearInterval(id);
   }, [poll]);
 
-  async function handleStart() {
-    setBusy(true);
+  async function toggleWorker() {
+    setBusyWorker(true);
     try {
-      const res = await fetch(`${LOCAL_URL}/start`, {
-        method: "POST",
-        signal: AbortSignal.timeout(5000),
-      });
-      const data = await res.json();
-      if (data.ok || data.reason === "already_running") setState("running");
+      const path = workerState === "running" ? "/stop" : "/start";
+      const data = await callEndpoint(path, workerState === "running" ? 25000 : 5000);
+      if (data.ok || data.reason === "already_running") setWorkerState("running");
+      if (data.ok || data.reason === "not_running") {
+        if (path === "/stop") setWorkerState("stopped");
+      }
     } catch {
-      setState("offline");
+      setWorkerState("offline");
     } finally {
-      setBusy(false);
+      setBusyWorker(false);
       setTimeout(poll, 800);
     }
   }
 
-  async function handleStop() {
-    setBusy(true);
+  async function toggleApp() {
+    setBusyApp(true);
     try {
-      const res = await fetch(`${LOCAL_URL}/stop`, {
-        method: "POST",
-        signal: AbortSignal.timeout(8000),
-      });
-      const data = await res.json();
-      if (data.ok || data.reason === "not_running") setState("stopped");
+      const path = appState === "running" ? "/app/stop" : "/app/start";
+      const data = await callEndpoint(path);
+      if (data.ok || data.reason === "already_running") setAppState("running");
+      if (data.ok && path === "/app/stop") setAppState("stopped");
     } catch {
-      setState("offline");
+      setAppState("offline");
     } finally {
-      setBusy(false);
+      setBusyApp(false);
       setTimeout(poll, 800);
     }
   }
 
-  const dot =
-    state === "running"
-      ? "bg-[#34C759]"
-      : state === "stopped"
-        ? "bg-[#FF3B30]"
-        : "bg-[#AEAEB2]";
-
-  const label =
-    state === "running"
-      ? "Worker đang chạy"
-      : state === "stopped"
-        ? "Worker đã dừng"
-        : state === "offline"
-          ? "Control server offline"
-          : "Đang kiểm tra…";
+  const isOffline = workerState === "offline";
 
   return (
-    <div className="flex items-center gap-3">
-      {/* Status dot + label */}
-      <div className="flex items-center gap-1.5">
-        <span className={`h-2 w-2 rounded-full ${dot} ${state === "running" ? "animate-pulse" : ""}`} />
-        <span className="text-[14px] text-[#6E6E73]">{label}</span>
-        {lastChecked && (
-          <span className="text-[12px] text-[#AEAEB2]">
-            · {lastChecked.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-          </span>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      {state === "offline" ? (
+    <div className="flex items-center gap-3 flex-wrap">
+      {isOffline ? (
         <span className="rounded-lg bg-[#F2F2F7] px-3 py-1.5 text-[13px] text-[#AEAEB2]">
-          Chạy: <code className="font-mono">python -m auto_yt.control_server</code>
+          Control server offline — chạy: <code className="font-mono">python -m auto_yt.control_server</code>
         </span>
       ) : (
         <>
-          {state !== "running" && (
+          {/* Worker */}
+          <div className="flex items-center gap-2">
+            <StatusDot
+              state={workerState}
+              label={workerState === "running" ? "Worker" : workerState === "stopped" ? "Worker" : "…"}
+            />
             <button
-              onClick={handleStart}
-              disabled={busy || state === "unknown"}
-              className="rounded-lg bg-[#34C759] px-3 py-1.5 text-[13px] font-medium text-white hover:bg-[#2DB34A] disabled:opacity-50 transition-colors"
+              onClick={toggleWorker}
+              disabled={busyWorker || workerState === "unknown"}
+              className={[
+                "rounded-lg px-3 py-1.5 text-[13px] font-medium text-white transition-colors disabled:opacity-50",
+                workerState === "running"
+                  ? "bg-[#FF3B30] hover:bg-[#D70015]"
+                  : "bg-[#34C759] hover:bg-[#2DB34A]",
+              ].join(" ")}
             >
-              {busy ? "…" : "Bật Worker"}
+              {busyWorker ? "…" : workerState === "running" ? "Tắt" : "Bật"}
             </button>
-          )}
-          {state === "running" && (
+          </div>
+
+          <span className="text-[#AEAEB2] text-[13px]">·</span>
+
+          {/* Qt App */}
+          <div className="flex items-center gap-2">
+            <StatusDot
+              state={appState}
+              label="Auto Login"
+            />
             <button
-              onClick={handleStop}
-              disabled={busy}
-              className="rounded-lg bg-[#FF3B30] px-3 py-1.5 text-[13px] font-medium text-white hover:bg-[#D70015] disabled:opacity-50 transition-colors"
+              onClick={toggleApp}
+              disabled={busyApp || appState === "unknown"}
+              className={[
+                "rounded-lg px-3 py-1.5 text-[13px] font-medium text-white transition-colors disabled:opacity-50",
+                appState === "running"
+                  ? "bg-[#FF3B30] hover:bg-[#D70015]"
+                  : "bg-[#007AFF] hover:bg-[#0066CC]",
+              ].join(" ")}
             >
-              {busy ? "…" : "Tắt Worker"}
+              {busyApp ? "…" : appState === "running" ? "Tắt" : "Bật"}
             </button>
-          )}
+          </div>
         </>
       )}
 
-      {/* Refresh */}
+      {/* Timestamp + refresh */}
       <button
         onClick={poll}
-        disabled={busy}
-        className="rounded-lg px-2 py-1.5 text-[13px] text-[#AEAEB2] hover:bg-black/[.06] disabled:opacity-50 transition-colors"
+        className="rounded-lg px-2 py-1.5 text-[13px] text-[#AEAEB2] hover:bg-black/[.06] transition-colors"
         title="Làm mới"
       >
         ↻
       </button>
+      {lastChecked && (
+        <span className="text-[12px] text-[#AEAEB2]">
+          {lastChecked.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+        </span>
+      )}
     </div>
   );
 }

@@ -34,6 +34,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]  # .../auto_YT
 WORKER_CMD = [sys.executable, "-m", "auto_yt.worker"]
 WORKER_CWD = str(PROJECT_ROOT / "src")
 
+APP_CMD = [sys.executable, str(PROJECT_ROOT / "run_app.py")]
+APP_CWD = str(PROJECT_ROOT)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [control_server] %(message)s",
@@ -45,7 +48,9 @@ log = logging.getLogger(__name__)
 # Process manager
 # ---------------------------------------------------------------------------
 _lock = Lock()
-_proc: subprocess.Popen | None = None
+_proc: subprocess.Popen | None = None       # Playwright worker
+_app_lock = Lock()
+_app_proc: subprocess.Popen | None = None   # Qt GUI app
 
 
 def _is_running() -> bool:
@@ -77,13 +82,15 @@ def _clear_singleton_locks() -> None:
             except OSError as e:
                 log.warning("Could not remove %s: %s", lock, e)
 
-    # 2. Reset exit_type in each profile's Preferences so Chrome doesn't
+    # 2. Reset crash markers in each profile's Preferences so Chrome doesn't
     #    show the "Something went wrong opening your profile" dialog.
     for prefs_path in chrome_data.rglob("Preferences"):
         try:
             with open(prefs_path) as f:
                 prefs = _json.load(f)
             changed = False
+
+            # Reset exit_type / exited_cleanly
             profile = prefs.setdefault("profile", {})
             if profile.get("exit_type") != "Normal":
                 profile["exit_type"] = "Normal"
@@ -91,10 +98,23 @@ def _clear_singleton_locks() -> None:
             if profile.get("exited_cleanly") is not True:
                 profile["exited_cleanly"] = True
                 changed = True
+
+            # Reset sessions: session_data_status=3 and crashed=True entries
+            # trigger the "Something went wrong opening your profile" dialog.
+            sessions = prefs.get("sessions", {})
+            if sessions.get("session_data_status") not in (None, 0, 1):
+                sessions["session_data_status"] = 1
+                changed = True
+            event_log = sessions.get("event_log", [])
+            for entry in event_log:
+                if entry.get("crashed") is True:
+                    entry["crashed"] = False
+                    changed = True
+
             if changed:
                 with open(prefs_path, "w") as f:
                     _json.dump(prefs, f)
-                log.info("Reset exit_type to Normal in %s", prefs_path)
+                log.info("Reset crash markers in %s", prefs_path)
         except Exception as e:
             log.warning("Could not reset Preferences at %s: %s", prefs_path, e)
 
@@ -139,10 +159,60 @@ def stop_worker() -> dict:
 def get_status() -> dict:
     with _lock:
         running = _is_running()
-        return {
-            "running": running,
-            "pid": _proc.pid if running else None,
-        }
+    with _app_lock:
+        app_running = _is_app_running()
+    return {
+        "running": running,
+        "pid": _proc.pid if running else None,
+        "app_running": app_running,
+        "app_pid": _app_proc.pid if app_running else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Qt GUI app manager
+# ---------------------------------------------------------------------------
+def _is_app_running() -> bool:
+    global _app_proc
+    if _app_proc is None:
+        return False
+    if _app_proc.poll() is not None:
+        log.info("Qt app exited with code %s", _app_proc.returncode)
+        _app_proc = None
+        return False
+    return True
+
+
+def start_app() -> dict:
+    global _app_proc
+    with _app_lock:
+        if _is_app_running():
+            return {"ok": False, "reason": "already_running", "pid": _app_proc.pid}
+        log.info("Starting Qt app: %s (cwd=%s)", " ".join(APP_CMD), APP_CWD)
+        _app_proc = subprocess.Popen(
+            APP_CMD,
+            cwd=APP_CWD,
+            stdout=open(PROJECT_ROOT / "app.log", "a"),
+            stderr=subprocess.STDOUT,
+        )
+        log.info("Qt app started, pid=%s", _app_proc.pid)
+        return {"ok": True, "pid": _app_proc.pid}
+
+
+def stop_app() -> dict:
+    global _app_proc
+    with _app_lock:
+        if not _is_app_running():
+            return {"ok": False, "reason": "not_running"}
+        pid = _app_proc.pid
+        log.info("Stopping Qt app pid=%s", pid)
+        try:
+            _app_proc.terminate()
+            _app_proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            _app_proc.kill()
+        _app_proc = None
+        return {"ok": True, "pid": pid}
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +251,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(start_worker())
             elif self.path == "/stop":
                 self._json(stop_worker())
+            elif self.path == "/app/start":
+                self._json(start_app())
+            elif self.path == "/app/stop":
+                self._json(stop_app())
             else:
                 self._json({"error": "not_found"}, 404)
         except Exception as exc:
@@ -203,4 +277,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log.info("Shutting down…")
         stop_worker()
+        stop_app()
         server.server_close()
