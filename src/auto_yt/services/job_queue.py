@@ -80,13 +80,14 @@ async def claim_next_job(dsn: str, *, stages: tuple[str, ...] = SUPPORTED_STAGES
 
 
 async def complete_job(dsn: str, job_id: int, *, result: str) -> None:
-    """Mark a job done and store its result text (the raw ChatGPT response)."""
+    """Mark a job done and store its result text (the raw ChatGPT response).
+    Clears error_message so retried-then-succeeded jobs don't show a stale error."""
     conn = await asyncpg.connect(dsn)
     try:
         await conn.execute(
             """
             UPDATE jobs
-            SET status = 'done', result = $2, finished_at = NOW()
+            SET status = 'done', result = $2, finished_at = NOW(), error_message = NULL
             WHERE id = $1
             """,
             job_id, result,
