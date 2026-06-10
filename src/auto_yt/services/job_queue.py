@@ -13,8 +13,30 @@ import logging
 from typing import Any
 
 import asyncpg
+import httpx
 
 logger = logging.getLogger(__name__)
+
+
+async def trigger_chain_cycle(web_url: str, dashboard_secret: str) -> None:
+    """Ping the Next.js chain endpoint so it immediately consumes the job we
+    just marked 'done' instead of waiting for a manual button press.
+
+    Non-fatal: logs a warning on failure and returns — the pipeline will still
+    make progress next time the operator presses 'Chạy pipeline'.
+    """
+    if not web_url or not dashboard_secret:
+        return
+    url = web_url.rstrip("/") + "/api/cron/process-jobs"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url, headers={"Authorization": f"Bearer {dashboard_secret}"})
+        if r.status_code == 200:
+            logger.info("Chain cycle triggered (%s)", url)
+        else:
+            logger.warning("Chain trigger returned HTTP %s from %s", r.status_code, url)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Chain trigger failed (non-fatal): %s", exc)
 
 # Stages this worker knows how to execute. P5/P6 batches are also Playwright
 # (ChatGPT) jobs from the worker's point of view — same claim/run/complete flow.

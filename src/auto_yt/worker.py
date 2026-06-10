@@ -26,7 +26,7 @@ from playwright.async_api import async_playwright
 from auto_yt.paths import ACCOUNT_PATH, DATA_DIR, gpt_profile_dir
 from auto_yt.services.chat_gpt import ChatGPTResponseError, send_prompt
 from auto_yt.services.chatgpt_login import ChatGPTLoginError, login_gpt_auto, restore_session
-from auto_yt.services.job_queue import claim_next_job, complete_job, fail_job, retry_transient_job
+from auto_yt.services.job_queue import claim_next_job, complete_job, fail_job, retry_transient_job, trigger_chain_cycle
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,6 +58,33 @@ def load_database_url() -> str:
         "Missing DATABASE_URL. Set env DATABASE_URL or create data/db_config.json "
         "with {\"DATABASE_URL\": \"postgres://...sslmode=require\"}."
     )
+
+
+def load_chain_config() -> tuple[str, str]:
+    """Return (web_url, dashboard_secret) for triggering the chain cycle.
+
+    Reads from env vars first, then falls back to db_config.json under the
+    keys PIPELINE_WEB_URL / DASHBOARD_SECRET. Returns ("", "") if neither is
+    available — trigger_chain_cycle will silently skip in that case.
+    """
+    web_url = os.getenv("PIPELINE_WEB_URL", "").strip()
+    secret = os.getenv("DASHBOARD_SECRET", "").strip()
+    if web_url and secret:
+        return web_url, secret
+    if DB_CONFIG_PATH.exists():
+        try:
+            data = json.loads(DB_CONFIG_PATH.read_text(encoding="utf-8"))
+            web_url = web_url or str(data.get("PIPELINE_WEB_URL") or "").strip()
+            secret = secret or str(data.get("DASHBOARD_SECRET") or "").strip()
+        except Exception:
+            pass
+    if not web_url or not secret:
+        logger.warning(
+            "PIPELINE_WEB_URL / DASHBOARD_SECRET not set — "
+            "chain cycle will not be auto-triggered after each job. "
+            "Add both to data/db_config.json or env to fix."
+        )
+    return web_url, secret
 
 
 def load_account() -> dict:
@@ -265,7 +292,7 @@ async def record_heartbeat(dsn: str, status: str) -> None:
         await conn.close()
 
 
-async def process_job(page, dsn: str, job: dict) -> None:
+async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard_secret: str = "") -> None:
     job_id = job["id"]
     stage = job["stage"]
     prompt_text = job["prompt_text"]
@@ -295,11 +322,15 @@ async def process_job(page, dsn: str, job: dict) -> None:
         return
 
     await complete_job(dsn, job_id, result=response)
+    # Immediately kick the Next.js chain cycle so it consumes this job and
+    # creates the next stage — avoids waiting for a manual "Chạy pipeline" press.
+    await trigger_chain_cycle(web_url, dashboard_secret)
 
 
 async def run() -> None:
     dsn = load_database_url()
     account = load_account()
+    web_url, dashboard_secret = load_chain_config()
 
     pw = await async_playwright().start()
     ctx = await pw.chromium.launch_persistent_context(
@@ -335,7 +366,7 @@ async def run() -> None:
                     continue
 
                 page = await tabs.get_page_for(job)
-                await process_job(page, dsn, job)
+                await process_job(page, dsn, job, web_url=web_url, dashboard_secret=dashboard_secret)
                 await tabs.sweep_terminal_tabs(dsn)
                 await record_heartbeat(dsn, "running")
             except (ChatGPTLoginError, ChatGPTResponseError) as exc:
