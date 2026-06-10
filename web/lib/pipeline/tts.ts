@@ -75,6 +75,14 @@ export function parseP3ForTTS(raw: string): string {
 
   // 4. <#N.N#> pause markers are kept as-is (no replacement needed)
 
+  // 4b. Strip lines that contain ONLY pause tag(s) and nothing else — these
+  //     are ChatGPT hallucinating the example list from the prompt verbatim.
+  //     A legitimate pause tag is always attached to the end of a sentence.
+  text = text
+    .split("\n")
+    .filter((line) => !/^(\s*<#[\d.]+#>\s*)+$/.test(line))
+    .join("\n");
+
   // 5. Trim and normalise whitespace
   text = text
     .split("\n")
