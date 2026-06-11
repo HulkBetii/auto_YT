@@ -45,7 +45,7 @@ const PREAMBLE_PATTERNS: RegExp[] = [
   /Here\s+is[^\n]*/i,             // "Here is the script..."
   /以下に[^\n]*/,                // "以下に完全な..."
   /では[、，,][^\n]*/,            // "では、ナレーション..."
-  /承知[しました][^\n]*/,        // "承知しました..."
+  /承知しました[^\n]*/,          // "承知しました..."
 ];
 
 export function parseP3ForTTS(raw: string): string {
@@ -59,7 +59,7 @@ export function parseP3ForTTS(raw: string): string {
     prevText = text;
     text = text.replace(/^\n+/, ""); // collapse leading newlines
     for (const pat of PREAMBLE_PATTERNS) {
-      text = text.replace(new RegExp(`^${pat.source}\\n?`), "");
+      text = text.replace(new RegExp(`^${pat.source}\\n?`, pat.flags), "");
     }
   }
 

@@ -46,6 +46,12 @@ async function configInt(key: string, fallback: number): Promise<number> {
  */
 async function handleP1Done(job: Job) {
   const candidates = extractJson<P1Topic[]>(job.result ?? "");
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    const msg = `[P1] Job #${job.id} produced no parseable topics — P1 output may not be valid JSON. Manual retry needed.`;
+    console.error(msg);
+    await notify(`⚠️ P1 Job #${job.id}: output parse ra 0 topics. Cần retry thủ công.`);
+    return;
+  }
   const batchSize = await configInt("p1_topics_per_batch", 5);
 
   let accepted = 0;

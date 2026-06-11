@@ -115,7 +115,7 @@ function parseCommentQuestion(p3: string, p4: string): string {
     const sentences = p3
       .split("\n")
       .map((s) => s.replace(/<#[\d.]+#>/g, "").trim())
-      .filter((s) => s.endsWith("？") || s.endsWith("?") || /か[。。]$/.test(s));
+      .filter((s) => s.endsWith("？") || s.endsWith("?") || /か。$/.test(s));
     if (sentences.length > 0) {
       return sentences[sentences.length - 1];
     }
@@ -152,20 +152,18 @@ async function getRelatedVideos(
   painType: string | null,
   limit = 3,
 ): Promise<Array<{ title: string; youtubeVideoId: string }>> {
-  const conditions = [
-    ne(videos.id, currentVideoId),
-    isNotNull(videos.youtubeVideoId),
-  ];
-  if (featuredPerson || painType) {
-    const orConditions = [];
-    if (featuredPerson) orConditions.push(eq(videos.featuredPerson, featuredPerson));
-    if (painType) orConditions.push(eq(videos.painType, painType));
-    conditions.push(or(...orConditions)!);
-  }
+  // Require at least one matching signal — return empty if we have nothing to
+  // match on (avoids returning random unrelated videos as "recommendations").
+  if (!featuredPerson && !painType) return [];
+
+  const orConditions = [];
+  if (featuredPerson) orConditions.push(eq(videos.featuredPerson, featuredPerson));
+  if (painType) orConditions.push(eq(videos.painType, painType));
+
   return db
     .select({ title: videos.title, youtubeVideoId: videos.youtubeVideoId })
     .from(videos)
-    .where(and(...conditions))
+    .where(and(ne(videos.id, currentVideoId), isNotNull(videos.youtubeVideoId), or(...orConditions)!))
     .limit(limit) as Promise<Array<{ title: string; youtubeVideoId: string }>>;
 }
 
