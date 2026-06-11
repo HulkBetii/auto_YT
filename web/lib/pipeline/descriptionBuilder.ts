@@ -1,7 +1,7 @@
 /**
  * Code-based YouTube description assembler (no LLM call).
  * Runs after P_score passes → video becomes ready_to_publish.
- * Reads P2 / P3 / P4 outputs from video_content, queries related videos,
+ * Reads P3 / P4 outputs from video_content, queries related videos,
  * and formats the fixed description template.
  * Result is stored in video_content with stage = "P_desc".
  */
@@ -13,20 +13,71 @@ import { getConfigValue } from "../db/repo/channel-config";
 import { getLatestVideoContent, saveVideoContent } from "../db/repo/video-content";
 import { getVideo } from "../db/repo/videos";
 
+// ── Section extractor ─────────────────────────────────────────────────────────
+
+/**
+ * Known P4 section header keywords.
+ * ChatGPT may omit ■ and append漢数字 count suffixes — match by keyword prefix.
+ */
+const P4_SECTIONS = [
+  "タイトル候補", "サムネイルテキスト", "概要欄テキスト", "タグリスト",
+  "Shortsスクリプト", "コメント返信テンプレート", "投稿戦略", "チャプター設計",
+  "固定コメント案", "SEO＋Shortsパッケージ",
+];
+
+function isSectionHeader(line: string): boolean {
+  const stripped = line.trim().replace(/^■\s*/, "");
+  return P4_SECTIONS.some(
+    (sec) => stripped === sec || stripped.startsWith(sec + " ") || stripped.startsWith(sec + "（"),
+  );
+}
+
+/**
+ * Find a section by any of the given keywords and return its body text.
+ * Handles headers with or without ■ and with漢数字 count suffixes.
+ */
+function extractSection(text: string, ...keywords: string[]): string {
+  const lines = text.split("\n");
+  let startLine = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const stripped = lines[i].trim().replace(/^■\s*/, "");
+    if (
+      keywords.some(
+        (kw) => stripped === kw || stripped.startsWith(kw + " ") || stripped.startsWith(kw + "（"),
+      )
+    ) {
+      startLine = i;
+      break;
+    }
+  }
+
+  if (startLine === -1) return "";
+
+  let endLine = lines.length;
+  for (let i = startLine + 1; i < lines.length; i++) {
+    if (isSectionHeader(lines[i])) {
+      endLine = i;
+      break;
+    }
+  }
+
+  return lines
+    .slice(startLine + 1, endLine)
+    .join("\n")
+    .trim();
+}
+
 // ── Parsers ──────────────────────────────────────────────────────────────────
 
 /** Extract 概要欄テキスト section from P4 output. */
 function parseOverview(p4: string): { hook1: string; hook2: string; content: string } {
-  const start = p4.indexOf("■ 概要欄テキスト");
-  if (start === -1) return { hook1: "", hook2: "", content: "" };
-  const rest = p4.slice(start + "■ 概要欄テキスト".length);
-  const nextSection = rest.search(/\n■ /);
-  const block = (nextSection === -1 ? rest : rest.slice(0, nextSection)).trim();
+  const block = extractSection(p4, "概要欄テキスト");
+  if (!block) return { hook1: "", hook2: "", content: "" };
 
   const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
   const hook1 = lines[0] ?? "";
   const hook2 = lines[1] ?? "";
-  // Content = everything after hooks, excluding the disclaimer line
   const contentLines = lines
     .slice(2)
     .filter((l) => !l.startsWith("本動画は") && !l.startsWith("偉人たちの言葉"));
@@ -35,41 +86,62 @@ function parseOverview(p4: string): { hook1: string; hook2: string; content: str
 
 /** Extract タグリスト from P4 output → "#tag1 #tag2 ..." */
 function parseTags(p4: string): string {
-  const start = p4.indexOf("■ タグリスト");
-  if (start === -1) return "#哲人の刻 #名言 #偉人 #哲学 #人生論";
-  const rest = p4.slice(start + "■ タグリスト".length);
-  const nextSection = rest.search(/\n■ /);
-  const block = (nextSection === -1 ? rest : rest.slice(0, nextSection));
+  const block = extractSection(p4, "タグリスト");
+  if (!block) return "#哲人の刻 #名言 #偉人 #哲学 #人生論";
   const tags = block
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith("■") && !l.includes("（") && !l.startsWith("固定") && !l.startsWith("—"));
+    .filter(
+      (l) =>
+        l &&
+        !l.startsWith("■") &&
+        !l.includes("（") &&
+        !l.startsWith("固定") &&
+        !l.startsWith("—") &&
+        !l.startsWith("Edit"),
+    );
+  if (tags.length === 0) return "#哲人の刻 #名言 #偉人 #哲学 #人生論";
   return tags.map((t) => `#${t.replace(/^#/, "")}`).join(" ");
 }
 
-/** Extract 固定コメント案 from P4 output. */
-function parseFixedComment(p4: string): string {
-  const start = p4.indexOf("■ 固定コメント案");
-  if (start === -1) return "";
-  const rest = p4.slice(start + "■ 固定コメント案".length);
-  const nextSection = rest.search(/\n■ /);
-  const block = (nextSection === -1 ? rest : rest.slice(0, nextSection)).trim();
-  return block;
+/**
+ * Extract comment question: last question sentence from P3 narration.
+ * Japanese questions end with ？ or the pattern〜か。/〜か？
+ * Falls back to first content paragraph of コメント返信テンプレート from P4.
+ */
+function parseCommentQuestion(p3: string, p4: string): string {
+  if (p3) {
+    // Match sentences ending with ？/? or ending with か。(Japanese rhetorical question)
+    const sentences = p3
+      .split("\n")
+      .map((s) => s.replace(/<#[\d.]+#>/g, "").trim())
+      .filter((s) => s.endsWith("？") || s.endsWith("?") || /か[。。]$/.test(s));
+    if (sentences.length > 0) {
+      return sentences[sentences.length - 1];
+    }
+  }
+
+  const block = extractSection(p4, "コメント返信テンプレート", "固定コメント案");
+  if (block) {
+    // Skip sub-section headers (e.g. "共感コメントへの返信") — look for first content line
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    const contentLine = lines.find((l) => !l.endsWith("への返信") && !l.endsWith("テンプレート") && l.length > 15);
+    if (contentLine) return contentLine;
+  }
+
+  return "[コメント用の問いかけ]";
 }
 
-/** Extract チャプター設計 from P3 output. */
-function parseChapters(p3: string): string {
-  const idx = p3.indexOf("チャプター設計");
-  if (idx === -1) return "00:00　[チャプター情報なし]";
-  const block = p3.slice(idx + "チャプター設計".length).trim();
+/** Extract チャプター設計 from P4 output (chapters moved to P4 as of v3). */
+function parseChapters(p4: string): string {
+  const block = extractSection(p4, "チャプター設計");
+  if (!block) return "00:00　[チャプター情報なし]";
   const lines = block
     .split("\n")
     .map((l) => l.trim())
-    // Keep lines that start with a timestamp (00:00 or 0:00 pattern)
     .filter((l) => /^\d{1,2}:\d{2}/.test(l));
   if (lines.length === 0) return "00:00　[チャプター情報なし]";
-  // Normalise full-width space → half-width space
-  return lines.map((l) => l.replace(/　/g, " ")).join("\n");
+  return lines.join("\n");
 }
 
 // ── Related videos ────────────────────────────────────────────────────────────
@@ -100,9 +172,8 @@ async function getRelatedVideos(
 // ── Main assembler ────────────────────────────────────────────────────────────
 
 export async function buildVideoDescription(videoId: number): Promise<string> {
-  const [video, p2Content, p3Content, p4Content, contactEmail] = await Promise.all([
+  const [video, p3Content, p4Content, contactEmail] = await Promise.all([
     getVideo(videoId),
-    getLatestVideoContent(videoId, "P2"),
     getLatestVideoContent(videoId, "P3"),
     getLatestVideoContent(videoId, "P4"),
     getConfigValue("contact_email"),
@@ -110,14 +181,13 @@ export async function buildVideoDescription(videoId: number): Promise<string> {
 
   if (!video) throw new Error(`[desc] Video #${videoId} not found`);
 
-  const p2 = p2Content?.output ?? "";
   const p3 = p3Content?.output ?? "";
   const p4 = p4Content?.output ?? "";
 
   const { hook1, hook2, content } = parseOverview(p4);
-  const chapters = parseChapters(p3);
+  const chapters = parseChapters(p4);
   const tags = parseTags(p4);
-  const fixedComment = parseFixedComment(p4);
+  const commentQuestion = parseCommentQuestion(p3, p4);
   const relatedVideos = await getRelatedVideos(
     videoId,
     video.featuredPerson,
@@ -138,16 +208,6 @@ export async function buildVideoDescription(videoId: number): Promise<string> {
   // ── Amazon placeholder ────────────────────────────────────────────────────
   const bookName = video.referenceBook ?? "[参考書籍]";
   const amazonLine = `${bookName} → amzn.to/[Amazonアフィリエイトリンクをここに追加]`;
-
-  // ── Comment question (from P4 fixed comment, fallback to P2 S6) ───────────
-  let commentQuestion = fixedComment;
-  if (!commentQuestion && p2) {
-    const s6idx = p2.indexOf("固定コメント案");
-    if (s6idx !== -1) {
-      commentQuestion = p2.slice(s6idx + "固定コメント案".length).split("■")[0].replace(/^[：:]\s*/, "").trim();
-    }
-  }
-  if (!commentQuestion) commentQuestion = "[コメント用の問いかけ]";
 
   const email = contactEmail || "[your-email@gmail.com]";
 
