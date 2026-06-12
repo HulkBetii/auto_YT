@@ -2,7 +2,7 @@ import { getConfigValue } from "../db/repo/channel-config";
 import { getJob, markJobConsumed, listUnconsumedDoneJobs, listUnconsumedFailedJobs, resetStaleRunningJobs } from "../db/repo/jobs";
 import { activateNewPromptVersion } from "../db/repo/prompt-versions";
 import { saveVideoContent, getLatestVideoContent } from "../db/repo/video-content";
-import { createVideo, getVideo, updateVideoStatus } from "../db/repo/videos";
+import { countVideosCreatedSince, createVideo, getVideo, updateVideoStatus } from "../db/repo/videos";
 import type { jobs } from "../db/schema";
 import { embedTopic } from "../openai/embeddings";
 import { logEvent } from "../observability/log";
@@ -53,6 +53,17 @@ async function handleP1Done(job: Job) {
     return;
   }
   const batchSize = await configInt("p1_topics_per_batch", 5);
+
+  // Crash-dup tripwire: if videos created since this job started already exceed the
+  // batch budget, a previous run of this handler likely succeeded before markJobConsumed
+  // could stamp consumed_at. Bail out and alert rather than creating duplicate videos.
+  const P1_MAX_TOPICS = 12; // P1 prompt outputs at most 12 candidates
+  const videosAlreadyCreated = await countVideosCreatedSince(job.createdAt ?? new Date());
+  if (videosAlreadyCreated >= P1_MAX_TOPICS) {
+    console.warn(`[P1 tripwire] Job #${job.id}: ${videosAlreadyCreated} videos exist since job creation — possible crash-dup, skipping.`);
+    await notify(`⚠️ P1 tripwire: Job #${job.id} — ${videosAlreadyCreated}件の動画がすでに作成済み。クラッシュ重複の可能性。処理をスキップしました。手動確認してください。`);
+    return;
+  }
 
   let accepted = 0;
   for (const topic of candidates) {

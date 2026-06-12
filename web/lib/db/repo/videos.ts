@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq, gte } from "drizzle-orm";
 
 import { db } from "../index";
 import { videos, type videoStatusEnum } from "../schema";
@@ -36,4 +36,10 @@ export async function createVideo(input: typeof videos.$inferInsert) {
 
 export async function updateVideoAudioUrl(videoId: number, audioUrl: string) {
   await db.update(videos).set({ audioUrl }).where(eq(videos.id, videoId));
+}
+
+/** Count videos created at or after `since`. Used by the P1 crash-dup tripwire. */
+export async function countVideosCreatedSince(since: Date): Promise<number> {
+  const [row] = await db.select({ n: count() }).from(videos).where(gte(videos.createdAt, since));
+  return row?.n ?? 0;
 }
