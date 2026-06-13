@@ -153,10 +153,13 @@ export async function submitTTS(text: string, voiceId: string): Promise<string> 
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
+  // ElevenLabs voices (via AI33.PRO) run faster than clone voices — use 0.96x speed.
+  const speed = voiceId.startsWith("elevenlabs_") ? "0.96" : "1";
+
   const form = new FormData();
   form.append("text", text);
   form.append("voice_id", voiceId);
-  form.append("speed", "1");
+  form.append("speed", speed);
 
   const res = await fetch(`${TTS_BASE_URL}/v3/text-to-speech`, {
     method: "POST",
