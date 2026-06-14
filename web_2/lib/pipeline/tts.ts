@@ -14,6 +14,11 @@ export async function getAhVoiceId(videoVoiceId: string | null): Promise<string>
   throw new Error("[tts] No voice_id configured. Set it in Settings or on the video.");
 }
 
+export async function getAhBackupVoiceId(): Promise<string | null> {
+  const configured = await getAhConfigValue("voice_id_2");
+  return configured || null;
+}
+
 /**
  * Submits a TTS job to AI33.PRO Vivoo V3.
  * Auth: `Authorization: <key>` — NO "Bearer" prefix per the API docs.
@@ -142,9 +147,18 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
 
     // Only submit TTS if we don't already have an audio URL from a previous partial run
     if (!audioUrl) {
-      const voiceId = await getAhVoiceId(video.voiceId);
-      const taskId = await submitTTS(video.script, voiceId);
-      audioUrl = await pollTTSTask(taskId);
+      const primaryVoiceId = await getAhVoiceId(video.voiceId);
+      try {
+        const taskId = await submitTTS(video.script, primaryVoiceId);
+        audioUrl = await pollTTSTask(taskId);
+      } catch (primaryErr) {
+        console.warn(`[tts] Primary voice (${primaryVoiceId}) failed:`, primaryErr);
+        const backupVoiceId = await getAhBackupVoiceId();
+        if (!backupVoiceId) throw primaryErr;
+        console.log(`[tts] Retrying with backup voice: ${backupVoiceId}`);
+        const taskId = await submitTTS(video.script, backupVoiceId);
+        audioUrl = await pollTTSTask(taskId);
+      }
       await updateAhVideoFields(videoId, { audioUrl });
     }
 

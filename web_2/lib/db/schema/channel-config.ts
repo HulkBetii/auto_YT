@@ -10,6 +10,7 @@ export type AhChannelConfig = typeof ahChannelConfig.$inferSelect;
 
 export const AH_CONFIG_KEYS = {
   voiceId: "voice_id",
+  voiceId2: "voice_id_2",
   web2Url: "web2_url",
   openaiModel: "openai_model",
 } as const;

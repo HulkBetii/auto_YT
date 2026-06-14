@@ -7,9 +7,15 @@ export const dynamic = "force-dynamic";
 const FIELDS = [
   {
     key: AH_CONFIG_KEYS.voiceId,
-    label: "Voice ID",
+    label: "Voice ID (Primary)",
     description: "ElevenLabs voice ID via AI33.PRO (e.g. elevenlabs_abc123)",
     placeholder: "elevenlabs_...",
+  },
+  {
+    key: AH_CONFIG_KEYS.voiceId2,
+    label: "Voice ID 2 (Backup · MiniMax)",
+    description: "Fallback MiniMax voice via AI33.PRO — used if primary TTS fails",
+    placeholder: "minimax_...",
   },
   {
     key: AH_CONFIG_KEYS.web2Url,
