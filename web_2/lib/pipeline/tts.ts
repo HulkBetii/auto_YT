@@ -53,7 +53,26 @@ export async function submitTTS(text: string, voiceId: string): Promise<string> 
 }
 
 /**
+ * Cancels a TTS task to release frozen credits.
+ * Fire-and-forget safe — logs but never throws.
+ */
+export async function cancelTTSTask(taskId: string): Promise<void> {
+  const apiKey = process.env.VIVOO_API_KEY;
+  if (!apiKey) return;
+  try {
+    const res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
+      method: "DELETE",
+      headers: { Authorization: apiKey },
+    });
+    console.log(`[tts] cancelTTSTask ${taskId} → HTTP ${res.status}`);
+  } catch (err) {
+    console.warn(`[tts] cancelTTSTask ${taskId} failed (credits may stay frozen):`, err);
+  }
+}
+
+/**
  * Polls GET /v3/task/<taskId> every 5s until status=done or timeout.
+ * On any failure, cancels the task first to release frozen credits.
  */
 export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Promise<string> {
   const apiKey = process.env.VIVOO_API_KEY;
@@ -62,6 +81,12 @@ export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Prom
   const deadline = Date.now() + maxWaitMs;
   let transientErrors = 0;
   const MAX_TRANSIENT = 5;
+
+  // Cancel task (to release frozen credits) then throw the given error message.
+  const bail = async (msg: string): Promise<never> => {
+    await cancelTTSTask(taskId);
+    throw new Error(msg);
+  };
 
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -75,7 +100,7 @@ export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Prom
       transientErrors++;
       console.warn(`[tts] pollTTSTask network error (${transientErrors}/${MAX_TRANSIENT}):`, networkErr);
       if (transientErrors >= MAX_TRANSIENT) {
-        throw new Error(`[tts] pollTTSTask: ${MAX_TRANSIENT} consecutive network errors on task ${taskId}`);
+        throw await bail(`[tts] pollTTSTask: ${MAX_TRANSIENT} consecutive network errors on task ${taskId}`);
       }
       continue;
     }
@@ -84,7 +109,7 @@ export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Prom
       const body = await res.text().catch(() => "");
       transientErrors++;
       if (transientErrors >= MAX_TRANSIENT) {
-        throw new Error(`[tts] pollTTSTask HTTP ${res.status} after ${MAX_TRANSIENT} retries: ${body}`);
+        throw await bail(`[tts] pollTTSTask HTTP ${res.status} after ${MAX_TRANSIENT} retries: ${body}`);
       }
       continue;
     }
@@ -92,7 +117,7 @@ export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Prom
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
+      throw await bail(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
     }
 
     const json = (await res.json()) as {
@@ -101,21 +126,21 @@ export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Prom
     };
 
     const data = json.data;
-    if (!data) throw new Error(`[tts] Unexpected response shape: ${JSON.stringify(json)}`);
+    if (!data) throw await bail(`[tts] Unexpected response shape: ${JSON.stringify(json)}`);
 
     if (data.status === "done") {
       const audioUrl = data.metadata?.audio_url;
-      if (!audioUrl) throw new Error(`[tts] Task ${taskId} done but no audio_url`);
+      if (!audioUrl) throw await bail(`[tts] Task ${taskId} done but no audio_url`);
       return audioUrl;
     }
 
     if (data.status === "error") {
-      throw new Error(`[tts] Task ${taskId} failed: ${data.error ?? "unknown"}`);
+      throw await bail(`[tts] Task ${taskId} failed: ${data.error ?? "unknown"}`);
     }
     // status: "pending" | "processing" — keep polling
   }
 
-  throw new Error(`[tts] Task ${taskId} did not complete within ${maxWaitMs / 1000}s`);
+  throw await bail(`[tts] Task ${taskId} did not complete within ${maxWaitMs / 1000}s`);
 }
 
 /**
