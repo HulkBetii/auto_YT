@@ -76,6 +76,22 @@ export async function findAhJobByCause(
   return row ?? null;
 }
 
+export async function retryAhJob(jobId: number) {
+  const [job] = await db.select().from(ahJobs).where(eq(ahJobs.id, jobId)).limit(1);
+  if (!job) return null;
+  if (job.status !== "failed") return null;
+  const [updated] = await db
+    .update(ahJobs)
+    .set({ status: "pending", retryCount: 0, errorMessage: null, startedAt: null, finishedAt: null, consumedAt: null })
+    .where(eq(ahJobs.id, jobId))
+    .returning();
+  return updated;
+}
+
+export async function listFailedAhJobsByVideo(videoId: number) {
+  return db.select().from(ahJobs).where(and(eq(ahJobs.videoId, videoId), eq(ahJobs.status, "failed")));
+}
+
 export async function resetStaleRunningAhJobs(thresholdMinutes = 15): Promise<number> {
   const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000);
   const reset = await db

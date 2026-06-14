@@ -6,6 +6,7 @@ import {
 } from "@/lib/db/repo/jobs";
 import { getAhVideo, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
 import { extractJson } from "@/lib/utils/json";
+import { notify } from "@/lib/notifications";
 import { enqueueAhStage } from "./createJob";
 import { rankTopics, type AhTopic } from "./rank";
 import { runTTSAndWhisperForPendingVideo } from "./tts";
@@ -60,9 +61,30 @@ async function handleS2Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
   // TTS+Whisper runs server-side via runTTSAndWhisperForPendingVideo() in the same cycle
 }
 
+const DOODLE_STYLE_PREFIX =
+  "Hand-drawn 2D doodle cartoon animation, flat solid colors, bold black hand-drawn outlines, slightly wobbly imperfect marker lines,";
+
+const DOODLE_STYLE_LOCK =
+  "no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, 16:9 widescreen, simple educational YouTube explainer doodle style.";
+
+function formatImagePrompts(raw: string): string {
+  return raw
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((line) => {
+      const m = line.match(/^(\[\d{2}:\d{2}\])\s*(.*)/);
+      if (m) {
+        const desc = m[2].replace(/[.,]?\s*$/, "");
+        return `${m[1]} ${DOODLE_STYLE_PREFIX} ${desc}, ${DOODLE_STYLE_LOCK}`;
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 async function handleS3Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
   const videoId = job.videoId!;
-  const imagePrompts = (job.result ?? "").trim();
+  const imagePrompts = formatImagePrompts((job.result ?? "").trim());
 
   await updateAhVideoFields(videoId, { imagePrompts });
   await updateAhVideoStatus(videoId, "s4_pending");
@@ -97,6 +119,10 @@ async function handleS4Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
     ytTags: meta.tags ?? "",
   });
   await updateAhVideoStatus(videoId, "ready");
+
+  const video = await getAhVideo(videoId);
+  const topic = video?.chosenTopic as { title?: string } | null;
+  await notify(`✅ <b>${topic?.title ?? `Video #${videoId}`}</b> is ready to publish.`);
 }
 
 const STAGE_HANDLERS: Record<
@@ -143,9 +169,12 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
     }
   }
 
-  // Mark failed jobs consumed (so they don't flood the list)
+  // Notify and consume failed jobs
   const failedJobs = await listUnconsumedFailedAhJobs();
   for (const job of failedJobs) {
+    await notify(
+      `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${job.errorMessage ?? "unknown error"}`,
+    );
     await markAhJobConsumed(job.id);
     if (job.videoId) {
       await updateAhVideoStatus(job.videoId, "needs_attention");

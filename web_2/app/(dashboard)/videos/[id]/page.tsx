@@ -7,6 +7,8 @@ import { statusBadgeClass, VIDEO_STATUS_LABELS, formatDateTime, formatDuration }
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyButton } from "./CopyButton";
+import { RetryButton } from "./RetryButton";
+import { DeleteVideoButton } from "./DeleteVideoButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +61,12 @@ export default async function VideoDetailPage({
             <p className="mt-1 text-[15px] text-[#6E6E73]">{topic.angle}</p>
           )}
         </div>
-        <Badge className={`shrink-0 mt-2 text-[12px] ${statusBadgeClass(video.status)}`}>
-          {VIDEO_STATUS_LABELS[video.status] ?? video.status}
-        </Badge>
+        <div className="flex items-center gap-2 mt-2 shrink-0">
+          <Badge className={`text-[12px] ${statusBadgeClass(video.status)}`}>
+            {VIDEO_STATUS_LABELS[video.status] ?? video.status}
+          </Badge>
+          <DeleteVideoButton videoId={video.id} />
+        </div>
       </div>
 
       {/* Pipeline stepper */}
@@ -138,6 +143,38 @@ export default async function VideoDetailPage({
                   <p className="text-[14px] text-[#3C3C43] dark:text-[#AEAEB2] whitespace-pre-wrap leading-relaxed line-clamp-6">
                     {video.script}
                   </p>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* Whisper transcript */}
+          {video.whisperTranscript && (
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                  WHISPER TRANSCRIPT
+                </p>
+                <CopyButton text={video.whisperTranscript} />
+              </div>
+              <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                <CardContent className="p-4 max-h-72 overflow-y-auto">
+                  <div className="space-y-1">
+                    {video.whisperTranscript.split("\n").filter((l) => l.trim()).map((line, i) => {
+                      const m = line.match(/^(\[\d{2}:\d{2}\])\s*(.*)/);
+                      if (m) {
+                        return (
+                          <div key={i} className="flex gap-2 text-[13px] leading-relaxed">
+                            <span className="shrink-0 font-mono text-[#007AFF] dark:text-[#0A84FF]">{m[1]}</span>
+                            <span className="text-[#3C3C43] dark:text-[#AEAEB2]">{m[2]}</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <p key={i} className="text-[13px] text-[#3C3C43] dark:text-[#AEAEB2] leading-relaxed">{line}</p>
+                      );
+                    })}
+                  </div>
                 </CardContent>
               </Card>
             </section>
@@ -233,6 +270,7 @@ export default async function VideoDetailPage({
                     <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">ID</th>
                     <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Stage</th>
                     <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Status</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Error</th>
                     <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Duration</th>
                     <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Created</th>
                   </tr>
@@ -259,6 +297,20 @@ export default async function VideoDetailPage({
                             {j.status}
                           </Badge>
                         </td>
+                        <td className="px-4 py-2 max-w-[220px]">
+                          {j.errorMessage ? (
+                            <span className="text-[11px] text-[#FF3B30] font-mono break-all line-clamp-2" title={j.errorMessage}>
+                              {j.errorMessage}
+                            </span>
+                          ) : j.status === "failed" ? (
+                            <RetryButton jobId={j.id} />
+                          ) : (
+                            <span className="text-[#AEAEB2]">—</span>
+                          )}
+                          {j.status === "failed" && j.errorMessage && (
+                            <RetryButton jobId={j.id} />
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-[#6E6E73]">{formatDuration(duration)}</td>
                         <td className="px-4 py-2 text-[#AEAEB2]">{formatDateTime(j.createdAt)}</td>
                       </tr>
@@ -266,7 +318,7 @@ export default async function VideoDetailPage({
                   })}
                   {jobs.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-[#AEAEB2]">No jobs yet.</td>
+                      <td colSpan={6} className="px-4 py-6 text-center text-[#AEAEB2]">No jobs yet.</td>
                     </tr>
                   )}
                 </tbody>

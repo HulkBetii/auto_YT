@@ -4,6 +4,8 @@ import { NavLink } from "./NavLink";
 const NAV_ITEMS = [
   { href: "/", label: "Overview" },
   { href: "/videos", label: "Videos" },
+  { href: "/needs-attention", label: "Attention" },
+  { href: "/prompts", label: "Prompts" },
   { href: "/settings", label: "Settings" },
 ];
 

@@ -1,10 +1,8 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require("dotenv").config({ path: ".env.local" });
 
-// Dynamic imports happen after dotenv populates process.env
 async function main() {
   const { insertAhPromptVersion } = await import("../lib/db/repo/prompt-versions");
-  const { setAhConfigValue } = await import("../lib/db/repo/channel-config");
 
   const S1_TEMPLATE = `You are a creative director for a viral English-language YouTube channel about ancient humans and prehistoric civilisations — a hand-drawn doodle animation channel.
 
@@ -168,27 +166,21 @@ Return a JSON object with exactly these fields:
 
 Return ONLY the JSON object. No markdown fences, no commentary.`;
 
-  console.log("Seeding prompt versions...");
+  console.log("Updating prompt versions...");
 
-  await insertAhPromptVersion({ promptKey: "S1", template: S1_TEMPLATE, changeReason: "initial seed" });
-  console.log("  ✓ S1 prompt");
+  await insertAhPromptVersion({ promptKey: "S1", template: S1_TEMPLATE, changeReason: "add channel knowledge base + proven viral angles from master prompt" });
+  console.log("  ✓ S1");
 
-  await insertAhPromptVersion({ promptKey: "S2", template: S2_TEMPLATE, changeReason: "initial seed" });
-  console.log("  ✓ S2 prompt");
+  await insertAhPromptVersion({ promptKey: "S2", template: S2_TEMPLATE, changeReason: "add 2nd-person voice, rhythm rule, evidence rule, narrative arc, closing echo" });
+  console.log("  ✓ S2");
 
-  await insertAhPromptVersion({ promptKey: "S3", template: S3_TEMPLATE, changeReason: "initial seed" });
-  console.log("  ✓ S3 prompt");
+  await insertAhPromptVersion({ promptKey: "S3", template: S3_TEMPLATE, changeReason: "add character visual DNA, background color map, frame types, scene continuity" });
+  console.log("  ✓ S3");
 
-  await insertAhPromptVersion({ promptKey: "S4", template: S4_TEMPLATE, changeReason: "initial seed" });
-  console.log("  ✓ S4 prompt");
+  await insertAhPromptVersion({ promptKey: "S4", template: S4_TEMPLATE, changeReason: "add hashtags block + expand tags to 25-40" });
+  console.log("  ✓ S4");
 
-  console.log("\nSeeding channel config defaults...");
-  await setAhConfigValue("voice_id", "");
-  await setAhConfigValue("web2_url", process.env.WEB2_URL ?? "http://localhost:3001");
-  await setAhConfigValue("openai_model", "gpt-4o-mini");
-  console.log("  ✓ channel_config defaults");
-
-  console.log("\nSeed complete.");
+  console.log("\nAll prompts updated.");
   process.exit(0);
 }
 

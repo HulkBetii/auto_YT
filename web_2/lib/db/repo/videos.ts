@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "../index";
 import { ahVideos, type AhVideoStatus, IN_PIPELINE_STATUSES } from "../schema";
@@ -52,4 +52,26 @@ export async function listInPipelineAhVideos() {
     .from(ahVideos)
     .where(inArray(ahVideos.status, IN_PIPELINE_STATUSES))
     .orderBy(desc(ahVideos.createdAt));
+}
+
+export async function listNeedsAttentionAhVideos() {
+  return db
+    .select()
+    .from(ahVideos)
+    .where(eq(ahVideos.status, "needs_attention"))
+    .orderBy(desc(ahVideos.updatedAt));
+}
+
+export async function deleteAhVideo(videoId: number) {
+  // Delete child jobs first (FK constraint), then the video
+  await db.execute(sql`DELETE FROM ah_jobs WHERE video_id = ${videoId}`);
+  const [deleted] = await db.delete(ahVideos).where(eq(ahVideos.id, videoId)).returning({ id: ahVideos.id });
+  return deleted ?? null;
+}
+
+export async function bulkDeleteAhVideos(videoIds: number[]) {
+  if (videoIds.length === 0) return 0;
+  await db.execute(sql`DELETE FROM ah_jobs WHERE video_id = ANY(${videoIds}::int[])`);
+  const deleted = await db.delete(ahVideos).where(inArray(ahVideos.id, videoIds)).returning({ id: ahVideos.id });
+  return deleted.length;
 }
