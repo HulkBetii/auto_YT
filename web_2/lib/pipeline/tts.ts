@@ -4,8 +4,8 @@ import { transcribeAudio } from "./whisper";
 import { enqueueAhStage } from "./createJob";
 
 const TTS_BASE_URL = "https://api.ai33.pro";
-const POLL_INTERVAL_MS = 5_000;
-const MAX_WAIT_MS = 240_000;
+// Sentinel prefix stored in audio_url while TTS is pending
+const TTS_TASK_PREFIX = "tts_task:";
 
 export async function getAhVoiceId(videoVoiceId: string | null): Promise<string> {
   if (videoVoiceId) return videoVoiceId;
@@ -70,145 +70,145 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
   }
 }
 
+type TtsTaskResult =
+  | { status: "done"; audioUrl: string }
+  | { status: "running" }
+  | { status: "error"; message: string };
+
 /**
- * Polls GET /v3/task/<taskId> every 5s until status=done or timeout.
- * On any failure, cancels the task first to release frozen credits.
+ * Checks a TTS task status ONCE (no polling loop — safe for short-lived functions).
+ * Returns done/running/error so the caller decides what to do next cycle.
  */
-export async function pollTTSTask(taskId: string, maxWaitMs = MAX_WAIT_MS): Promise<string> {
+async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
   const apiKey = process.env.VIVOO_API_KEY;
-  if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
+  if (!apiKey) return { status: "error", message: "[tts] VIVOO_API_KEY not set" };
 
-  const deadline = Date.now() + maxWaitMs;
-  let transientErrors = 0;
-  const MAX_TRANSIENT = 5;
-
-  // Cancel task (to release frozen credits) then throw the given error message.
-  const bail = async (msg: string): Promise<never> => {
-    await cancelTTSTask(taskId);
-    throw new Error(msg);
-  };
-
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-    let res: Response;
-    try {
-      res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
-        headers: { Authorization: apiKey },
-      });
-    } catch (networkErr) {
-      transientErrors++;
-      console.warn(`[tts] pollTTSTask network error (${transientErrors}/${MAX_TRANSIENT}):`, networkErr);
-      if (transientErrors >= MAX_TRANSIENT) {
-        throw await bail(`[tts] pollTTSTask: ${MAX_TRANSIENT} consecutive network errors on task ${taskId}`);
-      }
-      continue;
-    }
-
-    if (res.status >= 500) {
-      const body = await res.text().catch(() => "");
-      transientErrors++;
-      if (transientErrors >= MAX_TRANSIENT) {
-        throw await bail(`[tts] pollTTSTask HTTP ${res.status} after ${MAX_TRANSIENT} retries: ${body}`);
-      }
-      continue;
-    }
-    transientErrors = 0;
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw await bail(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
-    }
-
-    const json = (await res.json()) as {
-      success?: boolean;
-      data?: { status?: string; metadata?: { audio_url?: string }; error?: string };
-    };
-
-    const data = json.data;
-    if (!data) throw await bail(`[tts] Unexpected response shape: ${JSON.stringify(json)}`);
-
-    if (data.status === "done") {
-      const audioUrl = data.metadata?.audio_url;
-      if (!audioUrl) throw await bail(`[tts] Task ${taskId} done but no audio_url`);
-      return audioUrl;
-    }
-
-    if (data.status === "error") {
-      throw await bail(`[tts] Task ${taskId} failed: ${data.error ?? "unknown"}`);
-    }
-    // status: "pending" | "processing" — keep polling
+  let res: Response;
+  try {
+    res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
+      headers: { Authorization: apiKey },
+    });
+  } catch (err) {
+    return { status: "error", message: `[tts] network error: ${String(err)}` };
   }
 
-  throw await bail(`[tts] Task ${taskId} did not complete within ${maxWaitMs / 1000}s`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { status: "error", message: `[tts] HTTP ${res.status}: ${body}` };
+  }
+
+  const json = (await res.json()) as {
+    data?: { status?: string; metadata?: { audio_url?: string }; error?: string };
+  };
+  const data = json.data;
+  if (!data) return { status: "error", message: `[tts] Unexpected response: ${JSON.stringify(json)}` };
+
+  if (data.status === "done") {
+    const audioUrl = data.metadata?.audio_url;
+    if (!audioUrl) return { status: "error", message: `[tts] Task ${taskId} done but no audio_url` };
+    return { status: "done", audioUrl };
+  }
+  if (data.status === "error") {
+    return { status: "error", message: `[tts] Task failed: ${data.error ?? "unknown"}` };
+  }
+  // "pending" | "processing"
+  return { status: "running" };
 }
 
 /**
- * Finds the oldest ah_video in status='tts_pending' with no audio_url,
- * runs TTS → saves audioUrl → runs Whisper → saves transcript → advances to s3_pending.
- * Returns true if a video was processed.
+ * Submits a TTS task for the given voice and saves a sentinel "tts_task:{taskId}"
+ * into audioUrl so the next cron cycle can poll it.
+ */
+async function submitAndSaveTTSTask(videoId: number, script: string, voiceId: string): Promise<void> {
+  const taskId = await submitTTS(script, voiceId);
+  await updateAhVideoFields(videoId, { audioUrl: `${TTS_TASK_PREFIX}${taskId}` });
+  console.log(`[tts] Video #${videoId} TTS submitted → task ${taskId} (voice: ${voiceId})`);
+}
+
+/**
+ * Fire-and-poll TTS runner — safe for short-lived serverless functions.
+ *
+ * Each cron cycle does exactly ONE async operation:
+ *   - If no audioUrl          → submit TTS, save "tts_task:{id}", return (fast)
+ *   - If audioUrl="tts_task:" → check task once:
+ *       • running → return, wait for next cycle
+ *       • done    → save real audioUrl, run Whisper, advance to S3
+ *       • error   → cancel task (releases frozen credits), failover to backup voice
+ *   - If audioUrl is real URL → run Whisper + advance (resume after partial failure)
  */
 export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
-  // Pick the oldest tts_pending video that still needs work:
-  // - no audioUrl → TTS hasn't run yet
-  // - audioUrl set but no whisperTranscript → TTS succeeded but Whisper crashed last time
   const videos = await listInPipelineAhVideos();
-  const video =
-    videos.find((v) => v.status === "tts_pending" && (!v.audioUrl || !v.whisperTranscript)) ??
-    null;
-
+  const video = videos.find((v) => v.status === "tts_pending") ?? null;
   if (!video) return false;
 
   const videoId = video.id;
 
   try {
     if (!video.script) {
-      console.error(`[tts] Video #${videoId} has no script — cannot run TTS`);
+      console.error(`[tts] Video #${videoId} has no script`);
       await updateAhVideoStatus(videoId, "needs_attention");
       return false;
     }
 
-    let audioUrl = video.audioUrl;
-
-    // Only submit TTS if we don't already have an audio URL from a previous partial run
-    if (!audioUrl) {
-      const primaryVoiceId = await getAhVoiceId(video.voiceId);
-      try {
-        const taskId = await submitTTS(video.script, primaryVoiceId);
-        audioUrl = await pollTTSTask(taskId);
-      } catch (primaryErr) {
-        console.warn(`[tts] Primary voice (${primaryVoiceId}) failed:`, primaryErr);
-        const backupVoiceId = await getAhBackupVoiceId();
-        if (!backupVoiceId) throw primaryErr;
-        console.log(`[tts] Retrying with backup voice: ${backupVoiceId}`);
-        const taskId = await submitTTS(video.script, backupVoiceId);
-        audioUrl = await pollTTSTask(taskId);
-      }
-      await updateAhVideoFields(videoId, { audioUrl });
+    // ── Phase 1: submit TTS (if not yet submitted) ─────────────────────────
+    if (!video.audioUrl) {
+      const voiceId = await getAhVoiceId(video.voiceId);
+      await submitAndSaveTTSTask(videoId, video.script, voiceId);
+      return true;
     }
 
-    // Whisper (always re-run if transcript is missing, even if audio was already saved)
-    const whisperTranscript = await transcribeAudio(audioUrl);
-    await updateAhVideoFields(videoId, { whisperTranscript });
+    // ── Phase 2: poll pending task (one check per cycle) ───────────────────
+    if (video.audioUrl.startsWith(TTS_TASK_PREFIX)) {
+      const taskId = video.audioUrl.slice(TTS_TASK_PREFIX.length);
+      const result = await checkTTSTask(taskId);
 
-    // Advance → S3
-    await updateAhVideoStatus(videoId, "s3_pending");
+      if (result.status === "running") {
+        console.log(`[tts] Video #${videoId} task ${taskId} still running — next cycle`);
+        return false;
+      }
 
-    const topic = video.chosenTopic as { title?: string } | null;
-    await enqueueAhStage({
-      promptKey: "S3",
-      stage: "S3",
-      vars: {
-        TIMESTAMPED_SCRIPT: whisperTranscript,
-        TOPIC_TITLE: topic?.title ?? "",
-      },
-      videoId,
-    });
+      if (result.status === "error") {
+        console.warn(`[tts] Video #${videoId} primary TTS error: ${result.message}`);
+        await cancelTTSTask(taskId);
 
-    console.log(`[tts] Video #${videoId} → audioUrl saved, transcript saved, S3 enqueued`);
+        const backupVoiceId = await getAhBackupVoiceId();
+        if (backupVoiceId) {
+          console.log(`[tts] Failing over to backup voice: ${backupVoiceId}`);
+          // Clear the failed task sentinel so next cycle submits fresh via backup
+          await updateAhVideoFields(videoId, { audioUrl: `${TTS_TASK_PREFIX}backup_pending` });
+          await submitAndSaveTTSTask(videoId, video.script, backupVoiceId);
+          return true;
+        }
+        throw new Error(result.message);
+      }
+
+      // done — save real audio URL and fall through to Whisper
+      await updateAhVideoFields(videoId, { audioUrl: result.audioUrl });
+      video.audioUrl = result.audioUrl;
+    }
+
+    // ── Phase 3: Whisper transcription ─────────────────────────────────────
+    if (!video.whisperTranscript) {
+      const whisperTranscript = await transcribeAudio(video.audioUrl!);
+      await updateAhVideoFields(videoId, { whisperTranscript });
+
+      await updateAhVideoStatus(videoId, "s3_pending");
+      const topic = video.chosenTopic as { title?: string } | null;
+      await enqueueAhStage({
+        promptKey: "S3",
+        stage: "S3",
+        vars: {
+          TIMESTAMPED_SCRIPT: whisperTranscript,
+          TOPIC_TITLE: topic?.title ?? "",
+        },
+        videoId,
+      });
+      console.log(`[tts] Video #${videoId} → transcript saved, S3 enqueued`);
+    }
+
     return true;
   } catch (err) {
-    console.error(`[tts] Video #${videoId} TTS/Whisper failed:`, err);
+    console.error(`[tts] Video #${videoId} failed:`, err);
     await updateAhVideoStatus(videoId, "needs_attention");
     return false;
   }
