@@ -54,6 +54,20 @@ export async function listInPipelineAhVideos() {
     .orderBy(desc(ahVideos.createdAt));
 }
 
+/**
+ * Atomically sets audioUrl = 'tts_submitting' only if it is currently NULL.
+ * Returns true if this caller won the race; false if another cycle already claimed it.
+ * Prevents duplicate TTS submissions when multiple cron cycles overlap.
+ */
+export async function claimVideoForTtsSubmit(videoId: number): Promise<boolean> {
+  const result = await db
+    .update(ahVideos)
+    .set({ audioUrl: "tts_submitting", updatedAt: new Date() })
+    .where(and(eq(ahVideos.id, videoId), sql`${ahVideos.audioUrl} IS NULL`))
+    .returning({ id: ahVideos.id });
+  return result.length > 0;
+}
+
 export async function listNeedsAttentionAhVideos() {
   return db
     .select()

@@ -1,11 +1,14 @@
 import { getAhConfigValue } from "@/lib/db/repo/channel-config";
-import { listInPipelineAhVideos, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
+import { claimVideoForTtsSubmit, listInPipelineAhVideos, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
 import { transcribeAudio } from "./whisper";
 import { enqueueAhStage } from "./createJob";
 
 const TTS_BASE_URL = "https://api.ai33.pro";
-// Sentinel prefix stored in audio_url while TTS is pending
 const TTS_TASK_PREFIX = "tts_task:";
+// Atomic lock written to audio_url while submitting to prevent duplicate submissions
+const TTS_SUBMITTING = "tts_submitting";
+// If stuck in tts_submitting for > 2 min (crashed mid-submit), reset and retry
+const MAX_SUBMITTING_MS = 2 * 60 * 1000;
 
 export async function getAhVoiceId(videoVoiceId: string | null): Promise<string> {
   if (videoVoiceId) return videoVoiceId;
@@ -154,11 +157,26 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       return false;
     }
 
-    // ── Phase 1: submit TTS (if not yet submitted) ─────────────────────────
+    // ── Phase 1: submit TTS (atomic claim prevents duplicate submissions) ──
     if (!video.audioUrl) {
+      const claimed = await claimVideoForTtsSubmit(videoId);
+      if (!claimed) {
+        console.log(`[tts] Video #${videoId} already claimed by another cycle — skipping`);
+        return false;
+      }
       const voiceId = await getAhVoiceId(video.voiceId);
       await submitAndSaveTTSTask(videoId, video.script, voiceId);
       return true;
+    }
+
+    // ── Phase 1b: stuck in submitting state (crashed mid-submit) ───────────
+    if (video.audioUrl === TTS_SUBMITTING) {
+      const ageMs = Date.now() - new Date(video.updatedAt).getTime();
+      if (ageMs > MAX_SUBMITTING_MS) {
+        console.warn(`[tts] Video #${videoId} stuck in tts_submitting for ${Math.round(ageMs / 1000)}s — resetting`);
+        await updateAhVideoFields(videoId, { audioUrl: null });
+      }
+      return false;
     }
 
     // ── Phase 2: poll pending task (one check per cycle) ───────────────────
