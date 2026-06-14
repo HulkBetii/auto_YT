@@ -70,6 +70,11 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
   }
 }
 
+// AI33.PRO uses "doing" for in-progress tasks
+const TTS_RUNNING_STATUSES = new Set(["pending", "processing", "doing", "queued"]);
+// Failover after this many ms — covers ~3 cron cycles at 5-min interval
+const MAX_TTS_AGE_MS = 15 * 60 * 1000;
+
 type TtsTaskResult =
   | { status: "done"; audioUrl: string }
   | { status: "running" }
@@ -108,11 +113,10 @@ async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
     if (!audioUrl) return { status: "error", message: `[tts] Task ${taskId} done but no audio_url` };
     return { status: "done", audioUrl };
   }
-  if (data.status === "error") {
-    return { status: "error", message: `[tts] Task failed: ${data.error ?? "unknown"}` };
+  if (data.status && TTS_RUNNING_STATUSES.has(data.status)) {
+    return { status: "running" };
   }
-  // "pending" | "processing"
-  return { status: "running" };
+  return { status: "error", message: `[tts] Task failed with status: ${data.status} — ${data.error ?? ""}` };
 }
 
 /**
@@ -163,19 +167,30 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       const result = await checkTTSTask(taskId);
 
       if (result.status === "running") {
+        // Failover if task has been stuck longer than MAX_TTS_AGE_MS
+        const ageMs = Date.now() - new Date(video.updatedAt).getTime();
+        if (ageMs > MAX_TTS_AGE_MS) {
+          console.warn(`[tts] Video #${videoId} task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over`);
+          await cancelTTSTask(taskId); // best-effort, may return 404
+          const backupVoiceId = await getAhBackupVoiceId();
+          if (backupVoiceId) {
+            console.log(`[tts] Failing over to backup voice (timeout): ${backupVoiceId}`);
+            await submitAndSaveTTSTask(videoId, video.script, backupVoiceId);
+            return true;
+          }
+          throw new Error(`[tts] Task ${taskId} stuck for ${Math.round(ageMs / 60000)}min and no backup voice configured`);
+        }
         console.log(`[tts] Video #${videoId} task ${taskId} still running — next cycle`);
         return false;
       }
 
       if (result.status === "error") {
         console.warn(`[tts] Video #${videoId} primary TTS error: ${result.message}`);
-        await cancelTTSTask(taskId);
+        await cancelTTSTask(taskId); // best-effort
 
         const backupVoiceId = await getAhBackupVoiceId();
         if (backupVoiceId) {
-          console.log(`[tts] Failing over to backup voice: ${backupVoiceId}`);
-          // Clear the failed task sentinel so next cycle submits fresh via backup
-          await updateAhVideoFields(videoId, { audioUrl: `${TTS_TASK_PREFIX}backup_pending` });
+          console.log(`[tts] Failing over to backup voice (error): ${backupVoiceId}`);
           await submitAndSaveTTSTask(videoId, video.script, backupVoiceId);
           return true;
         }
