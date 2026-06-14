@@ -1,7 +1,9 @@
+export {};
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require("dotenv").config({ path: ".env.local" });
 
-async function main() {
+async function updatePrompts() {
   const { insertAhPromptVersion } = await import("../lib/db/repo/prompt-versions");
 
   const S1_TEMPLATE = `You are a creative director for a viral English-language YouTube channel about ancient humans and prehistoric civilisations — a hand-drawn doodle animation channel.
@@ -184,7 +186,7 @@ Return ONLY the JSON object. No markdown fences, no commentary.`;
   process.exit(0);
 }
 
-main().catch((err) => {
+updatePrompts().catch((err) => {
   console.error(err);
   process.exit(1);
 });
