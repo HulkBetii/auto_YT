@@ -183,3 +183,127 @@ async def fetch_job(dsn: str, job_id: int) -> dict | None:
         return dict(row) if row else None
     finally:
         await conn.close()
+
+
+# ── Ancient Humans pipeline (ah_jobs table) ─────────────────────────────────
+# Separate functions so any change here can NEVER affect the web/ pipeline.
+# ah_jobs uses TEXT columns (not enums) and has no prompt_version_id.
+
+AH_SUPPORTED_STAGES = ("S1", "S2", "S3", "S4")
+
+
+async def _hit_url(url: str, secret: str) -> None:
+    """Fire-and-forget GET with Bearer auth. Non-fatal on any error."""
+    if not url or not secret:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url, headers={"Authorization": f"Bearer {secret}"})
+        if r.status_code == 200:
+            logger.info("AH callback triggered (%s)", url)
+        else:
+            logger.warning("AH callback returned HTTP %s from %s", r.status_code, url)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("AH callback failed (non-fatal): %s", exc)
+
+
+async def claim_next_ah_job(dsn: str) -> dict | None:
+    """Atomically claim one pending ah_job (oldest first) and mark it 'running'.
+
+    Returns the claimed row as a dict with '_table'='ah_jobs', or None.
+    Uses TEXT stage column — no enum cast needed.
+    """
+    conn = await asyncpg.connect(dsn)
+    try:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                SELECT id, video_id, stage, prompt_text, retry_count, metadata
+                FROM ah_jobs
+                WHERE status = 'pending' AND stage = ANY($1::text[])
+                ORDER BY created_at ASC
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+                """,
+                list(AH_SUPPORTED_STAGES),
+            )
+            if row is None:
+                return None
+
+            await conn.execute(
+                "UPDATE ah_jobs SET status = 'running', started_at = NOW() WHERE id = $1",
+                row["id"],
+            )
+            logger.info("Claimed ah_job id=%s stage=%s video_id=%s", row["id"], row["stage"], row["video_id"])
+            result = dict(row)
+            result["_table"] = "ah_jobs"
+            # Deserialise metadata from asyncpg's JSON string if needed
+            if isinstance(result.get("metadata"), str):
+                import json as _json
+                result["metadata"] = _json.loads(result["metadata"])
+            return result
+    finally:
+        await conn.close()
+
+
+async def complete_ah_job(dsn: str, job_id: int, *, result: str, web2_secret: str = "") -> None:
+    """Mark an ah_job done, store result, and fire its callback URL."""
+    conn = await asyncpg.connect(dsn)
+    row = None
+    try:
+        row = await conn.fetchrow(
+            """
+            UPDATE ah_jobs
+            SET status = 'done', result = $2, finished_at = NOW(), error_message = NULL
+            WHERE id = $1
+            RETURNING metadata
+            """,
+            job_id, result,
+        )
+        logger.info("Completed ah_job id=%s", job_id)
+    finally:
+        await conn.close()
+
+    # Fire callback after releasing the DB connection
+    if row is not None:
+        import json as _json
+        meta = row["metadata"]
+        if isinstance(meta, str):
+            meta = _json.loads(meta)
+        callback_url = (meta or {}).get("web_callback_url", "")
+        await _hit_url(callback_url, web2_secret)
+
+
+async def fail_ah_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
+    """Mark an ah_job permanently failed."""
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            """
+            UPDATE ah_jobs
+            SET status = 'failed', error_message = $2, retry_count = $3, finished_at = NOW()
+            WHERE id = $1
+            """,
+            job_id, error_message, retry_count,
+        )
+        logger.info("Failed ah_job id=%s retry_count=%s: %s", job_id, retry_count, error_message)
+    finally:
+        await conn.close()
+
+
+async def retry_transient_ah_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
+    """Requeue an ah_job for a transient retry."""
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            """
+            UPDATE ah_jobs
+            SET status = 'pending', error_message = $2, retry_count = $3,
+                started_at = NULL, finished_at = NULL
+            WHERE id = $1
+            """,
+            job_id, error_message, retry_count,
+        )
+        logger.info("Requeued ah_job id=%s for transient retry (attempt %d)", job_id, retry_count)
+    finally:
+        await conn.close()

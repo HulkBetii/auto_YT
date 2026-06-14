@@ -1,0 +1,280 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { getAhVideo } from "@/lib/db/repo/videos";
+import { listAhJobsByVideo } from "@/lib/db/repo/jobs";
+import { statusBadgeClass, VIDEO_STATUS_LABELS, formatDateTime, formatDuration } from "@/lib/ui/format";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { CopyButton } from "./CopyButton";
+
+export const dynamic = "force-dynamic";
+
+const PIPELINE_STEPS = ["S1", "S2", "TTS", "S3", "S4"] as const;
+
+const STATUS_DONE_STEPS: Record<string, number> = {
+  s1_pending: 0,
+  s2_pending: 1,
+  tts_pending: 2,
+  s3_pending: 3,
+  s4_pending: 4,
+  ready: 5,
+  needs_attention: -1,
+};
+
+export default async function VideoDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const videoId = parseInt(id, 10);
+  if (isNaN(videoId)) notFound();
+
+  const [video, jobs] = await Promise.all([
+    getAhVideo(videoId),
+    listAhJobsByVideo(videoId),
+  ]);
+
+  if (!video) notFound();
+
+  const topic = video.chosenTopic as { title?: string; angle?: string } | null;
+  const doneCount = STATUS_DONE_STEPS[video.status] ?? 0;
+
+  const promptCount = video.imagePrompts
+    ? video.imagePrompts.split("\n").filter((l) => l.trim()).length
+    : 0;
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Link href="/videos" className="text-[13px] text-[#007AFF] hover:underline">
+            ← Videos
+          </Link>
+          <h1 className="mt-2 text-[22px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
+            {topic?.title ?? `Video #${video.id}`}
+          </h1>
+          {topic?.angle && (
+            <p className="mt-1 text-[15px] text-[#6E6E73]">{topic.angle}</p>
+          )}
+        </div>
+        <Badge className={`shrink-0 mt-2 text-[12px] ${statusBadgeClass(video.status)}`}>
+          {VIDEO_STATUS_LABELS[video.status] ?? video.status}
+        </Badge>
+      </div>
+
+      {/* Pipeline stepper */}
+      <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            {PIPELINE_STEPS.map((step, i) => {
+              const isDone = i < doneCount;
+              const isRunning = i === doneCount && video.status !== "ready" && video.status !== "needs_attention";
+              return (
+                <div key={step} className="flex items-center gap-2">
+                  <div
+                    className={[
+                      "flex items-center justify-center rounded-full text-[12px] font-medium",
+                      isRunning
+                        ? "h-7 px-3 bg-[#FF9F0A] text-white animate-pulse"
+                        : isDone
+                          ? "h-7 px-3 bg-[#34C759] text-white"
+                          : "h-7 px-3 bg-[#E5E5EA] text-[#AEAEB2] dark:bg-white/[.08] dark:text-[#6E6E73]",
+                    ].join(" ")}
+                  >
+                    {step}
+                  </div>
+                  {i < PIPELINE_STEPS.length - 1 && (
+                    <div className={`h-px w-6 ${i < doneCount ? "bg-[#34C759]" : "bg-[#E5E5EA] dark:bg-white/[.08]"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Left: info sidebar */}
+        <div className="space-y-4">
+          <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+            <CardContent className="p-5 space-y-4">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Voice ID</p>
+                <p className="mt-0.5 text-[15px] text-[#1C1C1E] dark:text-white font-mono">
+                  {video.voiceId ?? "—"}
+                </p>
+              </div>
+              {video.audioUrl && (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Audio</p>
+                  <audio controls src={video.audioUrl} className="mt-1 w-full h-8" />
+                </div>
+              )}
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Created</p>
+                <p className="mt-0.5 text-[13px] text-[#6E6E73]">{formatDateTime(video.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Updated</p>
+                <p className="mt-0.5 text-[13px] text-[#6E6E73]">{formatDateTime(video.updatedAt)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right: content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Script */}
+          {video.script && (
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">SCRIPT</p>
+                <CopyButton text={video.script} />
+              </div>
+              <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                <CardContent className="p-4">
+                  <p className="text-[14px] text-[#3C3C43] dark:text-[#AEAEB2] whitespace-pre-wrap leading-relaxed line-clamp-6">
+                    {video.script}
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* Image prompts */}
+          {video.imagePrompts && (
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                  IMAGE PROMPTS · {promptCount} scenes
+                </p>
+                <a
+                  href={`/api/videos/${video.id}/prompts`}
+                  download
+                  className="rounded-md bg-[#007AFF] px-3 py-1 text-[12px] font-medium text-white hover:bg-[#0062CC] transition-colors duration-150"
+                >
+                  Download .txt
+                </a>
+              </div>
+              <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                <CardContent className="p-4">
+                  <pre className="text-[12px] text-[#3C3C43] dark:text-[#AEAEB2] whitespace-pre-wrap leading-relaxed line-clamp-6 font-mono">
+                    {video.imagePrompts.split("\n").slice(0, 5).join("\n")}
+                    {promptCount > 5 && `\n… and ${promptCount - 5} more`}
+                  </pre>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* YouTube metadata */}
+          {(video.ytTitle || video.ytDescription || video.ytTags) && (
+            <section>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                YOUTUBE METADATA
+              </p>
+              <div className="space-y-3">
+                {video.ytTitle && (
+                  <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2] mb-1">Title</p>
+                          <p className="text-[15px] text-[#1C1C1E] dark:text-white">{video.ytTitle}</p>
+                        </div>
+                        <CopyButton text={video.ytTitle} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {video.ytDescription && (
+                  <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2] mb-1">Description</p>
+                          <p className="text-[14px] text-[#3C3C43] dark:text-[#AEAEB2] whitespace-pre-wrap line-clamp-4">
+                            {video.ytDescription}
+                          </p>
+                        </div>
+                        <CopyButton text={video.ytDescription} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {video.ytTags && (
+                  <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2] mb-1">Tags</p>
+                          <p className="text-[13px] text-[#6E6E73] font-mono break-all line-clamp-3">
+                            {video.ytTags}
+                          </p>
+                        </div>
+                        <CopyButton text={video.ytTags} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Jobs table */}
+          <section>
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">JOBS</p>
+            <div className="overflow-hidden rounded-xl border border-black/[.08] bg-white dark:border-white/[.10] dark:bg-[#1C1C1E]">
+              <table className="w-full text-[14px]">
+                <thead>
+                  <tr className="border-b border-black/[.06] dark:border-white/[.08]">
+                    <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">ID</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Stage</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Status</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Duration</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map((j) => {
+                    const duration =
+                      j.startedAt && j.finishedAt
+                        ? (new Date(j.finishedAt).getTime() - new Date(j.startedAt).getTime()) / 1000
+                        : null;
+                    return (
+                      <tr
+                        key={j.id}
+                        className="border-b border-black/[.04] last:border-0 dark:border-white/[.06]"
+                      >
+                        <td className="px-4 py-2 font-mono text-[#AEAEB2]">#{j.id}</td>
+                        <td className="px-4 py-2">
+                          <Badge className="font-mono text-[11px] bg-[#E5E5EA] text-[#3C3C43] border-0 dark:bg-white/[.10] dark:text-[#AEAEB2]">
+                            {j.stage}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-2">
+                          <Badge className={`text-[11px] ${statusBadgeClass(j.status)}`}>
+                            {j.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-2 text-[#6E6E73]">{formatDuration(duration)}</td>
+                        <td className="px-4 py-2 text-[#AEAEB2]">{formatDateTime(j.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                  {jobs.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-[#AEAEB2]">No jobs yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
