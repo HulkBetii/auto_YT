@@ -383,8 +383,14 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
       try {
         audioUrl = await pollTTSTask(taskId);
       } catch (pollErr) {
-        // On timeout or error, clear the task_id so the next tick can retry cleanly
-        await clearVideoTtsTaskId(video.id);
+        // Only clear tts_task_id when the task itself has failed (status="error").
+        // On timeout the task is still "doing" on AI33 — keep the task_id so the
+        // next cron tick resumes polling the SAME task instead of submitting a new one.
+        const errMsg = pollErr instanceof Error ? pollErr.message : String(pollErr);
+        const isTaskFailure = errMsg.includes(" failed:") && errMsg.includes("Task ");
+        if (isTaskFailure) {
+          await clearVideoTtsTaskId(video.id);
+        }
         throw pollErr;
       }
 
