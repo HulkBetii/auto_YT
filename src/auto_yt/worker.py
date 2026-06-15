@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 DB_CONFIG_PATH = DATA_DIR / "db_config.json"
 POLL_INTERVAL_S = 15
-PROMPT_TIMEOUT_S = 240
+PROMPT_TIMEOUT_S = 360
 
 # How many times a *transient* ChatGPT failure (timeout, no-response, etc. —
 # ChatGPTResponseError) gets automatically retried in-place before the job is
@@ -118,6 +118,146 @@ def load_web2_config() -> tuple[str, str]:
 def load_account() -> dict:
     data = json.loads(ACCOUNT_PATH.read_text(encoding="utf-8"))
     return data.get("gpt_account1", data)
+
+
+async def run_ah_tts_and_whisper(dsn: str, web2_url: str, web2_secret: str) -> bool:
+    """Find one tts_pending Ancient-Humans video and process it with OpenAI TTS + Whisper.
+
+    Runs locally (no Vercel timeout). Returns True if TTS was processed.
+    """
+    from auto_yt.services.job_queue import _sanitize_dsn, _hit_url
+    import httpx, json as _json, tempfile
+
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    try:
+        row = await conn.fetchrow(
+            "SELECT id, script, chosen_topic, voice_id FROM ah_videos "
+            "WHERE status = 'tts_pending' AND (audio_url IS NULL OR audio_url = 'tts_submitting') "
+            "ORDER BY updated_at ASC LIMIT 1"
+        )
+        if not row:
+            return False
+        video_id = row["id"]
+        script = row["script"] or ""
+        chosen_topic = row["chosen_topic"]
+        if isinstance(chosen_topic, str):
+            chosen_topic = _json.loads(chosen_topic)
+        topic_title = (chosen_topic or {}).get("title", "") if isinstance(chosen_topic, dict) else ""
+
+        # Atomic claim
+        updated = await conn.fetchval(
+            "UPDATE ah_videos SET audio_url='tts_submitting', updated_at=NOW() "
+            "WHERE id=$1 AND (audio_url IS NULL OR audio_url='tts_submitting') RETURNING id",
+            video_id,
+        )
+        if not updated:
+            return False
+    finally:
+        await conn.close()
+
+    try:
+        import openai as _openai  # type: ignore
+        openai_key = json.loads(DB_CONFIG_PATH.read_text())  if DB_CONFIG_PATH.exists() else {}
+        api_key = os.getenv("OPENAI_API_KEY") or openai_key.get("OPENAI_API_KEY", "")
+        client = _openai.AsyncOpenAI(api_key=api_key)
+
+        def split_chunks(text: str, max_chars: int = 4000) -> list[str]:
+            if len(text) <= max_chars:
+                return [text]
+            chunks: list[str] = []
+            current = ""
+            for para in text.split("\n\n"):
+                candidate = f"{current}\n\n{para}" if current else para
+                if current and len(candidate) > max_chars:
+                    chunks.append(current.strip())
+                    current = para
+                else:
+                    current = candidate
+            if current.strip():
+                chunks.append(current.strip())
+            return chunks or [text[:max_chars]]
+
+        chunks = split_chunks(script)
+        logger.info("AH TTS video #%d: %d chunks, script=%d chars", video_id, len(chunks), len(script))
+
+        mp3_parts: list[bytes] = []
+        for i, chunk in enumerate(chunks):
+            resp = await client.audio.speech.create(model="tts-1", voice="onyx", input=chunk, response_format="mp3")
+            mp3_parts.append(resp.read())
+            logger.info("AH TTS video #%d chunk %d/%d done", video_id, i + 1, len(chunks))
+
+        audio_bytes = b"".join(mp3_parts)
+        logger.info("AH TTS video #%d audio ready (%dKB), transcribing...", video_id, len(audio_bytes) // 1024)
+
+        import io
+        audio_file = io.BytesIO(audio_bytes)
+        audio_file.name = "audio.mp3"
+        transcription = await client.audio.transcriptions.create(
+            model="whisper-1", file=audio_file,  # type: ignore[arg-type]
+            response_format="verbose_json", timestamp_granularities=["segment"],
+        )
+        raw = transcription if isinstance(transcription, dict) else transcription.model_dump()
+        segments = raw.get("segments") or []
+
+        def fmt(s: float) -> str:
+            m, sec = divmod(int(s), 60)
+            return f"{m:02d}:{sec:02d}"
+
+        if segments:
+            lines = [f"[{fmt(seg['start'])}] {seg['text'].strip()}" for seg in segments]
+            whisper_transcript = "\n".join(lines)
+            # Keep S3 prompt under ~15000 chars: sample every-other segment if too long
+            MAX_TRANSCRIPT_CHARS = 12000
+            if len(whisper_transcript) > MAX_TRANSCRIPT_CHARS:
+                sampled = lines[::2]
+                whisper_transcript = "\n".join(sampled)
+                logger.info("AH TTS video #%d transcript sampled: %d→%d chars", video_id, len("\n".join(lines)), len(whisper_transcript))
+        else:
+            whisper_transcript = raw.get("text", "")
+
+        logger.info("AH TTS video #%d transcript ready (%d chars)", video_id, len(whisper_transcript))
+
+        # Save results and advance to S3
+        conn2 = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+        try:
+            await conn2.execute(
+                "UPDATE ah_videos SET audio_url='openai:tts_done', whisper_transcript=$2, "
+                "status='s3_pending', updated_at=NOW() WHERE id=$1",
+                video_id, whisper_transcript,
+            )
+            # Fetch active S3 prompt
+            s3_row = await conn2.fetchrow(
+                "SELECT template FROM ah_prompt_versions WHERE prompt_key='S3' AND is_active=true LIMIT 1"
+            )
+            prompt_text = (s3_row["template"] if s3_row else "").replace("[TIMESTAMPED_SCRIPT]", whisper_transcript).replace("[TOPIC_TITLE]", topic_title)
+            callback_url = f"{web2_url.rstrip('/')}/api/cron/process-jobs" if web2_url else ""
+            await conn2.execute(
+                "INSERT INTO ah_jobs (video_id, stage, status, prompt_text, metadata, created_at) "
+                "VALUES ($1, 'S3', 'pending', $2, $3, NOW())",
+                video_id, prompt_text,
+                _json.dumps({"web_callback_url": callback_url}) if callback_url else "{}",
+            )
+            logger.info("AH TTS video #%d → S3 job enqueued", video_id)
+        finally:
+            await conn2.close()
+
+        # Trigger chain cycle so S3 gets picked up immediately
+        if web2_url and web2_secret:
+            await _hit_url(f"{web2_url.rstrip('/')}/api/cron/process-jobs", web2_secret)
+
+        return True
+
+    except Exception as exc:
+        logger.exception("AH TTS video #%d failed: %s", video_id, exc)
+        conn3 = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+        try:
+            await conn3.execute(
+                "UPDATE ah_videos SET audio_url=NULL, status='needs_attention', updated_at=NOW() WHERE id=$1",
+                video_id,
+            )
+        finally:
+            await conn3.close()
+        return False
 
 
 async def _page_alive(page) -> bool:
@@ -472,6 +612,11 @@ async def run() -> None:
                     job = await claim_next_ah_job(dsn)
 
                 if job is None:
+                    # No ChatGPT jobs — check for pending AH TTS work (runs locally, no Vercel timeout)
+                    tts_ran = await run_ah_tts_and_whisper(dsn, web2_url, web2_secret)
+                    if tts_ran:
+                        await record_heartbeat(dsn, "running")
+                        continue
                     await tabs.sweep_terminal_tabs(dsn)
                     await record_heartbeat(dsn, "running")
                     await asyncio.sleep(POLL_INTERVAL_S)

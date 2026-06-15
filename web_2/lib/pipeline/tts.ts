@@ -1,7 +1,11 @@
+import OpenAI from "openai";
 import { getAhConfigValue } from "@/lib/db/repo/channel-config";
 import { claimVideoForTtsSubmit, listInPipelineAhVideos, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
 import { transcribeAudio } from "./whisper";
 import { enqueueAhStage } from "./createJob";
+
+// Marker stored in audio_url when OpenAI TTS was used (audio not stored externally)
+const OPENAI_TTS_DONE = "openai:tts_done";
 
 const TTS_BASE_URL = "https://api.ai33.pro";
 const TTS_TASK_PREFIX = "tts_task:";
@@ -132,6 +136,94 @@ async function submitAndSaveTTSTask(videoId: number, script: string, voiceId: st
   console.log(`[tts] Video #${videoId} TTS submitted → task ${taskId} (voice: ${voiceId})`);
 }
 
+/** Split text into chunks of at most maxChars, breaking at paragraph/sentence boundaries. */
+function splitIntoChunks(text: string, maxChars = 4000): string[] {
+  if (text.length <= maxChars) return [text];
+  const chunks: string[] = [];
+  const paragraphs = text.split(/\n\n+/);
+  let current = "";
+  for (const para of paragraphs) {
+    if (current && (current + "\n\n" + para).length > maxChars) {
+      chunks.push(current.trim());
+      current = para;
+    } else {
+      current = current ? current + "\n\n" + para : para;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  // If any individual paragraph exceeds maxChars, split further by sentence
+  return chunks.flatMap((chunk) => {
+    if (chunk.length <= maxChars) return [chunk];
+    const sentences = chunk.split(/(?<=[.!?])\s+/);
+    const sub: string[] = [];
+    let cur = "";
+    for (const s of sentences) {
+      if (cur && (cur + " " + s).length > maxChars) { sub.push(cur.trim()); cur = s; }
+      else { cur = cur ? cur + " " + s : s; }
+    }
+    if (cur.trim()) sub.push(cur.trim());
+    return sub;
+  });
+}
+
+/**
+ * Fallback TTS using OpenAI. Splits long scripts into ≤4000-char chunks,
+ * concatenates the MP3 buffers, then pipes the full audio to Whisper.
+ * No external audio storage needed — sets audio_url = OPENAI_TTS_DONE marker.
+ */
+async function runOpenAITTSAndWhisper(videoId: number, script: string, topic: { title?: string } | null): Promise<void> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const chunks = splitIntoChunks(script, 4000);
+  console.log(`[tts-openai] Video #${videoId} generating TTS (${chunks.length} chunks) via OpenAI...`);
+
+  const buffers: ArrayBuffer[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const resp = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: "onyx",
+      input: chunks[i],
+      response_format: "mp3",
+    });
+    buffers.push(await resp.arrayBuffer());
+    console.log(`[tts-openai] Video #${videoId} chunk ${i + 1}/${chunks.length} done`);
+  }
+
+  // Concatenate MP3 frames (valid for Whisper ingestion)
+  const totalLen = buffers.reduce((s, b) => s + b.byteLength, 0);
+  const merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const buf of buffers) { merged.set(new Uint8Array(buf), offset); offset += buf.byteLength; }
+
+  console.log(`[tts-openai] Video #${videoId} audio ready (${Math.round(totalLen / 1024)}KB), transcribing...`);
+  const file = new File([merged], "audio.mp3", { type: "audio/mpeg" });
+  const transcription = await openai.audio.transcriptions.create({
+    model: "whisper-1",
+    file,
+    response_format: "verbose_json",
+    timestamp_granularities: ["segment"],
+  });
+
+  function formatTime(seconds: number) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  const segments = (transcription as unknown as { segments?: Array<{ start: number; text: string }> }).segments ?? [];
+  const whisperTranscript = segments.length > 0
+    ? segments.map((seg) => `[${formatTime(seg.start)}] ${seg.text.trim()}`).join("\n")
+    : transcription.text ?? "";
+
+  await updateAhVideoFields(videoId, { audioUrl: OPENAI_TTS_DONE, whisperTranscript });
+  await updateAhVideoStatus(videoId, "s3_pending");
+  await enqueueAhStage({
+    promptKey: "S3", stage: "S3",
+    vars: { TIMESTAMPED_SCRIPT: whisperTranscript, TOPIC_TITLE: topic?.title ?? "" },
+    videoId,
+  });
+  console.log(`[tts-openai] Video #${videoId} → transcript saved (${whisperTranscript.length} chars), S3 enqueued`);
+}
+
 /**
  * Fire-and-poll TTS runner — safe for short-lived serverless functions.
  *
@@ -164,8 +256,21 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         console.log(`[tts] Video #${videoId} already claimed by another cycle — skipping`);
         return false;
       }
-      const voiceId = await getAhVoiceId(video.voiceId);
-      await submitAndSaveTTSTask(videoId, video.script, voiceId);
+      const topic = video.chosenTopic as { title?: string } | null;
+      try {
+        const voiceId = await getAhVoiceId(video.voiceId);
+        await submitAndSaveTTSTask(videoId, video.script, voiceId);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isAuthErr = msg.includes("401") || msg.includes("Unauthorized") || msg.includes("credits");
+        if (isAuthErr) {
+          console.warn(`[tts] AI33.PRO auth error — falling back to OpenAI TTS: ${msg}`);
+          await updateAhVideoFields(videoId, { audioUrl: null }); // release claim lock
+          await runOpenAITTSAndWhisper(videoId, video.script, topic);
+        } else {
+          throw err;
+        }
+      }
       return true;
     }
 
@@ -241,7 +346,7 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
 
     return true;
   } catch (err) {
-    console.error(`[tts] Video #${videoId} failed:`, err);
+    console.error(`[tts] Video #${videoId} failed → needs_attention:`, err);
     await updateAhVideoStatus(videoId, "needs_attention");
     return false;
   }
