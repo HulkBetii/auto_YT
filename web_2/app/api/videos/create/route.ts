@@ -3,12 +3,14 @@ import { cookies } from "next/headers";
 import { createAhVideo } from "@/lib/db/repo/videos";
 import { enqueueAhStage } from "@/lib/pipeline/createJob";
 
-export async function POST() {
+export async function POST(request: Request) {
   const secret = process.env.DASHBOARD_SECRET;
   const cookieStore = await cookies();
   const auth = cookieStore.get("dashboard_auth")?.value;
+  const bearer = request.headers.get("authorization");
 
-  if (secret && auth !== secret) {
+  const authed = !secret || auth === secret || bearer === `Bearer ${secret}`;
+  if (!authed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

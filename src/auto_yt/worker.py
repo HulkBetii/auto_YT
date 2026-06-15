@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DB_CONFIG_PATH = DATA_DIR / "db_config.json"
-POLL_INTERVAL_S = 15
+POLL_INTERVAL_S = 30
 PROMPT_TIMEOUT_S = 360
 
 # How many times a *transient* ChatGPT failure (timeout, no-response, etc. —
@@ -478,22 +478,34 @@ class TabManager:
 
 
 async def record_heartbeat(dsn: str, status: str) -> None:
-    """Mirrors web/lib/db/repo/channel-config.ts recordWorkerHeartbeat — same
-    upsert-by-key shape, written in raw SQL since the worker has no Drizzle access.
+    """Write heartbeat to both web/ channel_config and web_2/ ah_channel_config.
+    Failures are silently swallowed — a heartbeat miss must never crash the poll loop.
     """
-    conn = await asyncpg.connect(dsn)
+    from auto_yt.services.job_queue import _sanitize_dsn
     try:
-        await conn.execute(
-            """
-            INSERT INTO channel_config (key, worker_last_seen_at, worker_last_status, updated_at)
-            VALUES ('worker_heartbeat', NOW(), $1::worker_status, NOW())
-            ON CONFLICT (key) DO UPDATE
-            SET worker_last_seen_at = NOW(), worker_last_status = $1::worker_status, updated_at = NOW()
-            """,
-            status,
-        )
-    finally:
-        await conn.close()
+        from auto_yt.services.job_queue import _connect
+        conn = await _connect(dsn)
+        try:
+            await conn.execute(
+                """
+                INSERT INTO channel_config (key, worker_last_seen_at, worker_last_status, updated_at)
+                VALUES ('worker_heartbeat', NOW(), $1::worker_status, NOW())
+                ON CONFLICT (key) DO UPDATE
+                SET worker_last_seen_at = NOW(), worker_last_status = $1::worker_status, updated_at = NOW()
+                """,
+                status,
+            )
+            await conn.execute(
+                """
+                INSERT INTO ah_channel_config (key, value, updated_at)
+                VALUES ('worker_last_seen', NOW()::text, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = NOW()::text, updated_at = NOW()
+                """,
+            )
+        finally:
+            await conn.close()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Heartbeat failed (non-fatal): %s", exc)
 
 
 async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") -> None:
@@ -612,11 +624,8 @@ async def run() -> None:
                     job = await claim_next_ah_job(dsn)
 
                 if job is None:
-                    # No ChatGPT jobs — check for pending AH TTS work (runs locally, no Vercel timeout)
-                    tts_ran = await run_ah_tts_and_whisper(dsn, web2_url, web2_secret)
-                    if tts_ran:
-                        await record_heartbeat(dsn, "running")
-                        continue
+                    # TTS is handled by Vercel cron (AI33 fire-and-poll in web_2/lib/pipeline/tts.ts)
+                    # Running it here races with Vercel and causes the OpenAI fallback to preempt AI33.
                     await tabs.sweep_terminal_tabs(dsn)
                     await record_heartbeat(dsn, "running")
                     await asyncio.sleep(POLL_INTERVAL_S)
@@ -635,7 +644,12 @@ async def run() -> None:
             except asyncpg.PostgresError as exc:
                 logger.error("Database error during poll loop: %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
-            except Exception as exc:  # noqa: BLE001 - keep the loop alive; a tab-recovery hiccup shouldn't crash the whole worker
+            except (TimeoutError, asyncio.TimeoutError, ConnectionRefusedError, OSError) as exc:
+                # Transient network/connection hiccup (common when Playwright event loop
+                # is busy). Non-fatal — pipeline still advances via Vercel cron.
+                logger.warning("DB connection hiccup (non-fatal, retrying): %s", exc)
+                await asyncio.sleep(POLL_INTERVAL_S)
+            except Exception as exc:  # noqa: BLE001
                 logger.exception("Unexpected error during poll loop: %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
     finally:

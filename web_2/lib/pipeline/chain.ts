@@ -10,6 +10,7 @@ import { notify } from "@/lib/notifications";
 import { enqueueAhStage } from "./createJob";
 import { rankTopics, type AhTopic } from "./rank";
 import { runTTSAndWhisperForPendingVideo } from "./tts";
+import { getAhConfigValue, setAhConfigValue } from "@/lib/db/repo/channel-config";
 
 export interface AhChainCycleResult {
   processed: number;
@@ -136,6 +137,15 @@ const STAGE_HANDLERS: Record<
 };
 
 export async function runAhChainCycle(): Promise<AhChainCycleResult> {
+  // Record cron heartbeat
+  await setAhConfigValue("cron_last_run_at", new Date().toISOString()).catch(() => {});
+
+  // Pause guard — toggled from the dashboard
+  const paused = await getAhConfigValue("pipeline_paused").catch(() => null);
+  if (paused === "true") {
+    return { processed: 0, results: [], ttsRan: false, staleReset: 0 };
+  }
+
   const staleReset = await resetStaleRunningAhJobs(15);
   if (staleReset > 0) {
     console.log(`[chain] Reset ${staleReset} stale running ah_jobs`);

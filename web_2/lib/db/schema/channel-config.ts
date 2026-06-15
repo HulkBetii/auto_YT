@@ -13,4 +13,7 @@ export const AH_CONFIG_KEYS = {
   voiceId2: "voice_id_2",
   web2Url: "web2_url",
   openaiModel: "openai_model",
+  pipelinePaused: "pipeline_paused",
+  cronLastRunAt: "cron_last_run_at",
+  workerLastSeen: "worker_last_seen",
 } as const;

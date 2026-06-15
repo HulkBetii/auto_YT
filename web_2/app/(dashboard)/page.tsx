@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { RunPipelineButton } from "./RunPipelineButton";
 import { CreateVideoButton } from "./CreateVideoButton";
+import { PipelineServices } from "./PipelineServices";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,9 @@ export default async function DashboardPage() {
           <RunPipelineButton />
         </div>
       </div>
+
+      {/* Pipeline services health */}
+      <PipelineServices />
 
       {/* Stat cards */}
       <section>

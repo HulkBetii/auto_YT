@@ -24,18 +24,17 @@ _ASYNCPG_UNSUPPORTED_PARAMS = {"channel_binding", "options"}
 
 
 def _sanitize_dsn(dsn: str) -> str:
-    """Prepare DSN for asyncpg:
-    - Strip unsupported params (channel_binding, options)
-    - Convert Neon pooler URL to direct URL (asyncpg works better without PgBouncer)
-    """
+    """Strip params asyncpg doesn't understand. Keep the pooler hostname so we
+    go through pgbouncer (always-on, no cold-start) rather than direct Neon compute."""
     parsed = urlparse(dsn)
-    # Convert -pooler hostname to direct Neon endpoint
-    netloc = parsed.netloc
-    if "-pooler." in netloc:
-        netloc = netloc.replace("-pooler.", ".", 1)
     params = [(k, v) for k, v in parse_qsl(parsed.query) if k not in _ASYNCPG_UNSUPPORTED_PARAMS]
-    sanitized = parsed._replace(netloc=netloc, query=urlencode(params))
-    return urlunparse(sanitized)
+    return urlunparse(parsed._replace(query=urlencode(params)))
+
+
+async def _connect(dsn: str) -> asyncpg.Connection:
+    """Open a connection through Neon pgbouncer (pooler URL).
+    statement_cache_size=0 is required for pgbouncer transaction mode."""
+    return await asyncpg.connect(_sanitize_dsn(dsn), statement_cache_size=0, timeout=30)
 
 
 async def trigger_chain_cycle(web_url: str, dashboard_secret: str) -> None:
@@ -68,7 +67,7 @@ async def claim_next_job(dsn: str, *, stages: tuple[str, ...] = SUPPORTED_STAGES
 
     Returns the claimed row as a dict, or None if no pending job is available.
     """
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -102,7 +101,7 @@ async def claim_next_job(dsn: str, *, stages: tuple[str, ...] = SUPPORTED_STAGES
 async def complete_job(dsn: str, job_id: int, *, result: str) -> None:
     """Mark a job done and store its result text (the raw ChatGPT response).
     Clears error_message so retried-then-succeeded jobs don't show a stale error."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         await conn.execute(
             """
@@ -128,7 +127,7 @@ async def fail_job(dsn: str, job_id: int, *, error_message: str, retry_count: in
     real bugs, not worth auto-retrying) or once a transient failure has
     exhausted its retry budget (see retry_transient_job + worker.py's
     MAX_TRANSIENT_RETRIES / process_job)."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         await conn.execute(
             """
@@ -150,7 +149,7 @@ async def retry_transient_job(dsn: str, job_id: int, *, error_message: str, retr
     error text (for visibility on the dashboard) so the caller's retry-budget
     check (worker.py: MAX_TRANSIENT_RETRIES) has up-to-date state to compare
     against on the next attempt, and can hard-fail once the budget runs out."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         await conn.execute(
             """
@@ -180,7 +179,7 @@ async def requeue_job(dsn: str, job_id: int) -> None:
     failure was already notified — `consumed_at` stamped — getting retried,
     completing successfully, and then being silently skipped forever by
     `processDoneJob`'s `if (... || job.consumedAt) return` guard)."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         await conn.execute(
             """
@@ -197,7 +196,7 @@ async def requeue_job(dsn: str, job_id: int) -> None:
 
 
 async def fetch_job(dsn: str, job_id: int) -> dict | None:
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         row = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
         return dict(row) if row else None
@@ -233,7 +232,7 @@ async def claim_next_ah_job(dsn: str) -> dict | None:
     Returns the claimed row as a dict with '_table'='ah_jobs', or None.
     Uses TEXT stage column — no enum cast needed.
     """
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -268,7 +267,7 @@ async def claim_next_ah_job(dsn: str) -> dict | None:
 
 async def complete_ah_job(dsn: str, job_id: int, *, result: str, web2_secret: str = "") -> None:
     """Mark an ah_job done, store result, and fire its callback URL."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     row = None
     try:
         row = await conn.fetchrow(
@@ -296,7 +295,7 @@ async def complete_ah_job(dsn: str, job_id: int, *, result: str, web2_secret: st
 
 async def fail_ah_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
     """Mark an ah_job permanently failed."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         await conn.execute(
             """
@@ -313,7 +312,7 @@ async def fail_ah_job(dsn: str, job_id: int, *, error_message: str, retry_count:
 
 async def retry_transient_ah_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
     """Requeue an ah_job for a transient retry."""
-    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+    conn = await _connect(dsn)
     try:
         await conn.execute(
             """
