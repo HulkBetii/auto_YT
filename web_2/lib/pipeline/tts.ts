@@ -27,32 +27,28 @@ export async function getAhBackupVoiceId(): Promise<string | null> {
 }
 
 /**
- * Submits a TTS job to AI33.PRO Vivoo V3.
- * Auth: `Authorization: <key>` — NO "Bearer" prefix per the API docs.
+ * Submits a TTS job to AI33.PRO ElevenLabs v1.
+ * Auth: `xi-api-key` header per the current API docs.
  */
 export async function submitTTS(text: string, voiceId: string): Promise<string> {
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
-  const speed = voiceId.startsWith("elevenlabs_") ? "0.96" : "1";
-
-  const form = new FormData();
-  form.append("text", text);
-  form.append("voice_id", voiceId);
-  form.append("speed", speed);
-
-  const res = await fetch(`${TTS_BASE_URL}/v3/text-to-speech`, {
-    method: "POST",
-    headers: { Authorization: apiKey },
-    body: form,
-  });
+  const res = await fetch(
+    `${TTS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
+      body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
+    }
+  );
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`[tts] submitTTS HTTP ${res.status}: ${body}`);
   }
 
-  const json = (await res.json()) as { task_id?: string; error?: string };
+  const json = (await res.json()) as { task_id?: string; success?: boolean };
   if (!json.task_id) {
     throw new Error(`[tts] submitTTS: no task_id in response: ${JSON.stringify(json)}`);
   }
@@ -67,9 +63,10 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) return;
   try {
-    const res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
-      method: "DELETE",
-      headers: { Authorization: apiKey },
+    const res = await fetch(`${TTS_BASE_URL}/v1/task/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
+      body: JSON.stringify({ task_ids: [taskId] }),
     });
     console.log(`[tts] cancelTTSTask ${taskId} → HTTP ${res.status}`);
   } catch (err) {
@@ -97,8 +94,8 @@ async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
 
   let res: Response;
   try {
-    res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
-      headers: { Authorization: apiKey },
+    res = await fetch(`${TTS_BASE_URL}/v1/task/${taskId}`, {
+      headers: { "xi-api-key": apiKey },
     });
   } catch (err) {
     return { status: "error", message: `[tts] network error: ${String(err)}` };
@@ -109,21 +106,22 @@ async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
     return { status: "error", message: `[tts] HTTP ${res.status}: ${body}` };
   }
 
+  // Actual response: { id, status, metadata: { audio_url, ... }, progress, type }
   const json = (await res.json()) as {
-    data?: { status?: string; metadata?: { audio_url?: string }; error?: string };
+    status?: string;
+    metadata?: { audio_url?: string };
+    error_message?: string;
   };
-  const data = json.data;
-  if (!data) return { status: "error", message: `[tts] Unexpected response: ${JSON.stringify(json)}` };
 
-  if (data.status === "done") {
-    const audioUrl = data.metadata?.audio_url;
+  if (json.status === "done") {
+    const audioUrl = json.metadata?.audio_url;
     if (!audioUrl) return { status: "error", message: `[tts] Task ${taskId} done but no audio_url` };
     return { status: "done", audioUrl };
   }
-  if (data.status && TTS_RUNNING_STATUSES.has(data.status)) {
+  if (json.status && TTS_RUNNING_STATUSES.has(json.status)) {
     return { status: "running" };
   }
-  return { status: "error", message: `[tts] Task failed with status: ${data.status} — ${data.error ?? ""}` };
+  return { status: "error", message: `[tts] Task failed with status: ${json.status} — ${json.error_message ?? ""}` };
 }
 
 /**
@@ -262,7 +260,7 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         await submitAndSaveTTSTask(videoId, video.script, voiceId);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        const isAuthErr = msg.includes("401") || msg.includes("Unauthorized") || msg.includes("credits");
+        const isAuthErr = msg.includes("401") || msg.includes("Unauthorized") || msg.includes("credits") || msg.includes("no task_id");
         if (isAuthErr) {
           console.warn(`[tts] AI33.PRO auth error — falling back to OpenAI TTS: ${msg}`);
           await updateAhVideoFields(videoId, { audioUrl: null }); // release claim lock
