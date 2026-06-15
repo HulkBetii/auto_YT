@@ -428,9 +428,21 @@ async def run() -> None:
     web_url, dashboard_secret = load_chain_config()
     web2_url, web2_secret = load_web2_config()
 
+    # Remove stale Chromium singleton lock files left by a previous crash.
+    # Without this, launch_persistent_context raises ProcessSingleton errors
+    # if the prior process was killed without a clean shutdown.
+    _profile_dir = gpt_profile_dir("PROFILE_GPT_1")
+    for _lock in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        _f = _profile_dir / _lock
+        try:
+            _f.unlink()
+            logger.info("Removed stale lock file: %s", _f)
+        except FileNotFoundError:
+            pass
+
     pw = await async_playwright().start()
     ctx = await pw.chromium.launch_persistent_context(
-        str(gpt_profile_dir("PROFILE_GPT_1")),
+        str(_profile_dir),
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
         viewport={"width": 1280, "height": 800},

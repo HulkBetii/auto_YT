@@ -16,6 +16,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const authHeader = request.headers.get("authorization");
+  if (authHeader === `Bearer ${secret}`) {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }

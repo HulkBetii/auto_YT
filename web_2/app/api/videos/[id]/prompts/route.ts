@@ -8,9 +8,15 @@ export async function GET(
 ) {
   const secret = process.env.DASHBOARD_SECRET;
   const cookieStore = await cookies();
-  const auth = cookieStore.get("dashboard_auth")?.value;
+  const cookieAuth = cookieStore.get("dashboard_auth")?.value;
+  const bearerAuth = request.headers.get("authorization");
 
-  if (secret && auth !== secret) {
+  const authed =
+    !secret ||
+    cookieAuth === secret ||
+    bearerAuth === `Bearer ${secret}`;
+
+  if (!authed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
