@@ -145,34 +145,48 @@ export async function getVoiceId(featuredPerson: string | null): Promise<string 
 // ---------------------------------------------------------------------------
 
 /**
- * Submits a TTS job to AI33.PRO Vivoo V3.
- * Auth: `Authorization: <key>` — NO "Bearer" prefix per the API docs.
- * Content-Type is NOT set manually — the browser/Node FormData sets it with boundary.
+ * Submits a TTS job to AI33.PRO.
+ * Auth: `xi-api-key: <key>` header for all endpoints.
+ *
+ * Routing by voice prefix:
+ *   elevenlabs_* → POST /v1/text-to-speech/{voice_id}  (JSON body, no speed param)
+ *   clone_*      → POST /v1m/task/text-to-speech        (JSON body, Minimax with speed)
  */
 export async function submitTTS(text: string, voiceId: string): Promise<string> {
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
-  // ElevenLabs voices (via AI33.PRO) run faster than clone voices — use 0.96x speed.
-  const speed = voiceId.startsWith("elevenlabs_") ? "0.96" : "1";
+  const headers = { "xi-api-key": apiKey, "Content-Type": "application/json" };
 
-  const form = new FormData();
-  form.append("text", text);
-  form.append("voice_id", voiceId);
-  form.append("speed", speed);
-
-  const res = await fetch(`${TTS_BASE_URL}/v3/text-to-speech`, {
-    method: "POST",
-    headers: { Authorization: apiKey },
-    body: form,
-  });
+  let res: Response;
+  if (voiceId.startsWith("elevenlabs_")) {
+    const elVoiceId = voiceId.replace("elevenlabs_", "");
+    res = await fetch(`${TTS_BASE_URL}/v1/text-to-speech/${elVoiceId}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
+    });
+  } else {
+    // Minimax clone voice — strip "clone_" prefix to get the numeric voice_id
+    const cloneVoiceId = voiceId.replace("clone_", "");
+    res = await fetch(`${TTS_BASE_URL}/v1m/task/text-to-speech`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        text,
+        model: "speech-2.6-hd",
+        voice_setting: { voice_id: cloneVoiceId, speed: 1 },
+        language_boost: "Auto",
+      }),
+    });
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`[tts] submitTTS HTTP ${res.status}: ${body}`);
   }
 
-  const json = (await res.json()) as { task_id?: string; error?: string };
+  const json = (await res.json()) as { task_id?: string; success?: boolean };
   if (!json.task_id) {
     throw new Error(`[tts] submitTTS: no task_id in response: ${JSON.stringify(json)}`);
   }
@@ -180,9 +194,12 @@ export async function submitTTS(text: string, voiceId: string): Promise<string> 
 }
 
 /**
- * Polls GET /v3/task/<taskId> every 5s until status=done or timeout.
+ * Polls GET /v1/task/<taskId> every 5s until status=done or timeout.
  * Returns the `audio_url` string on success.
  * Throws on API error or timeout.
+ *
+ * Response shape (flat, no "data" wrapper):
+ *   { id, status: "done"|"doing"|"pending"|"error", metadata: { audio_url }, error_message }
  */
 export async function pollTTSTask(
   taskId: string,
@@ -192,8 +209,6 @@ export async function pollTTSTask(
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
   const deadline = Date.now() + maxWaitMs;
-  // Allow up to 5 consecutive transient 5xx / network errors before giving up.
-  // 502/503/504 are CDN gateway glitches — the underlying task keeps running.
   let transientErrors = 0;
   const MAX_TRANSIENT = 5;
 
@@ -202,8 +217,8 @@ export async function pollTTSTask(
 
     let res: Response;
     try {
-      res = await fetch(`${TTS_BASE_URL}/v3/task/${taskId}`, {
-        headers: { Authorization: apiKey },
+      res = await fetch(`${TTS_BASE_URL}/v1/task/${taskId}`, {
+        headers: { "xi-api-key": apiKey },
       });
     } catch (networkErr) {
       transientErrors++;
@@ -214,7 +229,6 @@ export async function pollTTSTask(
       continue;
     }
 
-    // Treat 5xx as transient gateway errors — retry up to MAX_TRANSIENT times
     if (res.status >= 500) {
       const body = await res.text().catch(() => "");
       transientErrors++;
@@ -224,39 +238,32 @@ export async function pollTTSTask(
       }
       continue;
     }
-    // Reset on a good response
     transientErrors = 0;
 
     if (!res.ok) {
-      // 4xx — not transient, fail immediately
       const body = await res.text().catch(() => "");
       throw new Error(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
     }
 
-    // Response shape: { success: true, data: { status, metadata: { audio_url }, ... } }
+    // Flat response shape — no "data" wrapper
     const json = (await res.json()) as {
-      success?: boolean;
-      data?: {
-        status?: string;
-        metadata?: { audio_url?: string };
-        error?: string;
-      };
+      id?: string;
+      status?: string;
+      metadata?: { audio_url?: string };
+      error_message?: string;
     };
 
-    const data = json.data;
-    if (!data) throw new Error(`[tts] Unexpected response shape: ${JSON.stringify(json)}`);
-
-    if (data.status === "done") {
-      const audioUrl = data.metadata?.audio_url;
+    if (json.status === "done") {
+      const audioUrl = json.metadata?.audio_url;
       if (!audioUrl) throw new Error(`[tts] Task ${taskId} done but no audio_url`);
       return audioUrl;
     }
 
-    if (data.status === "error") {
-      throw new Error(`[tts] Task ${taskId} failed: ${data.error ?? "unknown"}`);
+    if (json.status === "error") {
+      throw new Error(`[tts] Task ${taskId} failed: ${json.error_message ?? "unknown"}`);
     }
 
-    // status: "pending" | "processing" — keep polling
+    // status: "doing" | "pending" — keep polling
   }
 
   throw new Error(`[tts] Task ${taskId} did not complete within ${maxWaitMs / 1000}s`);
