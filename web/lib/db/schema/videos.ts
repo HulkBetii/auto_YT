@@ -52,6 +52,9 @@ export const videos = pgTable("videos", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
   /** CDN URL of the AI33.PRO TTS-generated audio file. NULL until the TTS pass runs after ready_to_publish. */
   audioUrl: text("audio_url"),
+  /** AI33.PRO task_id of the in-flight TTS job. Set when submitted, cleared when audio_url is saved.
+   *  Prevents duplicate submissions when cron fires before the previous task completes. */
+  ttsTaskId: text("tts_task_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,10 +1,10 @@
-import { and, isNull, eq } from "drizzle-orm";
+import { and, isNull, isNotNull, eq, or } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { videos } from "@/lib/db/schema";
 import { getConfigValue } from "@/lib/db/repo/channel-config";
 import { getLatestVideoContent } from "@/lib/db/repo/video-content";
-import { updateVideoAudioUrl } from "@/lib/db/repo/videos";
+import { updateVideoAudioUrl, setVideoTtsTaskId, clearVideoTtsTaskId } from "@/lib/db/repo/videos";
 import { notify } from "@/lib/notifications";
 
 const TTS_BASE_URL = "https://api.ai33.pro";
@@ -304,19 +304,34 @@ export interface TTSRunResult {
  * audio for each using the P3 script + matched clone voice, and saves the
  * result back to `videos.audio_url`.
  *
+ * Deduplication via tts_task_id:
+ *  - If tts_task_id IS NOT NULL → an in-flight task already exists; poll it
+ *    instead of submitting a new one.
+ *  - If tts_task_id IS NULL → submit a new task and immediately save the
+ *    task_id so the next cron tick won't duplicate it.
+ *
  * Idempotent: skips any video that already has audio_url set.
- * Processes at most 5 videos per call to stay within Vercel function limits.
- * If a video times out, audio_url stays NULL → will retry on the next cron tick.
+ * Processes at most 1 video per call to stay within Vercel function limits.
+ * If a video times out, audio_url stays NULL but tts_task_id is cleared so
+ * the next tick can safely retry.
  */
 export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
-  // Query videos ready for TTS: ready_to_publish AND audio_url IS NULL
-  // Clone voice synthesis takes ~4-5 min per video. Vercel functions cap at 5 min
-  // (maxDuration=300). Process 1 video per call — cron fires every 5 min so all
-  // ready_to_publish videos get audio within minutes×count ticks.
+  // Pick: in-flight task first (poll before submitting new ones), then pending.
+  // Both must have audio_url IS NULL — the tts_task_id check separates the two paths.
   const toProcess = await db
     .select()
     .from(videos)
-    .where(and(eq(videos.status, "ready_to_publish"), isNull(videos.audioUrl)))
+    .where(
+      and(
+        isNull(videos.audioUrl),
+        or(
+          // Path A: in-flight — already submitted, just need to poll
+          isNotNull(videos.ttsTaskId),
+          // Path B: ready to submit — ready_to_publish and no task yet
+          and(eq(videos.status, "ready_to_publish"), isNull(videos.ttsTaskId)),
+        ),
+      ),
+    )
     .orderBy(videos.id)
     .limit(1);
 
@@ -328,35 +343,52 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
 
   for (const video of toProcess) {
     try {
-      // Get the latest P3 content
-      const p3Content = await getLatestVideoContent(video.id, "P3");
-      if (!p3Content) {
-        results.push({ videoId: video.id, ok: false, error: "No P3 content found" });
-        continue;
+      let taskId = video.ttsTaskId ?? null;
+
+      if (!taskId) {
+        // Path B: need to submit a new TTS task
+
+        // Get the latest P3 content
+        const p3Content = await getLatestVideoContent(video.id, "P3");
+        if (!p3Content) {
+          results.push({ videoId: video.id, ok: false, error: "No P3 content found" });
+          continue;
+        }
+
+        // Parse P3 → clean narration text
+        const ttsText = parseP3ForTTS(p3Content.output);
+        if (!ttsText) {
+          results.push({ videoId: video.id, ok: false, error: "P3 parsed to empty string" });
+          continue;
+        }
+
+        // Get voice for this video's featured person — skip if no mapping
+        const voiceId = await getVoiceId(video.featuredPerson);
+        if (!voiceId) {
+          console.log(`[tts] Video #${video.id} (${video.featuredPerson}) — no voice mapping, skipping`);
+          results.push({ videoId: video.id, ok: false, error: "no_voice_mapping" });
+          continue;
+        }
+
+        // Submit and immediately persist task_id to prevent duplicates on next tick
+        taskId = await submitTTS(ttsText, voiceId);
+        await setVideoTtsTaskId(video.id, taskId);
+        console.log(`[tts] Video #${video.id} submitted task ${taskId}`);
+      } else {
+        console.log(`[tts] Video #${video.id} resuming in-flight task ${taskId}`);
       }
 
-      // Parse P3 → clean narration text
-      const ttsText = parseP3ForTTS(p3Content.output);
-      if (!ttsText) {
-        results.push({ videoId: video.id, ok: false, error: "P3 parsed to empty string" });
-        continue;
+      // Poll until done (Path A or B both land here)
+      let audioUrl: string;
+      try {
+        audioUrl = await pollTTSTask(taskId);
+      } catch (pollErr) {
+        // On timeout or error, clear the task_id so the next tick can retry cleanly
+        await clearVideoTtsTaskId(video.id);
+        throw pollErr;
       }
 
-      // Get voice for this video's featured person — skip if no mapping
-      const voiceId = await getVoiceId(video.featuredPerson);
-      if (!voiceId) {
-        console.log(`[tts] Video #${video.id} (${video.featuredPerson}) — no voice mapping, skipping`);
-        results.push({ videoId: video.id, ok: false, error: "no_voice_mapping" });
-        continue;
-      }
-
-      // Submit TTS job
-      const taskId = await submitTTS(ttsText, voiceId);
-
-      // Poll until done
-      const audioUrl = await pollTTSTask(taskId);
-
-      // Save to DB
+      // Save audio_url (also clears tts_task_id via updateVideoAudioUrl)
       await updateVideoAudioUrl(video.id, audioUrl);
 
       results.push({ videoId: video.id, ok: true, audioUrl });
