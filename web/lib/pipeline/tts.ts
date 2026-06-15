@@ -158,17 +158,31 @@ export async function submitTTS(text: string, voiceId: string): Promise<string> 
 
   const headers = { "xi-api-key": apiKey, "Content-Type": "application/json" };
 
-  let res: Response;
+  // Resolve voice type from voiceId:
+  //   elevenlabs_* prefix → ElevenLabs (strip prefix to get raw ID)
+  //   clone_* prefix     → Minimax clone (strip prefix to get numeric ID)
+  //   pure digits        → Minimax clone (no prefix in DB for legacy entries)
+  //   alphanumeric       → ElevenLabs (no prefix in DB for legacy entries)
+  let elVoiceId: string | null = null;
+  let cloneVoiceId: string | null = null;
   if (voiceId.startsWith("elevenlabs_")) {
-    const elVoiceId = voiceId.replace("elevenlabs_", "");
+    elVoiceId = voiceId.replace("elevenlabs_", "");
+  } else if (voiceId.startsWith("clone_")) {
+    cloneVoiceId = voiceId.replace("clone_", "");
+  } else if (/^\d+$/.test(voiceId)) {
+    cloneVoiceId = voiceId;
+  } else {
+    elVoiceId = voiceId;
+  }
+
+  let res: Response;
+  if (elVoiceId !== null) {
     res = await fetch(`${TTS_BASE_URL}/v1/text-to-speech/${elVoiceId}`, {
       method: "POST",
       headers,
       body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
     });
   } else {
-    // Minimax clone voice — strip "clone_" prefix to get the numeric voice_id
-    const cloneVoiceId = voiceId.replace("clone_", "");
     res = await fetch(`${TTS_BASE_URL}/v1m/task/text-to-speech`, {
       method: "POST",
       headers,
