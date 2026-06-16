@@ -55,6 +55,8 @@ export const videos = pgTable("videos", {
   /** AI33.PRO task_id of the in-flight TTS job. Set when submitted, cleared when audio_url is saved.
    *  Prevents duplicate submissions when cron fires before the previous task completes. */
   ttsTaskId: text("tts_task_id"),
+  /** UTC timestamp when the TTS task was submitted. Used to detect stale tasks (> 15 min without completion). */
+  ttsSubmittedAt: timestamp("tts_submitted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

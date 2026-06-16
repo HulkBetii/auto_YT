@@ -1,0 +1,1 @@
+ALTER TABLE "videos" ADD COLUMN "tts_submitted_at" timestamp with time zone;

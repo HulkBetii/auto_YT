@@ -9,8 +9,8 @@ import { notify } from "@/lib/notifications";
 
 const TTS_BASE_URL = "https://api.ai33.pro";
 const HARDCODED_DEFAULT_VOICE = "clone_2572202"; // Tenpu Nakamura
-const POLL_INTERVAL_MS = 5_000;
-const MAX_WAIT_MS = 240_000; // 4 minutes — leaves ~1 min headroom within Vercel's 5 min cap
+// Stale threshold — if a task has been "doing" for longer than this, cancel and retry
+const MAX_TTS_AGE_MS = 15 * 60 * 1000; // 15 minutes (~3 cron cycles)
 
 // ---------------------------------------------------------------------------
 // P3 parsing
@@ -207,85 +207,92 @@ export async function submitTTS(text: string, voiceId: string): Promise<string> 
   return json.task_id;
 }
 
+// AI33 statuses that mean "still working"
+const TTS_RUNNING_STATUSES = new Set(["pending", "doing", "processing", "queued"]);
+
+type TtsTaskCheckResult =
+  | { status: "done"; audioUrl: string }
+  | { status: "running" }
+  | { status: "error"; message: string };
+
 /**
- * Polls GET /v1/task/<taskId> every 5s until status=done or timeout.
- * Returns the `audio_url` string on success.
- * Throws on API error or timeout.
- *
- * Response shape (flat, no "data" wrapper):
- *   { id, status: "done"|"doing"|"pending"|"error", metadata: { audio_url }, error_message }
+ * Checks a TTS task status ONCE — no polling loop, safe for short-lived functions.
+ * Returns done/running/error so the caller decides what to do next cron cycle.
  */
-export async function pollTTSTask(
-  taskId: string,
-  maxWaitMs: number = MAX_WAIT_MS,
-): Promise<string> {
+export async function checkTTSTask(taskId: string): Promise<TtsTaskCheckResult> {
   const apiKey = process.env.VIVOO_API_KEY;
-  if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
+  if (!apiKey) return { status: "error", message: "[tts] VIVOO_API_KEY not set" };
 
-  const deadline = Date.now() + maxWaitMs;
-  let transientErrors = 0;
-  const MAX_TRANSIENT = 5;
-
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-    let res: Response;
-    try {
-      res = await fetch(`${TTS_BASE_URL}/v1/task/${taskId}`, {
-        headers: { "xi-api-key": apiKey },
-      });
-    } catch (networkErr) {
-      transientErrors++;
-      console.warn(`[tts] pollTTSTask network error (${transientErrors}/${MAX_TRANSIENT}):`, networkErr);
-      if (transientErrors >= MAX_TRANSIENT) {
-        throw new Error(`[tts] pollTTSTask: ${MAX_TRANSIENT} consecutive network errors on task ${taskId}`);
-      }
-      continue;
-    }
-
-    if (res.status >= 500) {
-      const body = await res.text().catch(() => "");
-      transientErrors++;
-      console.warn(`[tts] pollTTSTask HTTP ${res.status} (${transientErrors}/${MAX_TRANSIENT}): ${body}`);
-      if (transientErrors >= MAX_TRANSIENT) {
-        throw new Error(`[tts] pollTTSTask HTTP ${res.status} after ${MAX_TRANSIENT} retries: ${body}`);
-      }
-      continue;
-    }
-    transientErrors = 0;
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`[tts] pollTTSTask HTTP ${res.status}: ${body}`);
-    }
-
-    // Flat response shape — no "data" wrapper
-    const json = (await res.json()) as {
-      id?: string;
-      status?: string;
-      metadata?: { audio_url?: string };
-      error_message?: string;
-    };
-
-    if (json.status === "done") {
-      const audioUrl = json.metadata?.audio_url;
-      if (!audioUrl) throw new Error(`[tts] Task ${taskId} done but no audio_url`);
-      return audioUrl;
-    }
-
-    if (json.status === "error") {
-      throw new Error(`[tts] Task ${taskId} failed: ${json.error_message ?? "unknown"}`);
-    }
-
-    // status: "doing" | "pending" — keep polling
+  let res: Response;
+  try {
+    res = await fetch(`${TTS_BASE_URL}/v1/task/${taskId}`, {
+      headers: { "xi-api-key": apiKey },
+    });
+  } catch (err) {
+    return { status: "error", message: `[tts] network error: ${String(err)}` };
   }
 
-  throw new Error(`[tts] Task ${taskId} did not complete within ${maxWaitMs / 1000}s`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { status: "error", message: `[tts] HTTP ${res.status}: ${body}` };
+  }
+
+  const json = (await res.json()) as {
+    status?: string;
+    metadata?: { audio_url?: string };
+    error_message?: string;
+  };
+
+  if (json.status === "done") {
+    const audioUrl = json.metadata?.audio_url;
+    if (!audioUrl) return { status: "error", message: `[tts] Task ${taskId} done but no audio_url` };
+    return { status: "done", audioUrl };
+  }
+  if (json.status && TTS_RUNNING_STATUSES.has(json.status)) {
+    return { status: "running" };
+  }
+  return { status: "error", message: `[tts] Task ${taskId} status=${json.status} — ${json.error_message ?? ""}` };
+}
+
+/**
+ * Cancels a TTS task to release frozen credits. Fire-and-forget safe.
+ */
+export async function cancelTTSTask(taskId: string): Promise<void> {
+  const apiKey = process.env.VIVOO_API_KEY;
+  if (!apiKey) return;
+  try {
+    const res = await fetch(`${TTS_BASE_URL}/v1/task/delete`, {
+      method: "POST",
+      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ task_ids: [taskId] }),
+    });
+    const json = (await res.json()) as { success?: boolean; refunded_credits?: number };
+    console.log(`[tts] cancelTTSTask ${taskId} → refunded ${json.refunded_credits ?? 0} credits`);
+  } catch (err) {
+    console.warn(`[tts] cancelTTSTask ${taskId} failed (credits may stay frozen):`, err);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
+
+/**
+ * Blocking poll helper for local scripts only — not for use in serverless functions.
+ * Wraps checkTTSTask in a loop with configurable timeout.
+ */
+export async function pollTTSTask(taskId: string, maxWaitMs = 240_000): Promise<string> {
+  const deadline = Date.now() + maxWaitMs;
+  const INTERVAL = 5_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, INTERVAL));
+    const result = await checkTTSTask(taskId);
+    if (result.status === "done") return result.audioUrl;
+    if (result.status === "error") throw new Error(result.message);
+    // "running" — keep polling
+  }
+  throw new Error(`[tts] Task ${taskId} did not complete within ${maxWaitMs / 1000}s`);
+}
 
 export interface TTSVideoResult {
   videoId: number;
@@ -300,24 +307,22 @@ export interface TTSRunResult {
 }
 
 /**
- * Finds all `ready_to_publish` videos without an audio_url, generates TTS
- * audio for each using the P3 script + matched clone voice, and saves the
- * result back to `videos.audio_url`.
+ * Fire-and-poll TTS runner — safe for short-lived serverless functions.
  *
- * Deduplication via tts_task_id:
- *  - If tts_task_id IS NOT NULL → an in-flight task already exists; poll it
- *    instead of submitting a new one.
- *  - If tts_task_id IS NULL → submit a new task and immediately save the
- *    task_id so the next cron tick won't duplicate it.
+ * Each cron tick does exactly ONE async operation per video:
  *
- * Idempotent: skips any video that already has audio_url set.
- * Processes at most 1 video per call to stay within Vercel function limits.
- * If a video times out, audio_url stays NULL but tts_task_id is cleared so
- * the next tick can safely retry.
+ *  Path A — no task yet (tts_task_id IS NULL, status=ready_to_publish):
+ *    → submit TTS, save tts_task_id + tts_submitted_at, return immediately.
+ *      Next tick will check the task.
+ *
+ *  Path B — in-flight task (tts_task_id IS NOT NULL):
+ *    → check task status ONCE (no blocking loop):
+ *       • running + age < 15 min → return, wait for next tick
+ *       • running + age ≥ 15 min → cancel (refund credits) + clear task, next tick retries
+ *       • done   → save audio_url, clear tts_task_id + tts_submitted_at
+ *       • error  → cancel (refund credits) + clear task, next tick retries with same voice
  */
 export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
-  // Pick: in-flight task first (poll before submitting new ones), then pending.
-  // Both must have audio_url IS NULL — the tts_task_id check separates the two paths.
   const toProcess = await db
     .select()
     .from(videos)
@@ -325,15 +330,13 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
       and(
         isNull(videos.audioUrl),
         or(
-          // Path A: in-flight — already submitted, just need to poll
           isNotNull(videos.ttsTaskId),
-          // Path B: ready to submit — ready_to_publish and no task yet
           and(eq(videos.status, "ready_to_publish"), isNull(videos.ttsTaskId)),
         ),
       ),
     )
     .orderBy(videos.id)
-    .limit(1);
+    .limit(3); // non-blocking now, safe to process multiple per tick
 
   if (toProcess.length === 0) {
     return { processed: 0, results: [] };
@@ -343,26 +346,20 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
 
   for (const video of toProcess) {
     try {
-      let taskId = video.ttsTaskId ?? null;
-
-      if (!taskId) {
-        // Path B: need to submit a new TTS task
-
-        // Get the latest P3 content
+      if (!video.ttsTaskId) {
+        // ── Path A: submit new TTS task ──────────────────────────────────────
         const p3Content = await getLatestVideoContent(video.id, "P3");
         if (!p3Content) {
           results.push({ videoId: video.id, ok: false, error: "No P3 content found" });
           continue;
         }
 
-        // Parse P3 → clean narration text
         const ttsText = parseP3ForTTS(p3Content.output);
         if (!ttsText) {
           results.push({ videoId: video.id, ok: false, error: "P3 parsed to empty string" });
           continue;
         }
 
-        // Get voice for this video's featured person — skip if no mapping
         const voiceId = await getVoiceId(video.featuredPerson);
         if (!voiceId) {
           console.log(`[tts] Video #${video.id} (${video.featuredPerson}) — no voice mapping, skipping`);
@@ -370,35 +367,41 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
           continue;
         }
 
-        // Submit and immediately persist task_id to prevent duplicates on next tick
-        taskId = await submitTTS(ttsText, voiceId);
-        await setVideoTtsTaskId(video.id, taskId);
-        console.log(`[tts] Video #${video.id} submitted task ${taskId}`);
+        const taskId = await submitTTS(ttsText, voiceId);
+        await setVideoTtsTaskId(video.id, taskId); // also saves tts_submitted_at = now()
+        console.log(`[tts] Video #${video.id} submitted task ${taskId} (voice: ${voiceId})`);
+        results.push({ videoId: video.id, ok: false, error: "submitted" });
       } else {
-        console.log(`[tts] Video #${video.id} resuming in-flight task ${taskId}`);
-      }
+        // ── Path B: check existing task once, no blocking loop ────────────────
+        const taskId = video.ttsTaskId;
+        const result = await checkTTSTask(taskId);
 
-      // Poll until done (Path A or B both land here)
-      let audioUrl: string;
-      try {
-        audioUrl = await pollTTSTask(taskId);
-      } catch (pollErr) {
-        // Only clear tts_task_id when the task itself has failed (status="error").
-        // On timeout the task is still "doing" on AI33 — keep the task_id so the
-        // next cron tick resumes polling the SAME task instead of submitting a new one.
-        const errMsg = pollErr instanceof Error ? pollErr.message : String(pollErr);
-        const isTaskFailure = errMsg.includes(" failed:") && errMsg.includes("Task ");
-        if (isTaskFailure) {
+        if (result.status === "running") {
+          const ageMs = video.ttsSubmittedAt
+            ? Date.now() - new Date(video.ttsSubmittedAt).getTime()
+            : MAX_TTS_AGE_MS + 1; // unknown age → treat as stale
+
+          if (ageMs > MAX_TTS_AGE_MS) {
+            console.warn(`[tts] Video #${video.id} task ${taskId} stuck ${Math.round(ageMs / 60000)}min — cancelling`);
+            await cancelTTSTask(taskId);
+            await clearVideoTtsTaskId(video.id);
+            results.push({ videoId: video.id, ok: false, error: `stale_cancelled after ${Math.round(ageMs / 60000)}min` });
+          } else {
+            console.log(`[tts] Video #${video.id} task ${taskId} running (${Math.round(ageMs / 60000)}min) — next tick`);
+            results.push({ videoId: video.id, ok: false, error: "running" });
+          }
+        } else if (result.status === "done") {
+          await updateVideoAudioUrl(video.id, result.audioUrl); // clears tts_task_id + tts_submitted_at
+          console.log(`[tts] Video #${video.id} (${video.featuredPerson}) ✓ ${result.audioUrl}`);
+          results.push({ videoId: video.id, ok: true, audioUrl: result.audioUrl });
+        } else {
+          // error — cancel to reclaim frozen credits, clear so next tick can retry
+          console.warn(`[tts] Video #${video.id} task ${taskId} error: ${result.message}`);
+          await cancelTTSTask(taskId);
           await clearVideoTtsTaskId(video.id);
+          results.push({ videoId: video.id, ok: false, error: result.message });
         }
-        throw pollErr;
       }
-
-      // Save audio_url (also clears tts_task_id via updateVideoAudioUrl)
-      await updateVideoAudioUrl(video.id, audioUrl);
-
-      results.push({ videoId: video.id, ok: true, audioUrl });
-      console.log(`[tts] Video #${video.id} (${video.featuredPerson}) → ${audioUrl}`);
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       console.error(`[tts] Video #${video.id} failed:`, error);
@@ -408,14 +411,13 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
 
   const succeeded = results.filter((r) => r.ok);
   const skipped = results.filter((r) => !r.ok && r.error === "no_voice_mapping");
-  const failed = results.filter((r) => !r.ok && r.error !== "no_voice_mapping");
+  const notified = results.filter((r) => !r.ok && r.error !== "no_voice_mapping" && r.error !== "submitted" && r.error !== "running");
 
-  // Only notify for real successes/failures (skip "no mapping" silently)
-  if (succeeded.length > 0 || failed.length > 0) {
+  if (succeeded.length > 0 || notified.length > 0) {
     const lines = [
-      `🎙️ TTS: ${succeeded.length} audio generated${failed.length > 0 ? `, ${failed.length} lỗi` : ""}`,
-      ...succeeded.map((r) => `  ✓ Video #${r.videoId}`),
-      ...failed.map((r) => `  ✗ Video #${r.videoId}: ${r.error}`),
+      `TTS: ${succeeded.length} audio generated${notified.length > 0 ? `, ${notified.length} loi` : ""}`,
+      ...succeeded.map((r) => `  + Video #${r.videoId}`),
+      ...notified.map((r) => `  x Video #${r.videoId}: ${r.error}`),
     ];
     await notify(lines.join("\n")).catch(() => {});
   }

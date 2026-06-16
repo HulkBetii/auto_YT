@@ -50,6 +50,13 @@
       "when": 1781555395104,
       "tag": "0006_silly_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781584716304,
+      "tag": "0007_lonely_nick_fury",
+      "breakpoints": true
     }
   ]
 }

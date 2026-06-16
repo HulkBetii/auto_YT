@@ -35,15 +35,15 @@ export async function createVideo(input: typeof videos.$inferInsert) {
 }
 
 export async function updateVideoAudioUrl(videoId: number, audioUrl: string) {
-  await db.update(videos).set({ audioUrl, ttsTaskId: null }).where(eq(videos.id, videoId));
+  await db.update(videos).set({ audioUrl, ttsTaskId: null, ttsSubmittedAt: null }).where(eq(videos.id, videoId));
 }
 
 export async function setVideoTtsTaskId(videoId: number, taskId: string) {
-  await db.update(videos).set({ ttsTaskId: taskId }).where(eq(videos.id, videoId));
+  await db.update(videos).set({ ttsTaskId: taskId, ttsSubmittedAt: new Date() }).where(eq(videos.id, videoId));
 }
 
 export async function clearVideoTtsTaskId(videoId: number) {
-  await db.update(videos).set({ ttsTaskId: null }).where(eq(videos.id, videoId));
+  await db.update(videos).set({ ttsTaskId: null, ttsSubmittedAt: null }).where(eq(videos.id, videoId));
 }
 
 /** Count videos created at or after `since`. Used by the P1 crash-dup tripwire. */
