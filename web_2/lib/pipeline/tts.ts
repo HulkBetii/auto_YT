@@ -7,8 +7,14 @@ import { enqueueAhStage } from "./createJob";
 // Marker stored in audio_url when OpenAI TTS was used (audio not stored externally)
 const OPENAI_TTS_DONE = "openai:tts_done";
 
+// ── Provider 1: AI33.PRO ────────────────────────────────────────────────────
 const TTS_BASE_URL = "https://api.ai33.pro";
 const TTS_TASK_PREFIX = "tts_task:";
+
+// ── Provider 2: Genmax ──────────────────────────────────────────────────────
+const GENMAX_BASE_URL = "https://api.genmax.io";
+const TTS_TASK_GX_PREFIX = "tts_task_gx:";
+
 // Atomic lock written to audio_url while submitting to prevent duplicate submissions
 const TTS_SUBMITTING = "tts_submitting";
 // If stuck in tts_submitting for > 2 min (crashed mid-submit), reset and retry
@@ -74,7 +80,100 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
   }
 }
 
-// AI33.PRO uses "doing" for in-progress tasks
+// ── Genmax submit/poll/cancel ───────────────────────────────────────────────
+
+/** MiniMax voice IDs are purely numeric (e.g. "226905123659939"). ElevenLabs IDs are alphanumeric. */
+function isMinimaxVoiceId(voiceId: string): boolean {
+  return /^\d+$/.test(voiceId);
+}
+
+async function submitGenmax(text: string, voiceId: string): Promise<string> {
+  const apiKey = process.env.GENMAX_API_KEY;
+  if (!apiKey) throw new Error("[tts-gx] GENMAX_API_KEY env var is not set");
+
+  const minimax = isMinimaxVoiceId(voiceId);
+  const body: Record<string, unknown> = {
+    text,
+    model_id: minimax ? "speech-2.8-turbo" : "eleven_multilingual_v2",
+    language_code: minimax ? "English" : "en",
+    ...(minimax && { provider: "minimax" }),
+  };
+
+  const res = await fetch(
+    `${GENMAX_BASE_URL}/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`[tts-gx] submit HTTP ${res.status}: ${txt}`);
+  }
+
+  const json = (await res.json()) as { id?: string };
+  if (!json.id) throw new Error(`[tts-gx] no id in response: ${JSON.stringify(json)}`);
+  return json.id;
+}
+
+async function checkGenmax(taskId: string): Promise<TtsTaskResult> {
+  const apiKey = process.env.GENMAX_API_KEY;
+  if (!apiKey) return { status: "error", message: "[tts-gx] GENMAX_API_KEY not set" };
+
+  let res: Response;
+  try {
+    res = await fetch(`${GENMAX_BASE_URL}/v1/history/${taskId}`, {
+      headers: { "xi-api-key": apiKey },
+    });
+  } catch (err) {
+    return { status: "error", message: `[tts-gx] network error: ${String(err)}` };
+  }
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    return { status: "error", message: `[tts-gx] HTTP ${res.status}: ${txt}` };
+  }
+
+  const json = (await res.json()) as {
+    status?: string;
+    result?: { audio_url?: string };
+    error?: string;
+  };
+
+  if (json.status === "completed") {
+    const audioUrl = json.result?.audio_url;
+    if (!audioUrl) return { status: "error", message: `[tts-gx] completed but no audio_url` };
+    return { status: "done", audioUrl };
+  }
+  if (json.status === "failed") {
+    return { status: "error", message: `[tts-gx] task failed: ${json.error ?? "unknown"}` };
+  }
+  return { status: "running" };
+}
+
+async function cancelGenmax(taskId: string): Promise<void> {
+  const apiKey = process.env.GENMAX_API_KEY;
+  if (!apiKey) return;
+  try {
+    await fetch(`${GENMAX_BASE_URL}/v1/history/${taskId}`, {
+      method: "DELETE",
+      headers: { "xi-api-key": apiKey },
+    });
+    console.log(`[tts-gx] cancelGenmax ${taskId} done`);
+  } catch (err) {
+    console.warn(`[tts-gx] cancelGenmax ${taskId} failed:`, err);
+  }
+}
+
+async function submitAndSaveGenmax(videoId: number, script: string, voiceId: string): Promise<void> {
+  const taskId = await submitGenmax(script, voiceId);
+  await updateAhVideoFields(videoId, { audioUrl: `${TTS_TASK_GX_PREFIX}${taskId}` });
+  console.log(`[tts-gx] Video #${videoId} submitted → Genmax task ${taskId} (voice: ${voiceId})`);
+}
+
+// ── AI33.PRO uses "doing" for in-progress tasks ────────────────────────────
 const TTS_RUNNING_STATUSES = new Set(["pending", "processing", "doing", "queued"]);
 // Failover after this many ms — covers ~3 cron cycles at 5-min interval
 const MAX_TTS_AGE_MS = 15 * 60 * 1000;
@@ -225,13 +324,13 @@ async function runOpenAITTSAndWhisper(videoId: number, script: string, topic: { 
 /**
  * Fire-and-poll TTS runner — safe for short-lived serverless functions.
  *
+ * Provider priority: AI33.PRO → Genmax → OpenAI (blocking fallback)
+ *
  * Each cron cycle does exactly ONE async operation:
- *   - If no audioUrl          → submit TTS, save "tts_task:{id}", return (fast)
- *   - If audioUrl="tts_task:" → check task once:
- *       • running → return, wait for next cycle
- *       • done    → save real audioUrl, run Whisper, advance to S3
- *       • error   → cancel task (releases frozen credits), failover to backup voice
- *   - If audioUrl is real URL → run Whisper + advance (resume after partial failure)
+ *   - no audioUrl          → submit AI33 → on error, submit Genmax → on error, run OpenAI
+ *   - tts_task:{id}        → poll AI33 once: running→wait, done→Whisper, error/stuck→Genmax
+ *   - tts_task_gx:{id}     → poll Genmax once: running→wait, done→Whisper, error/stuck→OpenAI
+ *   - real audio URL       → run Whisper + advance (resume after partial failure)
  */
 export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
   const videos = await listInPipelineAhVideos();
@@ -247,6 +346,8 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       return false;
     }
 
+    const topic = video.chosenTopic as { title?: string } | null;
+
     // ── Phase 1: submit TTS (atomic claim prevents duplicate submissions) ──
     if (!video.audioUrl) {
       const claimed = await claimVideoForTtsSubmit(videoId);
@@ -254,19 +355,19 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         console.log(`[tts] Video #${videoId} already claimed by another cycle — skipping`);
         return false;
       }
-      const topic = video.chosenTopic as { title?: string } | null;
+      const voiceId = await getAhVoiceId(video.voiceId);
       try {
-        const voiceId = await getAhVoiceId(video.voiceId);
         await submitAndSaveTTSTask(videoId, video.script, voiceId);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        const isAuthErr = msg.includes("401") || msg.includes("Unauthorized") || msg.includes("credits") || msg.includes("no task_id");
-        if (isAuthErr) {
-          console.warn(`[tts] AI33.PRO auth error — falling back to OpenAI TTS: ${msg}`);
-          await updateAhVideoFields(videoId, { audioUrl: null }); // release claim lock
+        console.warn(`[tts] AI33.PRO submit failed — trying Genmax: ${msg}`);
+        await updateAhVideoFields(videoId, { audioUrl: null }); // release claim lock
+        try {
+          await submitAndSaveGenmax(videoId, video.script, voiceId);
+        } catch (gxErr) {
+          const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
+          console.warn(`[tts-gx] Genmax submit failed — falling back to OpenAI: ${gxMsg}`);
           await runOpenAITTSAndWhisper(videoId, video.script, topic);
-        } else {
-          throw err;
         }
       }
       return true;
@@ -282,40 +383,59 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       return false;
     }
 
-    // ── Phase 2: poll pending task (one check per cycle) ───────────────────
+    // ── Phase 2a: poll AI33 task ────────────────────────────────────────────
     if (video.audioUrl.startsWith(TTS_TASK_PREFIX)) {
       const taskId = video.audioUrl.slice(TTS_TASK_PREFIX.length);
       const result = await checkTTSTask(taskId);
 
       if (result.status === "running") {
-        // Failover if task has been stuck longer than MAX_TTS_AGE_MS
         const ageMs = Date.now() - new Date(video.updatedAt).getTime();
         if (ageMs > MAX_TTS_AGE_MS) {
-          console.warn(`[tts] Video #${videoId} task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over`);
-          await cancelTTSTask(taskId); // best-effort, may return 404
-          const backupVoiceId = await getAhBackupVoiceId();
-          if (backupVoiceId) {
-            console.log(`[tts] Failing over to backup voice (timeout): ${backupVoiceId}`);
-            await submitAndSaveTTSTask(videoId, video.script, backupVoiceId);
-            return true;
-          }
-          throw new Error(`[tts] Task ${taskId} stuck for ${Math.round(ageMs / 60000)}min and no backup voice configured`);
+          console.warn(`[tts] Video #${videoId} AI33 task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over to Genmax`);
+          await cancelTTSTask(taskId);
+          const voiceId = await getAhVoiceId(video.voiceId);
+          await submitAndSaveGenmax(videoId, video.script!, voiceId);
+          return true;
         }
-        console.log(`[tts] Video #${videoId} task ${taskId} still running — next cycle`);
+        console.log(`[tts] Video #${videoId} AI33 task ${taskId} still running — next cycle`);
         return false;
       }
 
       if (result.status === "error") {
-        console.warn(`[tts] Video #${videoId} primary TTS error: ${result.message}`);
-        await cancelTTSTask(taskId); // best-effort
+        console.warn(`[tts] Video #${videoId} AI33 TTS error — failing over to Genmax: ${result.message}`);
+        await cancelTTSTask(taskId);
+        const voiceId = await getAhVoiceId(video.voiceId);
+        await submitAndSaveGenmax(videoId, video.script!, voiceId);
+        return true;
+      }
 
-        const backupVoiceId = await getAhBackupVoiceId();
-        if (backupVoiceId) {
-          console.log(`[tts] Failing over to backup voice (error): ${backupVoiceId}`);
-          await submitAndSaveTTSTask(videoId, video.script, backupVoiceId);
+      // done — save real audio URL and fall through to Whisper
+      await updateAhVideoFields(videoId, { audioUrl: result.audioUrl });
+      video.audioUrl = result.audioUrl;
+    }
+
+    // ── Phase 2b: poll Genmax task ──────────────────────────────────────────
+    if (video.audioUrl.startsWith(TTS_TASK_GX_PREFIX)) {
+      const taskId = video.audioUrl.slice(TTS_TASK_GX_PREFIX.length);
+      const result = await checkGenmax(taskId);
+
+      if (result.status === "running") {
+        const ageMs = Date.now() - new Date(video.updatedAt).getTime();
+        if (ageMs > MAX_TTS_AGE_MS) {
+          console.warn(`[tts-gx] Video #${videoId} Genmax task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — falling back to OpenAI`);
+          await cancelGenmax(taskId);
+          await runOpenAITTSAndWhisper(videoId, video.script!, topic);
           return true;
         }
-        throw new Error(result.message);
+        console.log(`[tts-gx] Video #${videoId} Genmax task ${taskId} still running — next cycle`);
+        return false;
+      }
+
+      if (result.status === "error") {
+        console.warn(`[tts-gx] Video #${videoId} Genmax error — falling back to OpenAI: ${result.message}`);
+        await cancelGenmax(taskId);
+        await runOpenAITTSAndWhisper(videoId, video.script!, topic);
+        return true;
       }
 
       // done — save real audio URL and fall through to Whisper
