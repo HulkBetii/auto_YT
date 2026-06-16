@@ -1,11 +1,14 @@
 const STATUS_COLORS: Record<string, string> = {
-  s1_pending:      "bg-[#F2F2F7] text-[#6E6E73] border-0",
-  s2_pending:      "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  tts_pending:     "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  s3_pending:      "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  s4_pending:      "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  ready:           "bg-[#D1F2D1] text-[#1A7A1A] border-0",
-  needs_attention: "bg-[#FFE8D1] text-[#A84F0A] border-0",
+  s1_pending:        "bg-[#F2F2F7] text-[#6E6E73] border-0",
+  s2_pending:        "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  tts_pending:       "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  s3_pending:        "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  s4_pending:        "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  ready:             "bg-[#D1F2D1] text-[#1A7A1A] border-0",
+  image_gen_pending: "bg-[#E8F4FF] text-[#007AFF] border-0",
+  assembly_pending:  "bg-[#F3E8FF] text-[#8B3CF7] border-0",
+  assembly_done:     "bg-[#D1F2D1] text-[#1A7A1A] border-0",
+  needs_attention:   "bg-[#FFE8D1] text-[#A84F0A] border-0",
   // Job statuses
   pending: "bg-[#E5E5EA] text-[#3C3C43] border-0",
   running: "bg-[#FFF3D1] text-[#FF9F0A] border-0",
@@ -14,13 +17,16 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export const VIDEO_STATUS_LABELS: Record<string, string> = {
-  s1_pending:      "S1 · Topics",
-  s2_pending:      "S2 · Script",
-  tts_pending:     "TTS",
-  s3_pending:      "S3 · Images",
-  s4_pending:      "S4 · Metadata",
-  ready:           "Ready",
-  needs_attention: "Failed",
+  s1_pending:        "S1 · Topics",
+  s2_pending:        "S2 · Script",
+  tts_pending:       "TTS",
+  s3_pending:        "S3 · Img Prompts",
+  s4_pending:        "S4 · Metadata",
+  ready:             "Ready",
+  image_gen_pending: "Gen Images",
+  assembly_pending:  "Assembling",
+  assembly_done:     "Done ✓",
+  needs_attention:   "Failed",
 };
 
 export function statusBadgeClass(status: string): string {

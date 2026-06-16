@@ -14,6 +14,10 @@ export const ahVideos = pgTable("ah_videos", {
   ytTitle: text("yt_title"),
   ytDescription: text("yt_description"),
   ytTags: text("yt_tags"),
+  // Assembly tracking (updated by local Mac worker via /api/videos/[id]/progress)
+  imageCountExpected: integer("image_count_expected").default(0),
+  imageCount: integer("image_count").default(0),
+  videoPath: text("video_path"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -28,43 +32,55 @@ export const AH_STATUSES = [
   "s3_pending",
   "s4_pending",
   "ready",
+  "image_gen_pending",
+  "assembly_pending",
+  "assembly_done",
   "needs_attention",
 ] as const;
 
 export type AhVideoStatus = (typeof AH_STATUSES)[number];
 
-// Map status → pipeline step index (0-based, max 5)
+// Steps: S1(0) S2(1) TTS(2) S3(3) S4(4) IMG(5) ASSEMBLE(6) — total 7
+// doneCount = how many steps are fully green
 export const STATUS_STEP: Record<string, number> = {
-  s1_pending: 0,
-  s2_pending: 1,
-  tts_pending: 2,
-  s3_pending: 3,
-  s4_pending: 4,
-  ready: 5,
-  needs_attention: -1,
+  s1_pending:        0,
+  s2_pending:        1,
+  tts_pending:       2,
+  s3_pending:        3,
+  s4_pending:        4,
+  ready:             5,
+  image_gen_pending: 5,
+  assembly_pending:  6,
+  assembly_done:     7,
+  needs_attention:   -1,
 };
 
 // Human-readable labels
 export const STATUS_LABELS: Record<string, string> = {
-  s1_pending: "Topics",
-  s2_pending: "Script",
-  tts_pending: "TTS",
-  s3_pending: "Images",
-  s4_pending: "Metadata",
-  ready: "Ready",
-  needs_attention: "Failed",
+  s1_pending:        "Topics",
+  s2_pending:        "Script",
+  tts_pending:       "TTS",
+  s3_pending:        "Img Prompts",
+  s4_pending:        "Metadata",
+  ready:             "Ready",
+  image_gen_pending: "Gen Images",
+  assembly_pending:  "Assembling",
+  assembly_done:     "Done",
+  needs_attention:   "Failed",
 };
 
-// Map video status → integer for the "active" step index being shown as running
-// (which step is currently running, not done)
+// active step index (which step is pulsing yellow)
 export const STATUS_ACTIVE_STEP: Record<string, number> = {
-  s1_pending: 0,  // S1 running
-  s2_pending: 1,  // S2 running
-  tts_pending: 2, // TTS running
-  s3_pending: 3,  // S3 running
-  s4_pending: 4,  // S4 running
-  ready: 5,       // all done
-  needs_attention: -1,
+  s1_pending:        0,
+  s2_pending:        1,
+  tts_pending:       2,
+  s3_pending:        3,
+  s4_pending:        4,
+  ready:             5,
+  image_gen_pending: 5,
+  assembly_pending:  6,
+  assembly_done:     -1,
+  needs_attention:   -1,
 };
 
 export function slugify(title: string): string {
@@ -82,4 +98,6 @@ export const IN_PIPELINE_STATUSES: AhVideoStatus[] = [
   "tts_pending",
   "s3_pending",
   "s4_pending",
+  "image_gen_pending",
+  "assembly_pending",
 ];

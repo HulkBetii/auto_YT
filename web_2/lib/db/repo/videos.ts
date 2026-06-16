@@ -83,6 +83,35 @@ export async function deleteAhVideo(videoId: number) {
   return deleted ?? null;
 }
 
+export async function updateVideoProgress(
+  videoId: number,
+  update: {
+    status: AhVideoStatus;
+    imageCount?: number;
+    imageCountExpected?: number;
+    videoPath?: string;
+  },
+) {
+  await db
+    .update(ahVideos)
+    .set({
+      status: update.status,
+      ...(update.imageCount !== undefined && { imageCount: update.imageCount }),
+      ...(update.imageCountExpected !== undefined && { imageCountExpected: update.imageCountExpected }),
+      ...(update.videoPath !== undefined && { videoPath: update.videoPath }),
+      updatedAt: new Date(),
+    })
+    .where(eq(ahVideos.id, videoId));
+}
+
+export async function listAssemblyDoneAhVideos() {
+  return db
+    .select()
+    .from(ahVideos)
+    .where(eq(ahVideos.status, "assembly_done"))
+    .orderBy(desc(ahVideos.updatedAt));
+}
+
 export async function bulkDeleteAhVideos(videoIds: number[]) {
   if (videoIds.length === 0) return 0;
   await db.execute(sql`DELETE FROM ah_jobs WHERE video_id = ANY(${videoIds}::int[])`);

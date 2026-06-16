@@ -13,26 +13,32 @@ import { PipelineServices } from "./PipelineServices";
 
 export const dynamic = "force-dynamic";
 
-const PIPELINE_STEPS = ["S1", "S2", "TTS", "S3", "S4"] as const;
+const PIPELINE_STEPS = ["S1", "S2", "TTS", "S3", "S4", "IMG", "ASSEMBLE"] as const;
 
 const STATUS_DONE_STEPS: Record<string, number> = {
-  s1_pending: 0,
-  s2_pending: 1,
-  tts_pending: 2,
-  s3_pending: 3,
-  s4_pending: 4,
-  ready: 5,
-  needs_attention: -1,
+  s1_pending:        0,
+  s2_pending:        1,
+  tts_pending:       2,
+  s3_pending:        3,
+  s4_pending:        4,
+  ready:             5,
+  image_gen_pending: 5,
+  assembly_pending:  6,
+  assembly_done:     7,
+  needs_attention:   -1,
 };
 
 const STATUS_RUNNING_STEP: Record<string, string | null> = {
-  s1_pending: "S1",
-  s2_pending: "S2",
-  tts_pending: "TTS",
-  s3_pending: "S3",
-  s4_pending: "S4",
-  ready: null,
-  needs_attention: null,
+  s1_pending:        "S1",
+  s2_pending:        "S2",
+  tts_pending:       "TTS",
+  s3_pending:        "S3",
+  s4_pending:        "S4",
+  ready:             null,
+  image_gen_pending: "IMG",
+  assembly_pending:  "ASSEMBLE",
+  assembly_done:     null,
+  needs_attention:   null,
 };
 
 export default async function DashboardPage() {
@@ -55,10 +61,12 @@ export default async function DashboardPage() {
   const countByStatus = Object.fromEntries(videoCounts.map((r) => [r.status, r.count]));
   const readyCount = countByStatus["ready"] ?? 0;
   const inPipelineCount = inFlightVideos.length;
+  const assemblyDoneCount = countByStatus["assembly_done"] ?? 0;
 
   const statCards = [
     { label: "READY", value: readyCount },
     { label: "IN PIPELINE", value: inPipelineCount },
+    { label: "DONE ✓", value: assemblyDoneCount },
     { label: "JOBS DONE", value: jobsDoneCount },
   ];
 
@@ -88,7 +96,7 @@ export default async function DashboardPage() {
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
           PIPELINE STATUS
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {statCards.map((card) => (
             <Card
               key={card.label}

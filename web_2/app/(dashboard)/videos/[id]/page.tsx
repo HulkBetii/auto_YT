@@ -12,16 +12,32 @@ import { DeleteVideoButton } from "./DeleteVideoButton";
 
 export const dynamic = "force-dynamic";
 
-const PIPELINE_STEPS = ["S1", "S2", "TTS", "S3", "S4"] as const;
+const PIPELINE_STEPS = ["S1", "S2", "TTS", "S3", "S4", "IMG", "ASSEMBLE"] as const;
 
 const STATUS_DONE_STEPS: Record<string, number> = {
-  s1_pending: 0,
-  s2_pending: 1,
-  tts_pending: 2,
-  s3_pending: 3,
-  s4_pending: 4,
-  ready: 5,
-  needs_attention: -1,
+  s1_pending:        0,
+  s2_pending:        1,
+  tts_pending:       2,
+  s3_pending:        3,
+  s4_pending:        4,
+  ready:             5,
+  image_gen_pending: 5,
+  assembly_pending:  6,
+  assembly_done:     7,
+  needs_attention:   -1,
+};
+
+const STATUS_ACTIVE_STEP: Record<string, number> = {
+  s1_pending:        0,
+  s2_pending:        1,
+  tts_pending:       2,
+  s3_pending:        3,
+  s4_pending:        4,
+  ready:             -1,
+  image_gen_pending: 5,
+  assembly_pending:  6,
+  assembly_done:     -1,
+  needs_attention:   -1,
 };
 
 export default async function VideoDetailPage({
@@ -42,6 +58,7 @@ export default async function VideoDetailPage({
 
   const topic = video.chosenTopic as { title?: string; angle?: string } | null;
   const doneCount = STATUS_DONE_STEPS[video.status] ?? 0;
+  const activeStep = STATUS_ACTIVE_STEP[video.status] ?? -1;
 
   const promptCount = video.imagePrompts
     ? video.imagePrompts.split("\n").filter((l) => l.trim()).length
@@ -75,7 +92,7 @@ export default async function VideoDetailPage({
           <div className="flex items-center gap-2 flex-wrap">
             {PIPELINE_STEPS.map((step, i) => {
               const isDone = i < doneCount;
-              const isRunning = i === doneCount && video.status !== "ready" && video.status !== "needs_attention";
+              const isRunning = i === activeStep;
               return (
                 <div key={step} className="flex items-center gap-2">
                   <div
@@ -257,6 +274,67 @@ export default async function VideoDetailPage({
                   </Card>
                 )}
               </div>
+            </section>
+          )}
+
+          {/* Assembly Status */}
+          {(video.status === "image_gen_pending" || video.status === "assembly_pending" || video.status === "assembly_done") && (
+            <section>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                ASSEMBLY STATUS
+              </p>
+              <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                <CardContent className="p-5 space-y-4">
+                  {(video.imageCountExpected ?? 0) > 0 && (
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                        Images Generated
+                      </p>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <p className="text-[22px] font-semibold leading-none text-[#007AFF]">
+                          {video.imageCount ?? 0}
+                          <span className="text-[15px] font-normal text-[#AEAEB2]">
+                            /{video.imageCountExpected}
+                          </span>
+                        </p>
+                        <div className="flex-1 h-2 rounded-full bg-[#E5E5EA] dark:bg-white/[.10] overflow-hidden">
+                          <div
+                            className="h-2 rounded-full bg-[#007AFF] transition-all duration-300"
+                            style={{
+                              width: `${Math.round(((video.imageCount ?? 0) / (video.imageCountExpected ?? 1)) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[13px] text-[#6E6E73] shrink-0">
+                          {Math.round(((video.imageCount ?? 0) / (video.imageCountExpected ?? 1)) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {video.videoPath && (
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                        Video Path
+                      </p>
+                      <p className="mt-0.5 text-[13px] font-mono text-[#34C759] break-all">
+                        {video.videoPath}
+                      </p>
+                    </div>
+                  )}
+                  {video.status === "image_gen_pending" && (video.imageCountExpected ?? 0) === 0 && (
+                    <p className="text-[13px] text-[#007AFF] flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#007AFF] animate-pulse inline-block" />
+                      Đang khởi động image gen…
+                    </p>
+                  )}
+                  {!video.videoPath && video.status === "assembly_pending" && (
+                    <p className="text-[13px] text-[#FF9F0A] flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#FF9F0A] animate-pulse inline-block" />
+                      Đang assemble video…
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             </section>
           )}
 
