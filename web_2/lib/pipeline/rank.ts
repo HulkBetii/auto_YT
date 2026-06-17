@@ -11,6 +11,10 @@ export interface AhTopic {
 }
 
 export async function rankTopics(candidates: AhTopic[]): Promise<AhTopic> {
+  if (candidates.length === 0) {
+    throw new Error("[rank] No topic candidates to rank.");
+  }
+
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = (await getAhConfigValue("openai_model")) ?? "gpt-4o-mini";
 
@@ -38,5 +42,8 @@ Return a JSON object with a single field "index" (1-based integer) indicating yo
   const parsed = extractJson<{ index?: number }>(text);
   const idx = (parsed.index ?? 1) - 1;
   const chosen = candidates[Math.max(0, Math.min(idx, candidates.length - 1))];
+  if (!chosen?.title || !chosen.angle || !chosen.hook || !Array.isArray(chosen.key_questions)) {
+    throw new Error("[rank] Chosen topic is missing required fields.");
+  }
   return chosen;
 }

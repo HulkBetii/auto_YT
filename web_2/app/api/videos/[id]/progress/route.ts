@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { updateVideoProgress } from "@/lib/db/repo/videos";
-import { AH_STATUSES } from "@/lib/db/schema";
 
 const ASSEMBLY_STATUSES = ["image_gen_pending", "assembly_pending", "assembly_done", "needs_attention"] as const;
 

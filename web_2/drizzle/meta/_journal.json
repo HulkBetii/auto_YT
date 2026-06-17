@@ -8,6 +8,20 @@
       "when": 1781425664388,
       "tag": "0000_lethal_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781672661969,
+      "tag": "0001_add_assembly_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781675539351,
+      "tag": "0002_add_open_job_unique_guard",
+      "breakpoints": true
     }
   ]
 }

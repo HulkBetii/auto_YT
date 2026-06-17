@@ -59,7 +59,6 @@ export default async function DashboardPage() {
   ]);
 
   const countByStatus = Object.fromEntries(videoCounts.map((r) => [r.status, r.count]));
-  const readyCount = countByStatus["ready"] ?? 0;
   const inPipelineCount = inFlightVideos.length;
   const assemblyDoneCount = countByStatus["assembly_done"] ?? 0;
 
