@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CopyButton } from "./CopyButton";
 import { RetryButton } from "./RetryButton";
 import { DeleteVideoButton } from "./DeleteVideoButton";
+import { OpenFolderButton } from "./OpenFolderButton";
 
 export const dynamic = "force-dynamic";
 
@@ -319,9 +320,12 @@ export default async function VideoDetailPage({
                   )}
                   {video.videoPath && (
                     <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                        Video Path
-                      </p>
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                          Video Path
+                        </p>
+                        <OpenFolderButton filePath={video.videoPath} />
+                      </div>
                       <p className="mt-0.5 text-[13px] font-mono text-[#34C759] break-all">
                         {video.videoPath}
                       </p>
