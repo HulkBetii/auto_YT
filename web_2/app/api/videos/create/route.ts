@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createAhVideo } from "@/lib/db/repo/videos";
+import {
+  createAhVideo,
+  formatRecentAhTopicsForPrompt,
+  listRecentAhTopicSummaries,
+} from "@/lib/db/repo/videos";
 import { enqueueAhStage } from "@/lib/pipeline/createJob";
 
 export async function POST(request: Request) {
@@ -16,11 +20,14 @@ export async function POST(request: Request) {
 
   try {
     const video = await createAhVideo({ status: "s1_pending" });
+    const recentTopics = await listRecentAhTopicSummaries(30, video.id);
 
     await enqueueAhStage({
       promptKey: "S1",
       stage: "S1",
-      vars: {},
+      vars: {
+        RECENT_TOPICS: formatRecentAhTopicsForPrompt(recentTopics),
+      },
       videoId: video.id,
     });
 

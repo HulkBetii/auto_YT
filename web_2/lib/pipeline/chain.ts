@@ -6,7 +6,13 @@ import {
   markAhJobHandlerFailed,
   resetStaleRunningAhJobs,
 } from "@/lib/db/repo/jobs";
-import { getAhVideo, listAhVideos, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
+import {
+  getAhVideo,
+  listAhVideos,
+  listRecentAhTopicSummaries,
+  updateAhVideoFields,
+  updateAhVideoStatus,
+} from "@/lib/db/repo/videos";
 import { extractJson } from "@/lib/utils/json";
 import { notify } from "@/lib/notifications";
 import { enqueueAhStage } from "./createJob";
@@ -28,7 +34,8 @@ async function handleS1Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
     throw new Error("S1 output did not contain any topic candidates.");
   }
 
-  const chosenTopic = await rankTopics(candidates);
+  const recentTopics = await listRecentAhTopicSummaries(30, videoId);
+  const chosenTopic = await rankTopics(candidates, recentTopics);
 
   await updateAhVideoFields(videoId, {
     topicCandidates: candidates as unknown as Record<string, unknown>[],

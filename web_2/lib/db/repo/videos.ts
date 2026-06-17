@@ -3,6 +3,19 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../index";
 import { ahVideos, type AhVideoStatus, IN_PIPELINE_STATUSES } from "../schema";
 
+export interface RecentAhTopicSummary {
+  id: number;
+  title: string | null;
+  ytTitle: string | null;
+  status: string;
+}
+
+function getTopicTitle(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const title = (value as { title?: unknown }).title;
+  return typeof title === "string" && title.trim() ? title.trim() : null;
+}
+
 export async function createAhVideo(input: typeof ahVideos.$inferInsert) {
   const [created] = await db.insert(ahVideos).values(input).returning();
   return created;
@@ -19,6 +32,45 @@ export async function listAhVideos(filter?: { status?: AhVideoStatus }, limit = 
     q = q.where(eq(ahVideos.status, filter.status));
   }
   return q.orderBy(desc(ahVideos.createdAt)).limit(limit);
+}
+
+export async function listRecentAhTopicSummaries(
+  limit = 30,
+  excludeVideoId?: number,
+): Promise<RecentAhTopicSummary[]> {
+  const rows = await db
+    .select({
+      id: ahVideos.id,
+      status: ahVideos.status,
+      chosenTopic: ahVideos.chosenTopic,
+      ytTitle: ahVideos.ytTitle,
+    })
+    .from(ahVideos)
+    .orderBy(desc(ahVideos.createdAt))
+    .limit(excludeVideoId ? limit + 1 : limit);
+
+  return rows
+    .filter((row) => row.id !== excludeVideoId)
+    .map((row) => ({
+      id: row.id,
+      status: row.status,
+      title: getTopicTitle(row.chosenTopic),
+      ytTitle: row.ytTitle?.trim() || null,
+    }))
+    .filter((row) => row.title || row.ytTitle)
+    .slice(0, limit);
+}
+
+export function formatRecentAhTopicsForPrompt(recentTopics: RecentAhTopicSummary[]): string {
+  if (recentTopics.length === 0) return "No previous topics yet.";
+
+  return recentTopics
+    .map((topic, index) => {
+      const topicTitle = topic.title ? `Topic: ${topic.title}` : null;
+      const metadataTitle = topic.ytTitle ? `YouTube title: ${topic.ytTitle}` : null;
+      return `${index + 1}. Video #${topic.id} (${topic.status}) — ${[topicTitle, metadataTitle].filter(Boolean).join(" | ")}`;
+    })
+    .join("\n");
 }
 
 export async function updateAhVideoStatus(videoId: number, status: AhVideoStatus) {

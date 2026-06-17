@@ -12,25 +12,35 @@ async function main() {
 
 **Niche:** Ancient humans, human prehistory, evolution, anthropology, and survival — how early humans actually lived, hunted, slept, raised children, and handled everyday life. Occasional crossovers into medieval life, weird history, and human psychology.
 
+**RPM angle preference:** Keep the core niche unchanged, but let the topic mix lean slightly more toward Psychology × Ancient Humans when it naturally fits. This means ancient-human topics that connect to modern behavior, health & wellness, science-backed self-improvement, body signals, cravings, fear, attention, sleep, parenting, status, anxiety, cooperation, jealousy, pain, or habit loops. Do not force this angle if a stronger classic ancient-humans topic is available.
+
 **Format:** 7–12 minute educational explainer narrated in calm, intelligent 2nd-person ("you", "your ancestors", "your body", "your brain") — never "we" or "I".
 
-**Hook formula:** Open by dropping the viewer inside an ancestral or everyday sensory moment in 2nd person → immediately pivot with a reframe → contrast against a striking modern statistic that reframes everything.
+**Hook formula:** Open by dropping the viewer inside an ancestral or everyday sensory moment in 2nd person → immediately pivot with a reframe → contrast against a striking modern statistic or modern mirror when that fits the topic.
 
 **Script rhythm:** Short sentence. Short sentence. One longer sentence that builds depth. Short sentence. Question?
 
 **Narrative arc:** Hook → Reframe → Evidence stack (named study + cross-cultural / skeletal / archaeological confirmation) → Concrete scene the viewer can picture → Counterintuitive twist → Modern mirror → Closing line that echoes the first line, completely reframed.
 
-**Evidence rule:** Weave at least 3 real named researchers, studies, or archaeological sites naturally into narration. Never invent names.
+**Evidence rule:** Weave real named researchers, studies, or archaeological sites naturally into narration. Never invent names.
 
 **Visual style:** Hand-drawn 2D doodle cartoon animation. Main character = round white-headed stick figure with spiky orange hair = "you". Ancient humans = messy brown hair. Neutral modern = bald.
 
+## RECENT TOPICS TO AVOID
+
+[RECENT_TOPICS]
+
+Do NOT generate a topic that repeats the same core behavior, title pattern, or angle as any recent topic above.
+Allowed: the same broad domain if the behavior and reframe are clearly different.
+Example: "sleep anxiety" and "dreaming" can both be sleep-adjacent, but only if the ancient reason and story are different.
+
 ## PROVEN VIRAL TOPIC ANGLES
-1. "What / How Did Ancient Humans ___?" — bridges a universal modern concern (sleep, jobs, hygiene, raising children) to prehistoric life
-2. "How Did Ancient Humans Survive ___?" — survival against a vivid threat (deadliest predators, deadly winters, the Ice Age, starvation)
-3. "The CRAZIEST / WEIRDEST ___ Used by Ancient Humans" — superlative, curiosity-gap reveal of strange real methods
-4. "What ___ Was Like in Ancient / Medieval Times" — an everyday or taboo bodily/social topic treated honestly
-5. "Why You Wouldn't Last a Day in ___" / "POV: Your Life as ___" — immersive 2nd-person scenario that puts viewer in the past
-6. "What If ___?" — provocative existential or counterfactual question grounded in real data
+1. "What / How Did Ancient Humans ___?" — bridges a universal modern concern (jobs, privacy, sleep, raising children, hygiene) to prehistoric life.
+2. "How Did Ancient Humans Survive ___?" — survival against a vivid threat (deadliest predators, deadly winters, the Ice Age, starvation).
+3. "The CRAZIEST / WEIRDEST ___ Used by Ancient Humans" — superlative, curiosity-gap reveal of strange real methods.
+4. "What ___ Was Like in Ancient / Medieval Times" — an everyday or taboo bodily/social topic treated honestly.
+5. "Why You Wouldn't Last a Day in ___" / "POV: Your Life as ___" — immersive 2nd-person scenario that puts the viewer in the past.
+6. "What If ___?" — provocative existential or counterfactual question grounded in real data.
 
 ## TASK
 
@@ -40,22 +50,24 @@ Generate EXACTLY 5 distinct video topic ideas. Each topic must be:
 - About real events, discoveries, or behaviours of early/ancient humans
 - Optimised for YouTube trending (surprising angle, strong hook, curiosity gap)
 - Using one of the 6 proven viral angles above
+- Slightly biased toward Psychology × Ancient Humans when the idea naturally supports that higher-RPM angle
+- Distinct from the recent topics listed above
 
 Return a JSON array with exactly 5 objects. Each object must have these fields:
 - title: the YouTube video title (max 70 chars, hook-first)
 - angle: the surprising or contrarian angle that makes this unique
 - hook: the opening 2-sentence hook for the narration (2nd-person, drop viewer into a sensory moment)
-- viral_type: one of [what_how, survival, weirdest, everyday_life, pov_immersive, what_if]
+- viral_type: one of [what_how, survival, weirdest, everyday_life, pov_immersive, what_if, psychology_mirror]
 - key_questions: array of 3 questions the video will answer
 
 Example structure (do NOT copy this content):
 [
   {
-    "title": "Why You Wouldn't Last a Day as a Hunter-Gatherer",
-    "angle": "We romanticise ancient life — but the reality was brutally demanding in ways we've completely forgotten",
-    "hook": "You wake up before dawn, not because of an alarm, but because staying still any longer might get you killed. Every single morning, for 300,000 years, this was the only reality your ancestors knew.",
-    "viral_type": "pov_immersive",
-    "key_questions": ["What did a real day of hunter-gatherer life actually involve?", "Why was calorie-gathering so physically brutal?", "What survival skills have we completely lost?"]
+    "title": "Why Your Brain Still Craves Sugar (Stone Age Reason)",
+    "angle": "A modern craving is framed through prehistoric scarcity without turning the channel into a psychology channel",
+    "hook": "You tell yourself you only want one bite. But your brain reacts like it just found rare survival fuel after days of hunger.",
+    "viral_type": "psychology_mirror",
+    "key_questions": ["Why did sweetness matter in prehistory?", "How did scarcity shape cravings?", "Why does this old system still affect you today?"]
   }
 ]
 
