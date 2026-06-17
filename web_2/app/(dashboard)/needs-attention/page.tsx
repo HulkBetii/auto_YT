@@ -20,18 +20,18 @@ export default async function NeedsAttentionPage() {
 
   return (
     <>
-      <div className="mb-2">
-        <h1 className="text-[22px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
+      <div>
+        <h1 className="text-[28px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
           Needs Attention
         </h1>
-        <p className="mt-1 text-[15px] text-[#6E6E73]">
+        <p className="mt-1 text-[15px] leading-relaxed text-[#6E6E73] dark:text-[#AEAEB2]">
           Videos stuck in pipeline — review errors and retry failed jobs.
         </p>
       </div>
 
       {videosWithJobs.length === 0 ? (
-        <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
-          <CardContent className="p-8 text-center text-[#AEAEB2]">
+        <Card className="border-black/[.08] bg-white shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+          <CardContent className="p-12 text-center text-[15px] text-[#AEAEB2]">
             All clear — no videos need attention.
           </CardContent>
         </Card>

@@ -12,11 +12,11 @@ export default async function PromptsPage() {
 
   return (
     <>
-      <div className="mb-2">
-        <h1 className="text-[22px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
+      <div>
+        <h1 className="text-[28px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
           Prompts
         </h1>
-        <p className="mt-1 text-[15px] text-[#6E6E73]">
+        <p className="mt-1 text-[15px] leading-relaxed text-[#6E6E73] dark:text-[#AEAEB2]">
           Active prompt templates for each pipeline stage. Saving creates a new version.
         </p>
       </div>

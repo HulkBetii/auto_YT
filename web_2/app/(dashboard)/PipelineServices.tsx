@@ -24,7 +24,7 @@ function Dot({ on, pulse }: { on: boolean; pulse?: boolean }) {
   return (
     <span
       className={[
-        "inline-block h-2 w-2 rounded-full shrink-0",
+        "inline-block h-[10px] w-[10px] rounded-full shrink-0",
         on ? "bg-[#34C759]" : "bg-[#FF3B30]",
         pulse && on ? "animate-pulse" : "",
       ].join(" ")}
@@ -48,15 +48,15 @@ function Toggle({
       onClick={onToggle}
       disabled={disabled}
       className={[
-        "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors duration-200",
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:ring-offset-2",
         on ? "bg-[#34C759]" : "bg-[#E5E5EA] dark:bg-[#3A3A3C]",
-        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
       ].join(" ")}
     >
       <span
         className={[
-          "inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200",
-          on ? "translate-x-[18px]" : "translate-x-[2px]",
+          "inline-block h-[20px] w-[20px] transform rounded-full bg-white ring-1 ring-black/5 transition duration-150 ease-in-out",
+          on ? "translate-x-5" : "translate-x-[2px]",
         ].join(" ")}
       />
     </button>

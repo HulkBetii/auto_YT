@@ -42,9 +42,14 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <h1 className="text-[28px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
-        Settings
-      </h1>
+      <div>
+        <h1 className="text-[28px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
+          Settings
+        </h1>
+        <p className="mt-1 text-[15px] leading-relaxed text-[#6E6E73] dark:text-[#AEAEB2]">
+          Configure external integrations and pipeline constants.
+        </p>
+      </div>
 
       <section>
         <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">

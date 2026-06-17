@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ChevronLeft } from "lucide-react";
 import { getAhVideo } from "@/lib/db/repo/videos";
 import { listAhJobsByVideo } from "@/lib/db/repo/jobs";
 import { statusBadgeClass, VIDEO_STATUS_LABELS, formatDateTime, formatDuration } from "@/lib/ui/format";
@@ -68,14 +69,15 @@ export default async function VideoDetailPage({
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/videos" className="text-[13px] text-[#007AFF] hover:underline">
-            ← Videos
+          <Link href="/videos" className="inline-flex items-center gap-1 text-[13px] text-[#007AFF] hover:text-[#0062CC] transition-colors duration-150">
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Videos
           </Link>
-          <h1 className="mt-2 text-[22px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
+          <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-[#1C1C1E] dark:text-white">
             {topic?.title ?? `Video #${video.id}`}
           </h1>
           {topic?.angle && (
-            <p className="mt-1 text-[15px] text-[#6E6E73]">{topic.angle}</p>
+            <p className="mt-1 text-[15px] leading-relaxed text-[#6E6E73] dark:text-[#AEAEB2]">{topic.angle}</p>
           )}
         </div>
         <div className="flex items-center gap-2 mt-2 shrink-0">
@@ -87,28 +89,31 @@ export default async function VideoDetailPage({
       </div>
 
       {/* Pipeline stepper */}
-      <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 flex-wrap">
+      <Card className="border-black/[.08] bg-white shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+        <CardContent className="p-5">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+            PIPELINE PROGRESS
+          </p>
+          <div className="flex items-center gap-px flex-wrap">
             {PIPELINE_STEPS.map((step, i) => {
               const isDone = i < doneCount;
               const isRunning = i === activeStep;
               return (
-                <div key={step} className="flex items-center gap-2">
+                <div key={step} className="flex items-center gap-px">
                   <div
                     className={[
-                      "flex items-center justify-center rounded-full text-[12px] font-medium",
+                      "flex items-center justify-center rounded-md px-2.5 py-1 text-[11px] font-medium tracking-wide",
                       isRunning
-                        ? "h-7 px-3 bg-[#FF9F0A] text-white animate-pulse"
+                        ? "bg-[#FF9F0A]/10 text-[#FF9F0A] animate-pulse ring-1 ring-inset ring-[#FF9F0A]/20"
                         : isDone
-                          ? "h-7 px-3 bg-[#34C759] text-white"
-                          : "h-7 px-3 bg-[#E5E5EA] text-[#AEAEB2] dark:bg-white/[.08] dark:text-[#6E6E73]",
+                          ? "bg-[#34C759]/10 text-[#34C759]"
+                          : "bg-[#E5E5EA] text-[#AEAEB2] dark:bg-white/[.05] dark:text-[#6E6E73]",
                     ].join(" ")}
                   >
                     {step}
                   </div>
                   {i < PIPELINE_STEPS.length - 1 && (
-                    <div className={`h-px w-6 ${i < doneCount ? "bg-[#34C759]" : "bg-[#E5E5EA] dark:bg-white/[.08]"}`} />
+                    <div className={`h-px w-3 ${i < doneCount ? "bg-[#34C759]/30" : "bg-[#E5E5EA] dark:bg-white/[.08]"}`} />
                   )}
                 </div>
               );
@@ -297,17 +302,18 @@ export default async function VideoDetailPage({
                             /{video.imageCountExpected}
                           </span>
                         </p>
-                        <div className="flex-1 h-2 rounded-full bg-[#E5E5EA] dark:bg-white/[.10] overflow-hidden">
+                        <div className="flex-1 h-1.5 rounded-full bg-[#E5E5EA] dark:bg-white/[.10] overflow-hidden">
                           <div
-                            className="h-2 rounded-full bg-[#007AFF] transition-all duration-300"
+                            className="h-1.5 rounded-full bg-[#007AFF] transition-all duration-150"
                             style={{
-                              width: `${Math.round(((video.imageCount ?? 0) / (video.imageCountExpected ?? 1)) * 100)}%`,
+                              width: `${Math.min(100, Math.max(0, Math.round(((video.imageCount ?? 0) / Math.max(1, video.imageCountExpected ?? 1)) * 100)))}%`,
                             }}
                           />
                         </div>
                         <span className="text-[13px] text-[#6E6E73] shrink-0">
-                          {Math.round(((video.imageCount ?? 0) / (video.imageCountExpected ?? 1)) * 100)}%
+                          {Math.min(100, Math.max(0, Math.round(((video.imageCount ?? 0) / Math.max(1, video.imageCountExpected ?? 1)) * 100)))}%
                         </span>
+
                       </div>
                     </div>
                   )}
