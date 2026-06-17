@@ -54,12 +54,11 @@ async function handleP1Done(job: Job) {
   }
   const batchSize = await configInt("p1_topics_per_batch", 5);
 
-  // Crash-dup tripwire: if videos created since this job started already exceed the
+  // Crash-dup tripwire: if videos created since this job started already meet or exceed the
   // batch budget, a previous run of this handler likely succeeded before markJobConsumed
   // could stamp consumed_at. Bail out and alert rather than creating duplicate videos.
-  const P1_MAX_TOPICS = 12; // P1 prompt outputs at most 12 candidates
   const videosAlreadyCreated = await countVideosCreatedSince(job.createdAt ?? new Date());
-  if (videosAlreadyCreated >= P1_MAX_TOPICS) {
+  if (videosAlreadyCreated >= batchSize) {
     console.warn(`[P1 tripwire] Job #${job.id}: ${videosAlreadyCreated} videos exist since job creation — possible crash-dup, skipping.`);
     await notify(`⚠️ P1 tripwire: Job #${job.id} — ${videosAlreadyCreated}件の動画がすでに作成済み。クラッシュ重複の可能性。処理をスキップしました。手動確認してください。`);
     return;

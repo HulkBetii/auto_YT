@@ -3,7 +3,7 @@
  * Called by both /api/cron/check-analytics (scheduled) and
  * /api/jobs/process-now (manual dashboard button).
  */
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { getConfigValue } from "@/lib/db/repo/channel-config";
@@ -100,8 +100,7 @@ export async function triggerP6IfBatchReady(): Promise<number[] | null> {
   const [activeP1] = await db
     .select({ effectiveFromVideoId: promptVersions.effectiveFromVideoId })
     .from(promptVersions)
-    .where(eq(promptVersions.promptKey, "P1"))
-    .orderBy(desc(promptVersions.version))
+    .where(and(eq(promptVersions.promptKey, "P1"), eq(promptVersions.isActive, true)))
     .limit(1);
   const anchorId = activeP1?.effectiveFromVideoId ?? 0;
 

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "../index";
 import { videoContent, type contentStageEnum } from "../schema";
@@ -55,10 +55,11 @@ export async function saveVideoContent(input: {
 
 /** Latest output for a given (video, stage) — used to build the next stage's prompt vars. */
 export async function getLatestVideoContent(videoId: number, stage: ContentStage) {
-  const rows = await db
+  const [row] = await db
     .select()
     .from(videoContent)
     .where(and(eq(videoContent.videoId, videoId), eq(videoContent.stage, stage)))
-    .orderBy(videoContent.createdAt);
-  return rows.at(-1) ?? null;
+    .orderBy(desc(videoContent.createdAt))
+    .limit(1);
+  return row ?? null;
 }

@@ -32,12 +32,14 @@ function normalizeName(name: string): string {
  * Layer 1a — same featured_person must not appear in the last N produced videos.
  * N is configurable via `anti_dup_person_lookback` (default 3).
  */
-export async function isPersonRepeated(featuredPerson: string): Promise<boolean> {
+export async function isPersonRepeated(featuredPerson: string, lookback?: number): Promise<boolean> {
   if (!featuredPerson) return false;
-  const lookback = await configInt("anti_dup_person_lookback", DEFAULT_PERSON_LOOKBACK);
-  const recent = await listRecentVideos(lookback);
+  const count = lookback ?? await configInt("anti_dup_person_lookback", DEFAULT_PERSON_LOOKBACK);
+  const recent = await listRecentVideos(count);
   const normalized = normalizeName(featuredPerson);
-  return recent.some((v) => v.featuredPerson != null && normalizeName(v.featuredPerson) === normalized);
+  return recent.some(
+    (v) => v.featuredPerson != null && normalizeName(v.featuredPerson) === normalized,
+  );
 }
 
 /**
@@ -49,10 +51,11 @@ export async function isPersonRepeated(featuredPerson: string): Promise<boolean>
 export async function isPersonPainRepeated(
   featuredPerson: string,
   painType: string,
+  lookback?: number,
 ): Promise<boolean> {
   if (!featuredPerson || !painType) return false;
-  const lookback = await configInt("anti_dup_pain_lookback", DEFAULT_PAIN_LOOKBACK);
-  const recent = await listRecentVideos(lookback);
+  const count = lookback ?? await configInt("anti_dup_pain_lookback", DEFAULT_PAIN_LOOKBACK);
+  const recent = await listRecentVideos(count);
   const normalizedPerson = normalizeName(featuredPerson);
   return recent.some(
     (v) =>
@@ -103,17 +106,20 @@ export async function isDuplicateTopic(input: {
   painType: string;
   embedding: number[];
 }): Promise<{ duplicate: boolean; reason?: string }> {
-  const lookback = await configInt("anti_dup_person_lookback", DEFAULT_PERSON_LOOKBACK);
-  const painLookback = await configInt("anti_dup_pain_lookback", DEFAULT_PAIN_LOOKBACK);
+  // Fetch once and pass to sub-functions to avoid duplicate DB round-trips.
+  const [lookback, painLookback] = await Promise.all([
+    configInt("anti_dup_person_lookback", DEFAULT_PERSON_LOOKBACK),
+    configInt("anti_dup_pain_lookback", DEFAULT_PAIN_LOOKBACK),
+  ]);
 
-  if (await isPersonRepeated(input.featuredPerson)) {
+  if (await isPersonRepeated(input.featuredPerson, lookback)) {
     return {
       duplicate: true,
       reason: `featured_person "${input.featuredPerson}" used in last ${lookback} videos`,
     };
   }
 
-  if (await isPersonPainRepeated(input.featuredPerson, input.painType)) {
+  if (await isPersonPainRepeated(input.featuredPerson, input.painType, painLookback)) {
     return {
       duplicate: true,
       reason: `"${input.featuredPerson}" × pain_type "${input.painType}" combo used in last ${painLookback} videos`,

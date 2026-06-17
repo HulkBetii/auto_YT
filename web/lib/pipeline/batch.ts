@@ -36,11 +36,10 @@ export interface NewBatchResult {
  *
  * Extracted out of /api/cron/generate-topics (which runs weekly per
  * vercel.json — "0 0 * * 1") so the dashboard's "Chạy pipeline ngay" button
- * (RunPipelineButton -> /api/jobs/process-now -> runChainCycle) can ALSO try
- * to start a fresh batch on demand: when nothing is in flight, the operator
- * can manually kick off the next 5-video batch right away instead of waiting
- * up to a week for the cron, or having to curl generate-topics with the
- * bearer secret. Single source of truth, shared by both entry points.
+ * (/api/jobs/process-now) can ALSO try to start a fresh batch on demand:
+ * when nothing is in flight, the operator can manually kick off the next
+ * 5-video batch right away instead of waiting up to a week for the cron.
+ * Single source of truth, shared by both entry points.
  */
 export async function maybeStartNewBatch(): Promise<NewBatchResult> {
   const inFlightVideos = await db

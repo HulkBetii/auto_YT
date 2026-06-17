@@ -18,9 +18,9 @@ function requireAuth(request: Request): NextResponse | null {
  * Polled weekly by Vercel Cron (see vercel.json — "0 0 * * 1"). Starts a new
  * P1 batch if (and only if) nothing is currently in flight — see
  * lib/pipeline/batch.ts `maybeStartNewBatch` for the actual guard + insert
- * logic, now shared with the dashboard's manual "Chạy pipeline ngay" button
- * (RunPipelineButton -> /api/jobs/process-now), which also tries to start a
- * fresh batch on demand so the operator doesn't have to wait up to a week.
+ * logic, shared with the dashboard's manual "Chạy pipeline ngay" button
+ * (/api/jobs/process-now), which also calls maybeStartNewBatch so operators
+ * can start a fresh batch on demand without waiting up to a week.
  */
 export async function GET(request: Request) {
   const unauthorized = requireAuth(request);

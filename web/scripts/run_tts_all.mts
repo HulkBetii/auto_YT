@@ -14,7 +14,7 @@ const { db } = await import("../lib/db/index.js");
 const { videos } = await import("../lib/db/schema/index.js");
 const { eq } = await import("drizzle-orm");
 const { getLatestVideoContent } = await import("../lib/db/repo/video-content.js");
-const { updateVideoAudioUrl } = await import("../lib/db/repo/videos.js");
+const { updateVideoAudioUrl, setVideoTtsTaskId, clearVideoTtsTaskId } = await import("../lib/db/repo/videos.js");
 const { parseP3ForTTS, getVoiceId, submitTTS, pollTTSTask } = await import("../lib/pipeline/tts.js");
 
 const all = await db.select().from(videos).where(eq(videos.status, "ready_to_publish")).orderBy(videos.id as never);
@@ -39,10 +39,11 @@ for (const video of toProcess) {
     console.log(`🎙️  ${tag} → voice=${voiceId} (${text.length} chars)`);
 
     const taskId = await submitTTS(text, voiceId);
+    await setVideoTtsTaskId(video.id, taskId); // persist so server-side fire-and-poll can cancel/resume on timeout
     console.log(`   submitted task=${taskId}, polling...`);
 
     const audioUrl = await pollTTSTask(taskId, 600_000); // 10 min max per video (clone voice can be slow)
-    await updateVideoAudioUrl(video.id, audioUrl);
+    await updateVideoAudioUrl(video.id, audioUrl); // also clears tts_task_id
 
     console.log(`   ✓ ${audioUrl}`);
     succeeded++;

@@ -8,7 +8,6 @@ import { updateVideoAudioUrl, setVideoTtsTaskId, clearVideoTtsTaskId } from "@/l
 import { notify } from "@/lib/notifications";
 
 const TTS_BASE_URL = "https://api.ai33.pro";
-const HARDCODED_DEFAULT_VOICE = "clone_2572202"; // Tenpu Nakamura
 // Stale threshold — if a task has been "doing" for longer than this, cancel and retry
 const MAX_TTS_AGE_MS = 15 * 60 * 1000; // 15 minutes (~3 cron cycles)
 

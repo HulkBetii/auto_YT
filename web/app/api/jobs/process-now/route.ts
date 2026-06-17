@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { maybeStartNewBatch } from "@/lib/pipeline/batch";
 import { runChainCycle } from "@/lib/pipeline/chain";
 import { refreshAnalyticsAndTriggerP5, triggerP6IfBatchReady } from "@/lib/pipeline/analyticsCheck";
 import { runTTSForReadyVideos } from "@/lib/pipeline/tts";
@@ -38,9 +39,10 @@ export const maxDuration = 300;
  */
 export async function POST() {
   const { processed, results, failedNotified } = await runChainCycle();
+  const newBatch = await maybeStartNewBatch();
   const tts = await runTTSForReadyVideos();
   const p5Triggered = await refreshAnalyticsAndTriggerP5();
   const p6Batch = await triggerP6IfBatchReady();
 
-  return NextResponse.json({ ok: true, processed, results, failedNotified, tts, p5Triggered, p6Batch });
+  return NextResponse.json({ ok: true, processed, results, failedNotified, newBatch, tts, p5Triggered, p6Batch });
 }
