@@ -5,24 +5,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export function OpenFolderButton({ filePath }: { filePath: string }) {
-  const [state, setState] = useState<"idle" | "opening" | "opened" | "copied" | "error">("idle");
-
-  const folderPath = filePath.includes("/")
-    ? filePath.substring(0, filePath.lastIndexOf("/"))
-    : filePath;
+  const [state, setState] = useState<"idle" | "opening" | "opened" | "error">("idle");
 
   function resetState() {
     setTimeout(() => setState("idle"), 2500);
-  }
-
-  function shellQuote(value: string) {
-    return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
-  }
-
-  async function copyFallback() {
-    await navigator.clipboard.writeText(`open ${shellQuote(folderPath)}`);
-    setState("copied");
-    resetState();
   }
 
   async function onClick() {
@@ -38,14 +24,11 @@ export function OpenFolderButton({ filePath }: { filePath: string }) {
         resetState();
         return;
       }
-      await copyFallback();
+      setState("error");
+      resetState();
     } catch {
-      try {
-        await copyFallback();
-      } catch {
-        setState("error");
-        resetState();
-      }
+      setState("error");
+      resetState();
     }
   }
 
@@ -69,11 +52,6 @@ export function OpenFolderButton({ filePath }: { filePath: string }) {
             <Check className="h-3.5 w-3.5 text-[#34C759]" />
             <span className="text-[#34C759]">Opened</span>
           </>
-        ) : state === "copied" ? (
-          <>
-            <Check className="h-3.5 w-3.5 text-[#34C759]" />
-            <span className="text-[#34C759]">Copied command</span>
-          </>
         ) : state === "error" ? (
           <>
             <AlertCircle className="h-3.5 w-3.5 text-[#FF453A]" />
@@ -86,11 +64,6 @@ export function OpenFolderButton({ filePath }: { filePath: string }) {
           </>
         )}
       </Button>
-      {state === "copied" && (
-        <p className="absolute right-0 top-8 z-10 whitespace-nowrap rounded-md bg-[#1C1C1E] px-2.5 py-1.5 text-[11px] text-white dark:bg-white dark:text-[#1C1C1E]">
-          Terminal command copied
-        </p>
-      )}
     </div>
   );
 }

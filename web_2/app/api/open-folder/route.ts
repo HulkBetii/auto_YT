@@ -48,20 +48,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid path" }, { status: 400 });
   }
 
+  const parentPath = path.dirname(targetPath);
+
   try {
     const targetStat = await stat(targetPath);
-    const args = targetStat.isDirectory() ? [targetPath] : ["-R", targetPath];
-    await execFileAsync("open", args);
+    const folderPath = targetStat.isDirectory() ? targetPath : parentPath;
+    await execFileAsync("open", [folderPath]);
     return NextResponse.json({ ok: true });
   } catch {
-    const parentPath = path.dirname(targetPath);
     try {
       const parentStat = await stat(parentPath);
       if (!parentStat.isDirectory()) throw new Error("Parent path is not a directory.");
       await execFileAsync("open", [parentPath]);
       return NextResponse.json({ ok: true });
     } catch {
-      return NextResponse.json({ ok: false, error: "Path not found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: "Folder not found" }, { status: 404 });
     }
   }
 }
