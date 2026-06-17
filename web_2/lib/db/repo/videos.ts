@@ -92,10 +92,42 @@ export async function updateVideoProgress(
     videoPath?: string;
   },
 ) {
+  const current = await getAhVideo(videoId);
+  if (!current) return;
+
+  const nextImageCount = update.imageCount ?? current.imageCount;
+  const nextImageCountExpected = update.imageCountExpected ?? current.imageCountExpected;
+  const nextVideoPath = update.videoPath ?? current.videoPath;
+  const imageCountIncreased =
+    update.imageCount !== undefined && update.imageCount > (current.imageCount ?? 0);
+
+  // When stuck in needs_attention, only allow forward-progress transitions:
+  // imageCount increase, or explicit terminal statuses (assembly_pending/done).
+  if (
+    current.status === "needs_attention" &&
+    update.status !== "needs_attention" &&
+    update.status !== "assembly_pending" &&
+    update.status !== "assembly_done" &&
+    !imageCountIncreased
+  ) {
+    return;
+  }
+
+  const statusChanged = current.status !== update.status;
+  const hasMeaningfulChange =
+    statusChanged ||
+    nextImageCount !== current.imageCount ||
+    nextImageCountExpected !== current.imageCountExpected ||
+    nextVideoPath !== current.videoPath;
+
+  if (!hasMeaningfulChange) return;
+
   await db
     .update(ahVideos)
     .set({
-      status: update.status,
+      // Only write status when it actually changed — prevents a delayed report
+      // from a previous pipeline stage from regressing the video backward.
+      ...(statusChanged && { status: update.status }),
       ...(update.imageCount !== undefined && { imageCount: update.imageCount }),
       ...(update.imageCountExpected !== undefined && { imageCountExpected: update.imageCountExpected }),
       ...(update.videoPath !== undefined && { videoPath: update.videoPath }),

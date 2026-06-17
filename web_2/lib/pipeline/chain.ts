@@ -1,15 +1,17 @@
 import {
+  hasOpenAhJobForVideoStage,
   listUnconsumedDoneAhJobs,
   listUnconsumedFailedAhJobs,
   markAhJobConsumed,
+  markAhJobHandlerFailed,
   resetStaleRunningAhJobs,
 } from "@/lib/db/repo/jobs";
-import { getAhVideo, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
+import { getAhVideo, listAhVideos, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
 import { extractJson } from "@/lib/utils/json";
 import { notify } from "@/lib/notifications";
 import { enqueueAhStage } from "./createJob";
 import { rankTopics, type AhTopic } from "./rank";
-import { runTTSAndWhisperForPendingVideo } from "./tts";
+import { runTTSAndWhisperForPendingVideo, smartBucketTranscript } from "./tts";
 import { getAhConfigValue, setAhConfigValue } from "@/lib/db/repo/channel-config";
 
 export interface AhChainCycleResult {
@@ -22,6 +24,9 @@ export interface AhChainCycleResult {
 async function handleS1Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
   const videoId = job.videoId!;
   const candidates = extractJson<AhTopic[]>(job.result ?? "[]");
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    throw new Error("S1 output did not contain any topic candidates.");
+  }
 
   const chosenTopic = await rankTopics(candidates);
 
@@ -141,6 +146,54 @@ const STAGE_HANDLERS: Record<
   S4: handleS4Done,
 };
 
+const FIRST_IMAGE_STALE_MINUTES = 15;
+const IMAGE_PROGRESS_STALE_MINUTES = 30;
+
+async function repairMissingS3Jobs(): Promise<number> {
+  const videos = await listAhVideos({ status: "s3_pending" }, 20);
+  let repaired = 0;
+
+  for (const video of videos) {
+    if (!video.whisperTranscript) continue;
+    if (await hasOpenAhJobForVideoStage(video.id, "S3")) continue;
+
+    const topic = video.chosenTopic as { title?: string } | null;
+    await enqueueAhStage({
+      promptKey: "S3",
+      stage: "S3",
+      vars: {
+        TIMESTAMPED_SCRIPT: smartBucketTranscript(video.whisperTranscript),
+        TOPIC_TITLE: topic?.title ?? "",
+      },
+      videoId: video.id,
+      metadata: { repair: "missing_s3_job" },
+    });
+    repaired++;
+  }
+
+  return repaired;
+}
+
+async function flagStaleImageGeneration(): Promise<number> {
+  const videos = await listAhVideos({ status: "image_gen_pending" }, 20);
+  let flagged = 0;
+
+  for (const video of videos) {
+    const imageCount = video.imageCount ?? 0;
+    const thresholdMinutes = imageCount > 0 ? IMAGE_PROGRESS_STALE_MINUTES : FIRST_IMAGE_STALE_MINUTES;
+    const ageMinutes = (Date.now() - new Date(video.updatedAt).getTime()) / 60000;
+    if (ageMinutes < thresholdMinutes) continue;
+
+    await updateAhVideoStatus(video.id, "needs_attention");
+    await notify(
+      `🟠 Video #${video.id} image generation stalled at ${imageCount}/${video.imageCountExpected ?? 0} images for ${Math.round(ageMinutes)}min.`,
+    );
+    flagged++;
+  }
+
+  return flagged;
+}
+
 export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   // Record cron heartbeat
   await setAhConfigValue("cron_last_run_at", new Date().toISOString()).catch(() => {});
@@ -155,9 +208,19 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   if (staleReset > 0) {
     console.log(`[chain] Reset ${staleReset} stale running ah_jobs`);
   }
+  const s3Repaired = await repairMissingS3Jobs();
+  if (s3Repaired > 0) {
+    console.log(`[chain] Repaired ${s3Repaired} missing S3 job(s)`);
+  }
+  const staleImageVideos = await flagStaleImageGeneration();
+  if (staleImageVideos > 0) {
+    console.log(`[chain] Flagged ${staleImageVideos} stale image generation video(s)`);
+  }
 
   const doneJobs = await listUnconsumedDoneAhJobs();
   const results: AhChainCycleResult["results"] = [];
+  // Track jobs we just failed so the failed-job loop below doesn't double-notify them.
+  const justFailedJobIds = new Set<number>();
 
   for (const job of doneJobs) {
     const handler = STAGE_HANDLERS[job.stage];
@@ -174,19 +237,28 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       console.error(`[chain] Failed to handle ah_job #${job.id} stage=${job.stage}:`, error);
-      await markAhJobConsumed(job.id);
+      await markAhJobHandlerFailed(job.id, error);
+      justFailedJobIds.add(job.id);
       // Mark video needs_attention so it surfaces on the dashboard instead of staying
       // stuck in a pipeline status with no active job to advance it.
       if (job.videoId) {
         await updateAhVideoStatus(job.videoId, "needs_attention").catch(() => {});
       }
+      await notify(
+        `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${error}`,
+      ).catch(() => {});
       results.push({ jobId: job.id, stage: job.stage, ok: false, error });
     }
   }
 
-  // Notify and consume failed jobs
+  // Notify and consume failed jobs (from LLM worker, not handler failures handled above).
   const failedJobs = await listUnconsumedFailedAhJobs();
   for (const job of failedJobs) {
+    // Skip jobs we already notified about in this cycle to prevent duplicate alerts.
+    if (justFailedJobIds.has(job.id)) {
+      await markAhJobConsumed(job.id);
+      continue;
+    }
     await notify(
       `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${job.errorMessage ?? "unknown error"}`,
     );

@@ -1,11 +1,8 @@
-import OpenAI from "openai";
 import { getAhConfigValue } from "@/lib/db/repo/channel-config";
+import { hasOpenAhJobForVideoStage } from "@/lib/db/repo/jobs";
 import { claimVideoForTtsSubmit, listInPipelineAhVideos, updateAhVideoFields, updateAhVideoStatus } from "@/lib/db/repo/videos";
 import { transcribeAudio } from "./whisper";
 import { enqueueAhStage } from "./createJob";
-
-// Marker stored in audio_url when OpenAI TTS was used (audio not stored externally)
-const OPENAI_TTS_DONE = "openai:tts_done";
 
 const TARGET_IMAGES = 110; // target image count per video
 const MIN_SECS = 5;        // minimum bucket duration
@@ -16,7 +13,7 @@ const MAX_SECS = 20;       // hard-cut if no sentence boundary found
  * Auto-calibrates bucket size from video duration (TARGET_IMAGES target),
  * and only flushes at sentence boundaries for coherent image prompts.
  */
-function smartBucketTranscript(transcript: string): string {
+export function smartBucketTranscript(transcript: string): string {
   const segs = transcript.split("\n").filter(l => l.trim()).map(l => {
     const m = l.match(/^\[(\d{2}):(\d{2})\]\s*(.*)/);
     if (!m) return null;
@@ -60,6 +57,18 @@ function smartBucketTranscript(transcript: string): string {
 // ── Provider 1: AI33.PRO ────────────────────────────────────────────────────
 const TTS_BASE_URL = "https://api.ai33.pro";
 const TTS_TASK_PREFIX = "tts_task:";
+const TTS_TASK_VOICE_MARKER = ":voice:";
+
+function normalizeProviderVoiceId(voiceId: string): string {
+  const normalized = voiceId
+    .replace(/^elevenlabs_/, "")
+    .replace(/^minimax_/, "")
+    .replace(/^clone_/, "");
+  if (normalized === voiceId && /^[a-z]+_/.test(voiceId)) {
+    console.warn(`[tts] normalizeProviderVoiceId: unrecognized prefix in voice ID "${voiceId}" — passing through unchanged`);
+  }
+  return normalized;
+}
 
 // ── Provider 2: Genmax ──────────────────────────────────────────────────────
 const GENMAX_BASE_URL = "https://api.genmax.io";
@@ -90,21 +99,43 @@ async function getAhVoiceIdGx(videoVoiceId: string | null): Promise<string> {
 }
 
 /**
- * Submits a TTS job to AI33.PRO ElevenLabs v1.
+ * Submits a TTS job to AI33.PRO.
  * Auth: `xi-api-key` header per the current API docs.
+ *
+ * Voice ID routing:
+ *   elevenlabs_* / raw alphanumeric -> /v1/text-to-speech/{voice_id}
+ *   minimax_* / clone_* / raw digits -> /v1m/task/text-to-speech
  */
 export async function submitTTS(text: string, voiceId: string): Promise<string> {
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
-  const res = await fetch(
-    `${TTS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
-      body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
-    }
-  );
+  const headers = { "Content-Type": "application/json", "xi-api-key": apiKey };
+  const isMinimax =
+    voiceId.startsWith("minimax_") ||
+    voiceId.startsWith("clone_") ||
+    /^\d+$/.test(voiceId);
+  const normalizedVoiceId = normalizeProviderVoiceId(voiceId);
+
+  const res = isMinimax
+    ? await fetch(`${TTS_BASE_URL}/v1m/task/text-to-speech`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          text,
+          model: "speech-2.6-hd",
+          voice_setting: { voice_id: normalizedVoiceId, speed: 1 },
+          language_boost: "English",
+        }),
+      })
+    : await fetch(
+        `${TTS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(normalizedVoiceId)}?output_format=mp3_44100_128`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
+        },
+      );
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -281,112 +312,96 @@ async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
 }
 
 /**
- * Submits a TTS task for the given voice and saves a sentinel "tts_task:{taskId}"
- * into audioUrl so the next cron cycle can poll it.
+ * Submits a TTS task and saves a sentinel into audioUrl so the next cron cycle can poll it.
  */
 async function submitAndSaveTTSTask(videoId: number, script: string, voiceId: string): Promise<void> {
   const taskId = await submitTTS(script, voiceId);
-  await updateAhVideoFields(videoId, { audioUrl: `${TTS_TASK_PREFIX}${taskId}` });
+  await updateAhVideoFields(videoId, {
+    audioUrl: `${TTS_TASK_PREFIX}${taskId}${TTS_TASK_VOICE_MARKER}${encodeURIComponent(voiceId)}`,
+  });
   console.log(`[tts] Video #${videoId} TTS submitted → task ${taskId} (voice: ${voiceId})`);
 }
 
-/** Split text into chunks of at most maxChars, breaking at paragraph/sentence boundaries. */
-function splitIntoChunks(text: string, maxChars = 4000): string[] {
-  if (text.length <= maxChars) return [text];
-  const chunks: string[] = [];
-  const paragraphs = text.split(/\n\n+/);
-  let current = "";
-  for (const para of paragraphs) {
-    if (current && (current + "\n\n" + para).length > maxChars) {
-      chunks.push(current.trim());
-      current = para;
-    } else {
-      current = current ? current + "\n\n" + para : para;
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  // If any individual paragraph exceeds maxChars, split further by sentence
-  return chunks.flatMap((chunk) => {
-    if (chunk.length <= maxChars) return [chunk];
-    const sentences = chunk.split(/(?<=[.!?])\s+/);
-    const sub: string[] = [];
-    let cur = "";
-    for (const s of sentences) {
-      if (cur && (cur + " " + s).length > maxChars) { sub.push(cur.trim()); cur = s; }
-      else { cur = cur ? cur + " " + s : s; }
-    }
-    if (cur.trim()) sub.push(cur.trim());
-    return sub;
-  });
+function parseTTSTaskMarker(audioUrl: string): { taskId: string; voiceId?: string } {
+  const value = audioUrl.slice(TTS_TASK_PREFIX.length);
+  const voiceMarkerIndex = value.lastIndexOf(TTS_TASK_VOICE_MARKER);
+  if (voiceMarkerIndex === -1) return { taskId: value };
+  return {
+    taskId: value.slice(0, voiceMarkerIndex),
+    voiceId: decodeURIComponent(value.slice(voiceMarkerIndex + TTS_TASK_VOICE_MARKER.length)),
+  };
 }
 
-/**
- * Fallback TTS using OpenAI. Splits long scripts into ≤4000-char chunks,
- * concatenates the MP3 buffers, then pipes the full audio to Whisper.
- * No external audio storage needed — sets audio_url = OPENAI_TTS_DONE marker.
- */
-async function runOpenAITTSAndWhisper(videoId: number, script: string, topic: { title?: string } | null): Promise<void> {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const chunks = splitIntoChunks(script, 4000);
-  console.log(`[tts-openai] Video #${videoId} generating TTS (${chunks.length} chunks) via OpenAI...`);
+async function trySubmitBackupTTSTask(
+  videoId: number,
+  script: string,
+  attemptedVoiceId: string,
+): Promise<boolean> {
+  const backupVoiceId = await getAhBackupVoiceId();
+  if (!backupVoiceId || normalizeProviderVoiceId(backupVoiceId) === normalizeProviderVoiceId(attemptedVoiceId)) {
+    return false;
+  }
+  await submitAndSaveTTSTask(videoId, script, backupVoiceId);
+  return true;
+}
 
-  const buffers: ArrayBuffer[] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const resp = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: "onyx",
-      input: chunks[i],
-      response_format: "mp3",
+async function failoverFromAI33Task(
+  videoId: number,
+  script: string,
+  videoVoiceId: string | null,
+  attemptedVoiceId: string | undefined,
+  cause: string,
+): Promise<void> {
+  await updateAhVideoFields(videoId, { audioUrl: null });
+  const currentVoiceId = attemptedVoiceId ?? await getAhVoiceId(videoVoiceId);
+
+  try {
+    const submittedBackup = await trySubmitBackupTTSTask(videoId, script, currentVoiceId);
+    if (submittedBackup) return;
+  } catch (backupErr) {
+    const backupMsg = backupErr instanceof Error ? backupErr.message : String(backupErr);
+    console.warn(`[tts] AI33.PRO backup submit failed — trying Genmax: ${backupMsg}`);
+  }
+
+  try {
+    const gxVoiceId = await getAhVoiceIdGx(videoVoiceId);
+    await submitAndSaveGenmax(videoId, script, gxVoiceId);
+  } catch (gxErr) {
+    const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
+    await updateAhVideoFields(videoId, { audioUrl: null });
+    throw new Error(`AI33 failed (${cause}); Genmax failed: ${gxMsg}`);
+  }
+}
+
+async function ensureS3JobForTranscript(
+  videoId: number,
+  whisperTranscript: string,
+  topic: { title?: string } | null,
+): Promise<void> {
+  const hasOpenS3Job = await hasOpenAhJobForVideoStage(videoId, "S3");
+  if (!hasOpenS3Job) {
+    await enqueueAhStage({
+      promptKey: "S3",
+      stage: "S3",
+      vars: {
+        TIMESTAMPED_SCRIPT: smartBucketTranscript(whisperTranscript),
+        TOPIC_TITLE: topic?.title ?? "",
+      },
+      videoId,
     });
-    buffers.push(await resp.arrayBuffer());
-    console.log(`[tts-openai] Video #${videoId} chunk ${i + 1}/${chunks.length} done`);
   }
-
-  // Concatenate MP3 frames (valid for Whisper ingestion)
-  const totalLen = buffers.reduce((s, b) => s + b.byteLength, 0);
-  const merged = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const buf of buffers) { merged.set(new Uint8Array(buf), offset); offset += buf.byteLength; }
-
-  console.log(`[tts-openai] Video #${videoId} audio ready (${Math.round(totalLen / 1024)}KB), transcribing...`);
-  const file = new File([merged], "audio.mp3", { type: "audio/mpeg" });
-  const transcription = await openai.audio.transcriptions.create({
-    model: "whisper-1",
-    file,
-    response_format: "verbose_json",
-    timestamp_granularities: ["segment"],
-  });
-
-  function formatTime(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
-
-  const segments = (transcription as unknown as { segments?: Array<{ start: number; text: string }> }).segments ?? [];
-  const whisperTranscript = segments.length > 0
-    ? segments.map((seg) => `[${formatTime(seg.start)}] ${seg.text.trim()}`).join("\n")
-    : transcription.text ?? "";
-
-  await updateAhVideoFields(videoId, { audioUrl: OPENAI_TTS_DONE, whisperTranscript });
   await updateAhVideoStatus(videoId, "s3_pending");
-  await enqueueAhStage({
-    promptKey: "S3", stage: "S3",
-    vars: { TIMESTAMPED_SCRIPT: smartBucketTranscript(whisperTranscript), TOPIC_TITLE: topic?.title ?? "" },
-    videoId,
-  });
-  console.log(`[tts-openai] Video #${videoId} → transcript saved (${whisperTranscript.length} chars), S3 enqueued`);
 }
 
 /**
  * Fire-and-poll TTS runner — safe for short-lived serverless functions.
  *
- * Provider priority: AI33.PRO → Genmax → OpenAI (blocking fallback)
+ * Provider priority: AI33.PRO primary → AI33.PRO backup → Genmax.
  *
  * Each cron cycle does exactly ONE async operation:
- *   - no audioUrl          → submit AI33 → on error, submit Genmax → on error, run OpenAI
- *   - tts_task:{id}        → poll AI33 once: running→wait, done→Whisper, error/stuck→Genmax
- *   - tts_task_gx:{id}     → poll Genmax once: running→wait, done→Whisper, error/stuck→OpenAI
+ *   - no audioUrl          → submit AI33 primary → backup → Genmax
+ *   - tts_task:{id}        → poll AI33 once: running→wait, done→Whisper, error/stuck→backup/Genmax
+ *   - tts_task_gx:{id}     → poll Genmax once: running→wait, done→Whisper, error/stuck→needs_attention
  *   - real audio URL       → run Whisper + advance (resume after partial failure)
  */
 export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
@@ -417,15 +432,25 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         await submitAndSaveTTSTask(videoId, video.script, voiceId);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[tts] AI33.PRO submit failed — trying Genmax: ${msg}`);
+        console.warn(`[tts] AI33.PRO primary submit failed — trying backup voice: ${msg}`);
         await updateAhVideoFields(videoId, { audioUrl: null }); // release claim lock
         try {
-          const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
-          await submitAndSaveGenmax(videoId, video.script, gxVoiceId);
-        } catch (gxErr) {
-          const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
-          console.warn(`[tts-gx] Genmax submit failed — falling back to OpenAI: ${gxMsg}`);
-          await runOpenAITTSAndWhisper(videoId, video.script, topic);
+          const submittedBackup = await trySubmitBackupTTSTask(videoId, video.script, voiceId);
+          if (!submittedBackup) {
+            throw new Error("No backup voice configured.");
+          }
+        } catch (backupErr) {
+          const backupMsg = backupErr instanceof Error ? backupErr.message : String(backupErr);
+          console.warn(`[tts] AI33.PRO backup submit failed — trying Genmax: ${backupMsg}`);
+          await updateAhVideoFields(videoId, { audioUrl: null });
+          try {
+            const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
+            await submitAndSaveGenmax(videoId, video.script, gxVoiceId);
+          } catch (gxErr) {
+            const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
+            await updateAhVideoFields(videoId, { audioUrl: null });
+            throw new Error(`All TTS providers failed. AI33 primary: ${msg}; AI33 backup: ${backupMsg}; Genmax: ${gxMsg}`);
+          }
         }
       }
       return true;
@@ -443,16 +468,21 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
 
     // ── Phase 2a: poll AI33 task ────────────────────────────────────────────
     if (video.audioUrl.startsWith(TTS_TASK_PREFIX)) {
-      const taskId = video.audioUrl.slice(TTS_TASK_PREFIX.length);
+      const { taskId, voiceId: taskVoiceId } = parseTTSTaskMarker(video.audioUrl);
       const result = await checkTTSTask(taskId);
 
       if (result.status === "running") {
         const ageMs = Date.now() - new Date(video.updatedAt).getTime();
         if (ageMs > MAX_TTS_AGE_MS) {
-          console.warn(`[tts] Video #${videoId} AI33 task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over to Genmax`);
+          console.warn(`[tts] Video #${videoId} AI33 task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over`);
           await cancelTTSTask(taskId);
-          const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
-          await submitAndSaveGenmax(videoId, video.script!, gxVoiceId);
+          await failoverFromAI33Task(
+            videoId,
+            video.script!,
+            video.voiceId,
+            taskVoiceId,
+            `task ${taskId} stuck for ${Math.round(ageMs / 60000)}min`,
+          );
           return true;
         }
         console.log(`[tts] Video #${videoId} AI33 task ${taskId} still running — next cycle`);
@@ -460,10 +490,9 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       }
 
       if (result.status === "error") {
-        console.warn(`[tts] Video #${videoId} AI33 TTS error — failing over to Genmax: ${result.message}`);
+        console.warn(`[tts] Video #${videoId} AI33 TTS error — failing over: ${result.message}`);
         await cancelTTSTask(taskId);
-        const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
-        await submitAndSaveGenmax(videoId, video.script!, gxVoiceId);
+        await failoverFromAI33Task(videoId, video.script!, video.voiceId, taskVoiceId, result.message);
         return true;
       }
 
@@ -480,20 +509,20 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       if (result.status === "running") {
         const ageMs = Date.now() - new Date(video.updatedAt).getTime();
         if (ageMs > MAX_TTS_AGE_MS) {
-          console.warn(`[tts-gx] Video #${videoId} Genmax task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — falling back to OpenAI`);
+          console.warn(`[tts-gx] Video #${videoId} Genmax task ${taskId} stuck for ${Math.round(ageMs / 60000)}min`);
           await cancelGenmax(taskId);
-          await runOpenAITTSAndWhisper(videoId, video.script!, topic);
-          return true;
+          await updateAhVideoFields(videoId, { audioUrl: null });
+          throw new Error(`Genmax task ${taskId} stuck for ${Math.round(ageMs / 60000)}min`);
         }
         console.log(`[tts-gx] Video #${videoId} Genmax task ${taskId} still running — next cycle`);
         return false;
       }
 
       if (result.status === "error") {
-        console.warn(`[tts-gx] Video #${videoId} Genmax error — falling back to OpenAI: ${result.message}`);
+        console.warn(`[tts-gx] Video #${videoId} Genmax error: ${result.message}`);
         await cancelGenmax(taskId);
-        await runOpenAITTSAndWhisper(videoId, video.script!, topic);
-        return true;
+        await updateAhVideoFields(videoId, { audioUrl: null });
+        throw new Error(`Genmax failed: ${result.message}`);
       }
 
       // done — save real audio URL and fall through to Whisper
@@ -505,19 +534,10 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
     if (!video.whisperTranscript) {
       const whisperTranscript = await transcribeAudio(video.audioUrl!);
       await updateAhVideoFields(videoId, { whisperTranscript });
-
-      await updateAhVideoStatus(videoId, "s3_pending");
-      const topic = video.chosenTopic as { title?: string } | null;
-      await enqueueAhStage({
-        promptKey: "S3",
-        stage: "S3",
-        vars: {
-          TIMESTAMPED_SCRIPT: smartBucketTranscript(whisperTranscript),
-          TOPIC_TITLE: topic?.title ?? "",
-        },
-        videoId,
-      });
+      await ensureS3JobForTranscript(videoId, whisperTranscript, topic);
       console.log(`[tts] Video #${videoId} → transcript saved, S3 enqueued`);
+    } else {
+      await ensureS3JobForTranscript(videoId, video.whisperTranscript, topic);
     }
 
     return true;

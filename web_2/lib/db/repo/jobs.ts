@@ -3,22 +3,39 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../index";
 import { ahJobs } from "../schema";
 
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
+}
+
 export async function createAhJob(input: {
   videoId?: number;
   stage: string;
   promptText: string;
   metadata?: unknown;
 }) {
-  const [created] = await db
-    .insert(ahJobs)
-    .values({
-      videoId: input.videoId,
-      stage: input.stage,
-      promptText: input.promptText,
-      metadata: input.metadata,
-    })
-    .returning();
-  return created;
+  if (input.videoId != null) {
+    const existing = await findOpenAhJobForVideoStage(input.videoId, input.stage);
+    if (existing) return existing;
+  }
+
+  try {
+    const [created] = await db
+      .insert(ahJobs)
+      .values({
+        videoId: input.videoId,
+        stage: input.stage,
+        promptText: input.promptText,
+        metadata: input.metadata,
+      })
+      .returning();
+    return created;
+  } catch (err) {
+    if (input.videoId != null && isUniqueViolation(err)) {
+      const existing = await findOpenAhJobForVideoStage(input.videoId, input.stage);
+      if (existing) return existing;
+    }
+    throw err;
+  }
 }
 
 export async function listUnconsumedDoneAhJobs() {
@@ -62,9 +79,15 @@ export async function findAhJobByCause(
   stage: string,
   videoId?: number,
 ) {
+  // Only match live jobs — failed or fully-consumed jobs must not block a retry.
   const conditions = [
     eq(ahJobs.stage, stage),
     sql`${ahJobs.metadata} ->> 'causedByJobId' = ${String(causeJobId)}`,
+    or(
+      eq(ahJobs.status, "pending"),
+      eq(ahJobs.status, "running"),
+      and(eq(ahJobs.status, "done"), isNull(ahJobs.consumedAt)),
+    ),
   ];
   if (videoId != null) conditions.push(eq(ahJobs.videoId, videoId));
 
@@ -74,6 +97,41 @@ export async function findAhJobByCause(
     .where(and(...conditions))
     .limit(1);
   return row ?? null;
+}
+
+export async function findOpenAhJobForVideoStage(videoId: number, stage: string) {
+  const [row] = await db
+    .select()
+    .from(ahJobs)
+    .where(
+      and(
+        eq(ahJobs.videoId, videoId),
+        eq(ahJobs.stage, stage),
+        or(
+          eq(ahJobs.status, "pending"),
+          eq(ahJobs.status, "running"),
+          and(eq(ahJobs.status, "done"), isNull(ahJobs.consumedAt)),
+        ),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function hasOpenAhJobForVideoStage(videoId: number, stage: string) {
+  return (await findOpenAhJobForVideoStage(videoId, stage)) != null;
+}
+
+export async function markAhJobHandlerFailed(jobId: number, errorMessage: string) {
+  await db
+    .update(ahJobs)
+    .set({
+      status: "failed",
+      errorMessage,
+      consumedAt: null,
+      finishedAt: new Date(),
+    })
+    .where(eq(ahJobs.id, jobId));
 }
 
 export async function retryAhJob(jobId: number) {

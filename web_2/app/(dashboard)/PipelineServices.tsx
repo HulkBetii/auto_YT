@@ -80,8 +80,9 @@ export function PipelineServices() {
     return () => clearInterval(t);
   }, []);
 
-  const post = (body: Record<string, unknown>) =>
+  const post = (body: Record<string, unknown>, optimistic: (d: StatusData) => StatusData) =>
     startTransition(async () => {
+      setData((d) => (d ? optimistic(d) : d));
       await fetch("/api/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,7 +122,10 @@ export function PipelineServices() {
             <Toggle
               on={workerActive}
               disabled={isPending}
-              onToggle={() => post({ worker_paused: workerActive })}
+              onToggle={() => post(
+                { worker_paused: workerActive },
+                (d) => ({ ...d, worker: { ...d.worker, paused: workerActive } }),
+              )}
             />
           </div>
 
@@ -141,7 +145,10 @@ export function PipelineServices() {
             <Toggle
               on={cronActive}
               disabled={isPending}
-              onToggle={() => post({ pipeline_paused: cronActive })}
+              onToggle={() => post(
+                { pipeline_paused: cronActive },
+                (d) => ({ ...d, pipeline: { paused: cronActive } }),
+              )}
             />
           </div>
 
@@ -163,7 +170,10 @@ export function PipelineServices() {
             <Toggle
               on={!(data.tool?.paused ?? false)}
               disabled={isPending}
-              onToggle={() => post({ tool_paused: !(data.tool?.paused ?? false) })}
+              onToggle={() => post(
+                { tool_paused: !(data.tool?.paused ?? false) },
+                (d) => ({ ...d, tool: { ...d.tool, paused: !(d.tool?.paused ?? false) } }),
+              )}
             />
           </div>
 
@@ -182,7 +192,10 @@ export function PipelineServices() {
             </span>
             {!data.imagen?.quotaOk && (
               <button
-                onClick={() => post({ reset_imagen_error: true })}
+                onClick={() => post(
+                  { reset_imagen_error: true },
+                  (d) => ({ ...d, imagen: { ...d.imagen, quotaOk: true, lastError: null, ageMs: null } }),
+                )}
                 disabled={isPending}
                 className={[
                   "ml-2 rounded-md px-3 py-1 text-[12px] font-medium transition-colors",
