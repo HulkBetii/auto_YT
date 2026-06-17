@@ -4,9 +4,11 @@ import { useEffect, useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface StatusData {
-  worker: { online: boolean; lastSeen: string | null; ageMs: number | null };
+  worker: { online: boolean; paused: boolean; lastSeen: string | null; ageMs: number | null };
   cron: { active: boolean; lastRun: string | null; ageMs: number | null };
   pipeline: { paused: boolean };
+  tool: { online: boolean; paused: boolean; lastActive: string | null; ageMs: number | null };
+  imagen: { quotaOk: boolean; lastError: string | null; ageMs: number | null };
 }
 
 function fmtAge(ms: number | null): string {
@@ -30,6 +32,37 @@ function Dot({ on, pulse }: { on: boolean; pulse?: boolean }) {
   );
 }
 
+function Toggle({
+  on,
+  disabled,
+  onToggle,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      disabled={disabled}
+      className={[
+        "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors duration-200",
+        on ? "bg-[#34C759]" : "bg-[#E5E5EA] dark:bg-[#3A3A3C]",
+        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200",
+          on ? "translate-x-[18px]" : "translate-x-[2px]",
+        ].join(" ")}
+      />
+    </button>
+  );
+}
+
 export function PipelineServices() {
   const [data, setData] = useState<StatusData | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -47,56 +80,20 @@ export function PipelineServices() {
     return () => clearInterval(t);
   }, []);
 
-  const togglePause = () => {
-    if (!data) return;
-    const next = !data.pipeline.paused;
+  const post = (body: Record<string, unknown>) =>
     startTransition(async () => {
       await fetch("/api/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pipeline_paused: next }),
+        body: JSON.stringify(body),
       });
-      setData((d) => d && { ...d, pipeline: { paused: next } });
+      load();
     });
-  };
 
   if (!data) return null;
 
-  const rows = [
-    {
-      label: "Worker (Python)",
-      ok: data.worker.online,
-      detail: data.worker.online
-        ? `online · ${fmtAge(data.worker.ageMs)}`
-        : data.worker.lastSeen
-          ? `offline · last ${fmtAge(data.worker.ageMs)}`
-          : "offline · never seen",
-      pulse: true,
-      toggle: null,
-    },
-    {
-      label: "Vercel Cron",
-      ok: data.cron.active && !data.pipeline.paused,
-      detail: data.pipeline.paused
-        ? "paused"
-        : data.cron.lastRun
-          ? `last run ${fmtAge(data.cron.ageMs)}`
-          : "not yet run",
-      pulse: false,
-      toggle: {
-        label: data.pipeline.paused ? "Resume" : "Pause",
-        action: togglePause,
-        danger: !data.pipeline.paused,
-      },
-    },
-    {
-      label: "AI33 TTS",
-      ok: true,
-      detail: "fire-and-poll · ElevenLabs v1",
-      pulse: false,
-      toggle: null,
-    },
-  ];
+  const workerActive = !data.worker.paused;
+  const cronActive = !data.pipeline.paused;
 
   return (
     <section>
@@ -105,30 +102,108 @@ export function PipelineServices() {
       </p>
       <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
         <CardContent className="p-0 divide-y divide-black/[.06] dark:divide-white/[.08]">
-          {rows.map((row) => (
-            <div key={row.label} className="flex items-center gap-3 px-4 py-3">
-              <Dot on={row.ok} pulse={row.pulse} />
-              <span className="flex-1 text-[14px] font-medium text-[#1C1C1E] dark:text-white">
-                {row.label}
-              </span>
-              <span className="text-[12px] text-[#AEAEB2]">{row.detail}</span>
-              {row.toggle && (
-                <button
-                  onClick={row.toggle.action}
-                  disabled={isPending}
-                  className={[
-                    "ml-2 rounded-md px-3 py-1 text-[12px] font-medium transition-colors",
-                    row.toggle.danger
-                      ? "bg-[#FF3B30]/10 text-[#FF3B30] hover:bg-[#FF3B30]/20"
-                      : "bg-[#34C759]/10 text-[#34C759] hover:bg-[#34C759]/20",
-                    isPending ? "opacity-50 cursor-not-allowed" : "",
-                  ].join(" ")}
-                >
-                  {row.toggle.label}
-                </button>
-              )}
-            </div>
-          ))}
+
+          {/* pipeline_watch.py */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Dot on={data.worker.online && workerActive} pulse />
+            <span className="flex-1 text-[14px] font-medium text-[#1C1C1E] dark:text-white">
+              pipeline_watch.py
+            </span>
+            <span className="text-[12px] text-[#AEAEB2]">
+              {data.worker.paused
+                ? "paused"
+                : data.worker.online
+                  ? `online · ${fmtAge(data.worker.ageMs)}`
+                  : data.worker.lastSeen
+                    ? `offline · last ${fmtAge(data.worker.ageMs)}`
+                    : "offline · never seen"}
+            </span>
+            <Toggle
+              on={workerActive}
+              disabled={isPending}
+              onToggle={() => post({ worker_paused: workerActive })}
+            />
+          </div>
+
+          {/* Vercel Cron */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Dot on={data.cron.active && cronActive} />
+            <span className="flex-1 text-[14px] font-medium text-[#1C1C1E] dark:text-white">
+              Vercel Cron
+            </span>
+            <span className="text-[12px] text-[#AEAEB2]">
+              {data.pipeline.paused
+                ? "paused"
+                : data.cron.lastRun
+                  ? `last run ${fmtAge(data.cron.ageMs)}`
+                  : "not yet run"}
+            </span>
+            <Toggle
+              on={cronActive}
+              disabled={isPending}
+              onToggle={() => post({ pipeline_paused: cronActive })}
+            />
+          </div>
+
+          {/* VEO Tool (Chrome) */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Dot on={(data.tool?.online ?? false) && !(data.tool?.paused ?? false)} pulse />
+            <span className="flex-1 text-[14px] font-medium text-[#1C1C1E] dark:text-white">
+              VEO Tool (Chrome)
+            </span>
+            <span className="text-[12px] text-[#AEAEB2]">
+              {data.tool?.paused
+                ? "paused"
+                : data.tool?.online
+                  ? `online · ${fmtAge(data.tool.ageMs)}`
+                  : data.tool?.lastActive && data.tool.lastActive !== "offline"
+                    ? `offline · last ${fmtAge(data.tool.ageMs)}`
+                    : "offline · runs on Mac"}
+            </span>
+            <Toggle
+              on={!(data.tool?.paused ?? false)}
+              disabled={isPending}
+              onToggle={() => post({ tool_paused: !(data.tool?.paused ?? false) })}
+            />
+          </div>
+
+          {/* Google Imagen */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Dot on={data.imagen?.quotaOk ?? true} />
+            <span className="flex-1 text-[14px] font-medium text-[#1C1C1E] dark:text-white">
+              Google Imagen
+            </span>
+            <span className="text-[12px] text-[#AEAEB2]">
+              {data.imagen?.quotaOk
+                ? data.imagen.lastError
+                  ? `quota ok · error ${fmtAge(data.imagen.ageMs)}`
+                  : "quota ok"
+                : `limited · ${fmtAge(data.imagen.ageMs)}`}
+            </span>
+            {!data.imagen?.quotaOk && (
+              <button
+                onClick={() => post({ reset_imagen_error: true })}
+                disabled={isPending}
+                className={[
+                  "ml-2 rounded-md px-3 py-1 text-[12px] font-medium transition-colors",
+                  "bg-[#34C759]/10 text-[#34C759] hover:bg-[#34C759]/20",
+                  isPending ? "opacity-50 cursor-not-allowed" : "",
+                ].join(" ")}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* TTS */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Dot on />
+            <span className="flex-1 text-[14px] font-medium text-[#1C1C1E] dark:text-white">
+              TTS (AI33 → Genmax)
+            </span>
+            <span className="text-[12px] text-[#AEAEB2]">fire-and-poll · ElevenLabs v1</span>
+          </div>
+
         </CardContent>
       </Card>
     </section>

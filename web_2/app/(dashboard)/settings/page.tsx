@@ -18,6 +18,12 @@ const FIELDS = [
     placeholder: "minimax_...",
   },
   {
+    key: AH_CONFIG_KEYS.voiceIdGx,
+    label: "Voice ID Genmax",
+    description: "Voice ID dùng khi fallback sang Genmax (ElevenLabs ID hoặc MiniMax numeric ID)",
+    placeholder: "e.g. EXAVITQu4vr4xnSDxMaL hoặc 123456789",
+  },
+  {
     key: AH_CONFIG_KEYS.web2Url,
     label: "Web2 URL",
     description: "Production URL for this dashboard (used for worker callbacks)",

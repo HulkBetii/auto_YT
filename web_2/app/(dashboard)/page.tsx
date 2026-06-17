@@ -64,7 +64,6 @@ export default async function DashboardPage() {
   const assemblyDoneCount = countByStatus["assembly_done"] ?? 0;
 
   const statCards = [
-    { label: "READY", value: readyCount },
     { label: "IN PIPELINE", value: inPipelineCount },
     { label: "DONE ✓", value: assemblyDoneCount },
     { label: "JOBS DONE", value: jobsDoneCount },

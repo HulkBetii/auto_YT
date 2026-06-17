@@ -66,7 +66,7 @@ const DOODLE_STYLE_PREFIX =
   "Hand-drawn 2D doodle cartoon animation, flat solid colors, bold black hand-drawn outlines, slightly wobbly imperfect marker lines,";
 
 const DOODLE_STYLE_LOCK =
-  "no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, 16:9 widescreen, simple educational YouTube explainer doodle style.";
+  "no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, wide horizontal composition, simple educational YouTube explainer doodle style.";
 
 function formatImagePrompts(raw: string): string {
   return raw
@@ -75,7 +75,12 @@ function formatImagePrompts(raw: string): string {
     .map((line) => {
       const m = line.match(/^(\[\d{2}:\d{2}\])\s*(.*)/);
       if (m) {
-        const desc = m[2].replace(/[.,]?\s*$/, "");
+        // Strip hex color codes (#rgb or #rrggbb) — model renders them as literal text
+        const desc = m[2]
+          .replace(/#[0-9A-Fa-f]{3,6}\b/g, "")
+          .replace(/\s{2,}/g, " ")
+          .replace(/[.,]?\s*$/, "")
+          .trim();
         return `${m[1]} ${DOODLE_STYLE_PREFIX} ${desc}, ${DOODLE_STYLE_LOCK}`;
       }
       return line;

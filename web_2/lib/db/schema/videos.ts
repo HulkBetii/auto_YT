@@ -98,6 +98,7 @@ export const IN_PIPELINE_STATUSES: AhVideoStatus[] = [
   "tts_pending",
   "s3_pending",
   "s4_pending",
+  "ready",
   "image_gen_pending",
   "assembly_pending",
 ];

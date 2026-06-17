@@ -7,6 +7,56 @@ import { enqueueAhStage } from "./createJob";
 // Marker stored in audio_url when OpenAI TTS was used (audio not stored externally)
 const OPENAI_TTS_DONE = "openai:tts_done";
 
+const TARGET_IMAGES = 110; // target image count per video
+const MIN_SECS = 5;        // minimum bucket duration
+const MAX_SECS = 20;       // hard-cut if no sentence boundary found
+
+/**
+ * Merges Whisper segments into scene buckets before passing to S3.
+ * Auto-calibrates bucket size from video duration (TARGET_IMAGES target),
+ * and only flushes at sentence boundaries for coherent image prompts.
+ */
+function smartBucketTranscript(transcript: string): string {
+  const segs = transcript.split("\n").filter(l => l.trim()).map(l => {
+    const m = l.match(/^\[(\d{2}):(\d{2})\]\s*(.*)/);
+    if (!m) return null;
+    return { t: parseInt(m[1]) * 60 + parseInt(m[2]), text: m[3].trim() };
+  }).filter(Boolean) as { t: number; text: string }[];
+
+  if (segs.length === 0) return transcript;
+
+  const totalSecs = segs[segs.length - 1].t;
+  const idealSecs = Math.max(MIN_SECS, Math.min(MAX_SECS, totalSecs / TARGET_IMAGES));
+  const isSentenceEnd = (text: string) => /[.!?…。]$/.test(text);
+
+  const buckets: { t: number; texts: string[] }[] = [];
+
+  for (const seg of segs) {
+    const last = buckets[buckets.length - 1];
+    if (!last) {
+      buckets.push({ t: seg.t, texts: [seg.text] });
+      continue;
+    }
+    const elapsed = seg.t - last.t;
+    const shouldFlush =
+      (elapsed >= idealSecs && isSentenceEnd(last.texts[last.texts.length - 1]))
+      || elapsed >= MAX_SECS;
+    if (shouldFlush) {
+      buckets.push({ t: seg.t, texts: [seg.text] });
+    } else {
+      last.texts.push(seg.text);
+    }
+  }
+
+  console.log(`[smartBucket] ${segs.length} segs → ${buckets.length} scenes (ideal ${idealSecs.toFixed(1)}s, video ${Math.round(totalSecs)}s)`);
+
+  return buckets.map(b => {
+    const mm = String(Math.floor(b.t / 60)).padStart(2, "0");
+    const ss = String(b.t % 60).padStart(2, "0");
+    return `[${mm}:${ss}] ${b.texts.join(" ")}`;
+  }).join("\n");
+}
+
 // ── Provider 1: AI33.PRO ────────────────────────────────────────────────────
 const TTS_BASE_URL = "https://api.ai33.pro";
 const TTS_TASK_PREFIX = "tts_task:";
@@ -30,6 +80,13 @@ export async function getAhVoiceId(videoVoiceId: string | null): Promise<string>
 export async function getAhBackupVoiceId(): Promise<string | null> {
   const configured = await getAhConfigValue("voice_id_2");
   return configured || null;
+}
+
+// Returns voice_id_gx if set, else falls back to voice_id
+async function getAhVoiceIdGx(videoVoiceId: string | null): Promise<string> {
+  const gx = await getAhConfigValue("voice_id_gx");
+  if (gx) return gx;
+  return getAhVoiceId(videoVoiceId);
 }
 
 /**
@@ -315,7 +372,7 @@ async function runOpenAITTSAndWhisper(videoId: number, script: string, topic: { 
   await updateAhVideoStatus(videoId, "s3_pending");
   await enqueueAhStage({
     promptKey: "S3", stage: "S3",
-    vars: { TIMESTAMPED_SCRIPT: whisperTranscript, TOPIC_TITLE: topic?.title ?? "" },
+    vars: { TIMESTAMPED_SCRIPT: smartBucketTranscript(whisperTranscript), TOPIC_TITLE: topic?.title ?? "" },
     videoId,
   });
   console.log(`[tts-openai] Video #${videoId} → transcript saved (${whisperTranscript.length} chars), S3 enqueued`);
@@ -363,7 +420,8 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         console.warn(`[tts] AI33.PRO submit failed — trying Genmax: ${msg}`);
         await updateAhVideoFields(videoId, { audioUrl: null }); // release claim lock
         try {
-          await submitAndSaveGenmax(videoId, video.script, voiceId);
+          const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
+          await submitAndSaveGenmax(videoId, video.script, gxVoiceId);
         } catch (gxErr) {
           const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
           console.warn(`[tts-gx] Genmax submit failed — falling back to OpenAI: ${gxMsg}`);
@@ -393,8 +451,8 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         if (ageMs > MAX_TTS_AGE_MS) {
           console.warn(`[tts] Video #${videoId} AI33 task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over to Genmax`);
           await cancelTTSTask(taskId);
-          const voiceId = await getAhVoiceId(video.voiceId);
-          await submitAndSaveGenmax(videoId, video.script!, voiceId);
+          const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
+          await submitAndSaveGenmax(videoId, video.script!, gxVoiceId);
           return true;
         }
         console.log(`[tts] Video #${videoId} AI33 task ${taskId} still running — next cycle`);
@@ -404,8 +462,8 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       if (result.status === "error") {
         console.warn(`[tts] Video #${videoId} AI33 TTS error — failing over to Genmax: ${result.message}`);
         await cancelTTSTask(taskId);
-        const voiceId = await getAhVoiceId(video.voiceId);
-        await submitAndSaveGenmax(videoId, video.script!, voiceId);
+        const gxVoiceId = await getAhVoiceIdGx(video.voiceId);
+        await submitAndSaveGenmax(videoId, video.script!, gxVoiceId);
         return true;
       }
 
@@ -454,7 +512,7 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         promptKey: "S3",
         stage: "S3",
         vars: {
-          TIMESTAMPED_SCRIPT: whisperTranscript,
+          TIMESTAMPED_SCRIPT: smartBucketTranscript(whisperTranscript),
           TOPIC_TITLE: topic?.title ?? "",
         },
         videoId,
