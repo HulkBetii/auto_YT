@@ -41,6 +41,10 @@ const STATUS_RUNNING_STEP: Record<string, string | null> = {
   needs_attention:   null,
 };
 
+function progressPercent(current: number | null, expected: number | null) {
+  return Math.min(100, Math.max(0, Math.round(((current ?? 0) / Math.max(1, expected ?? 1)) * 100)));
+}
+
 export default async function DashboardPage() {
   const [videoCounts, jobsDoneCount, inFlightVideos, recentJobs] = await Promise.all([
     db.select({ status: ahVideos.status, count: sql<number>`count(*)::int` })
@@ -128,7 +132,11 @@ export default async function DashboardPage() {
             <CardContent className="p-0 divide-y divide-black/[.06] dark:divide-white/[.08]">
               {inFlightVideos.map((v) => {
                 const doneCount = STATUS_DONE_STEPS[v.status] ?? 0;
-                const runningStep = STATUS_RUNNING_STEP[v.status] ?? null;
+                const imageCount = v.imageCount ?? 0;
+                const imageCountExpected = v.imageCountExpected ?? 0;
+                const imageProgress = progressPercent(imageCount, imageCountExpected);
+                const isGeneratingImages = imageCountExpected > 0 && imageCount < imageCountExpected;
+                const runningStep = isGeneratingImages ? "IMG" : (STATUS_RUNNING_STEP[v.status] ?? null);
                 const topic = v.chosenTopic as { title?: string } | null;
                 const title = topic?.title ?? `Video #${v.id}`;
                 return (
@@ -169,6 +177,19 @@ export default async function DashboardPage() {
                         );
                       })}
                     </div>
+                    {imageCountExpected > 0 && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#E5E5EA] dark:bg-white/[.10]">
+                          <div
+                            className="h-1.5 rounded-full bg-[#007AFF] transition-all duration-150"
+                            style={{ width: `${imageProgress}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 text-[12px] font-medium text-[#6E6E73] dark:text-[#AEAEB2]">
+                          IMG {imageCount}/{imageCountExpected} · {imageProgress}%
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                 );
