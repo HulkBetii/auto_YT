@@ -80,24 +80,39 @@ const DOODLE_STYLE_PREFIX =
   "Hand-drawn 2D doodle cartoon animation, flat solid colors, bold black hand-drawn outlines, slightly wobbly imperfect marker lines,";
 
 const DOODLE_STYLE_LOCK =
+  "no visible text, no captions, no labels, no numbers, no timestamp overlays, no written words, no hashtags, no hex color codes, no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, wide horizontal composition, simple educational YouTube explainer doodle style.";
+const LEGACY_DOODLE_STYLE_LOCK =
   "no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, wide horizontal composition, simple educational YouTube explainer doodle style.";
 
-function formatImagePrompts(raw: string): string {
+const TIMESTAMP_TOKEN_RE = /\[\d{1,2}:\d{2}(?::\d{2})?\]/g;
+const HASH_TOKEN_RE = /#[\p{L}\p{N}_-]+/gu;
+const QUOTED_TEXT_RE =
+  /\b(?:bold\s+)?(?:red|black|white|blue|orange|green|yellow|cream|gray|grey)?\s*(?:hand[- ]lettered\s+)?text\s+[“"][^”"]+[”"]/giu;
+const LABEL_TEXT_RE = /\b(?:label(?:ed|led)?|caption(?:ed)?)\s+[“"][^”"]+[”"]/giu;
+
+function sanitizeImagePromptDescription(text: string): string {
+  return text
+    .replaceAll(DOODLE_STYLE_PREFIX, "")
+    .replaceAll(DOODLE_STYLE_LOCK, "")
+    .replaceAll(LEGACY_DOODLE_STYLE_LOCK, "")
+    .replace(TIMESTAMP_TOKEN_RE, "")
+    .replace(HASH_TOKEN_RE, "")
+    .replace(QUOTED_TEXT_RE, "simple symbolic doodle concept")
+    .replace(LABEL_TEXT_RE, "marked with a simple icon")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/^[,.;:\s]+/, "")
+    .replace(/[.,]?\s*$/, "")
+    .trim();
+}
+
+export function formatImagePrompts(raw: string): string {
   return raw
     .split("\n")
     .filter((l) => l.trim())
     .map((line) => {
-      const m = line.match(/^(\[\d{2}:\d{2}\])\s*(.*)/);
-      if (m) {
-        // Strip hex color codes (#rgb or #rrggbb) — model renders them as literal text
-        const desc = m[2]
-          .replace(/#[0-9A-Fa-f]{3,6}\b/g, "")
-          .replace(/\s{2,}/g, " ")
-          .replace(/[.,]?\s*$/, "")
-          .trim();
-        return `${m[1]} ${DOODLE_STYLE_PREFIX} ${desc}, ${DOODLE_STYLE_LOCK}`;
-      }
-      return line;
+      const desc = sanitizeImagePromptDescription(line);
+      return `${DOODLE_STYLE_PREFIX} ${desc}, ${DOODLE_STYLE_LOCK}`;
     })
     .join("\n");
 }
