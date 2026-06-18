@@ -40,7 +40,7 @@ export const AH_STATUSES = [
 
 export type AhVideoStatus = (typeof AH_STATUSES)[number];
 
-// Steps: S1(0) S2(1) TTS(2) S3(3) S4(4) IMG(5) ASSEMBLE(6) — total 7
+// Steps: S1(0) S2(1) TTS(2) S3(3) S4(4) IMG/manual images(5) ASSEMBLE(6) — total 7
 // doneCount = how many steps are fully green
 export const STATUS_STEP: Record<string, number> = {
   s1_pending:        0,
@@ -63,7 +63,7 @@ export const STATUS_LABELS: Record<string, string> = {
   s3_pending:        "Img Prompts",
   s4_pending:        "Metadata",
   ready:             "Ready",
-  image_gen_pending: "Gen Images",
+  image_gen_pending: "Manual Images",
   assembly_pending:  "Assembling",
   assembly_done:     "Done",
   needs_attention:   "Failed",

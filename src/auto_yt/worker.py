@@ -313,6 +313,47 @@ async def fetch_ah_video_status(dsn: str, video_id: int) -> str | None:
         await conn.close()
 
 
+def _ah_conversation_key(video_id: int) -> str:
+    return f"ah_conversation_url:{video_id}"
+
+
+def _is_chatgpt_conversation_url(url: str) -> bool:
+    return url.startswith("https://chatgpt.com/c/")
+
+
+async def fetch_ah_conversation_url(dsn: str, video_id: int) -> str | None:
+    conn = await asyncpg.connect(dsn)
+    try:
+        value = await conn.fetchval(
+            "SELECT value FROM ah_channel_config WHERE key = $1",
+            _ah_conversation_key(video_id),
+        )
+        if isinstance(value, str) and _is_chatgpt_conversation_url(value):
+            return value
+        return None
+    finally:
+        await conn.close()
+
+
+async def save_ah_conversation_url(dsn: str, video_id: int, url: str) -> None:
+    if not _is_chatgpt_conversation_url(url):
+        return
+
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            """
+            INSERT INTO ah_channel_config (key, value, updated_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+            """,
+            _ah_conversation_key(video_id),
+            url,
+        )
+    finally:
+        await conn.close()
+
+
 class TabManager:
     """Owns one Playwright page (= one ChatGPT conversation) per "routing key"
     so unrelated pieces of content never bleed context into each other, and
@@ -395,6 +436,41 @@ class TabManager:
             self.video_pages[video_id] = page
         return page
 
+    async def _get_ah_video_page(self, dsn: str, video_id: int):
+        key = ("ah", video_id)
+        page = self.video_pages.get(key)
+        if page is None or not await _page_alive(page):
+            if page is not None:
+                logger.warning("AH tab for video #%s is dead — reopening...", video_id)
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+
+            saved_url = await fetch_ah_conversation_url(dsn, video_id)
+            logger.info("Opening dedicated AH tab for video #%s%s...", video_id, " from saved conversation" if saved_url else "")
+            page = await self._new_logged_in_page()
+
+            if saved_url:
+                try:
+                    await page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)
+                    await asyncio.sleep(2)
+                    logger.info("Restored AH video #%s ChatGPT conversation: %s", video_id, saved_url)
+                except Exception as exc:
+                    logger.warning(
+                        "Could not restore AH video #%s conversation %s — using fresh chat: %s",
+                        video_id,
+                        saved_url,
+                        exc,
+                    )
+                    try:
+                        await page.goto("https://chatgpt.com", wait_until="domcontentloaded", timeout=60_000)
+                    except Exception:
+                        pass
+
+            self.video_pages[key] = page
+        return page
+
     async def _get_ah_topic_page(self):
         if self.ah_topic_page is None or not await _page_alive(self.ah_topic_page):
             if self.ah_topic_page is not None:
@@ -407,7 +483,7 @@ class TabManager:
             self.ah_topic_page = await self._new_logged_in_page()
         return self.ah_topic_page
 
-    async def get_page_for(self, job: dict):
+    async def get_page_for(self, job: dict, dsn: str):
         """Routes a claimed job to the right conversation tab.
 
         web/ pipeline: P1 → shared topic_page; P2..P6 → per-video_id page.
@@ -422,7 +498,7 @@ class TabManager:
             if video_id is None:
                 logger.warning("AH job id=%s stage=%s has no video_id — using scratch tab", job["id"], job["stage"])
                 return await self._new_logged_in_page()
-            return await self._get_video_page(("ah", video_id))
+            return await self._get_ah_video_page(dsn, video_id)
 
         if job["stage"] == "P1":
             return await self._get_topic_page()
@@ -515,6 +591,7 @@ async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") ->
     stage = job["stage"]
     prompt_text = job["prompt_text"]
     retry_count = job["retry_count"]
+    video_id = job.get("video_id")
 
     logger.info("Running ah_job id=%s stage=%s (prompt %d chars)", job_id, stage, len(prompt_text))
     try:
@@ -537,6 +614,8 @@ async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") ->
         return
 
     await complete_ah_job(dsn, job_id, result=response, web2_secret=web2_secret)
+    if isinstance(video_id, int):
+        await save_ah_conversation_url(dsn, video_id, page.url)
 
 
 async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard_secret: str = "") -> None:
@@ -631,7 +710,7 @@ async def run() -> None:
                     await asyncio.sleep(POLL_INTERVAL_S)
                     continue
 
-                page = await tabs.get_page_for(job)
+                page = await tabs.get_page_for(job, dsn)
                 if job.get("_table") == "ah_jobs":
                     await process_ah_job(page, dsn, job, web2_secret=web2_secret)
                 else:

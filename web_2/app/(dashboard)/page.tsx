@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { RunPipelineButton } from "./RunPipelineButton";
 import { CreateVideoButton } from "./CreateVideoButton";
 import { PipelineServices } from "./PipelineServices";
+import { countManualProjectImages, getManualImageProjectInfo } from "@/lib/manual-image-project";
 
 export const dynamic = "force-dynamic";
 
@@ -132,11 +133,13 @@ export default async function DashboardPage() {
             <CardContent className="p-0 divide-y divide-black/[.06] dark:divide-white/[.08]">
               {inFlightVideos.map((v) => {
                 const doneCount = STATUS_DONE_STEPS[v.status] ?? 0;
-                const imageCount = v.imageCount ?? 0;
-                const imageCountExpected = v.imageCountExpected ?? 0;
+                const manualProject = getManualImageProjectInfo(v);
+                const liveImageCount = countManualProjectImages(manualProject.imageOutputDir, manualProject.promptCount);
+                const imageCount = Math.max(v.imageCount ?? 0, liveImageCount);
+                const imageCountExpected = Math.max(v.imageCountExpected ?? 0, manualProject.promptCount);
                 const imageProgress = progressPercent(imageCount, imageCountExpected);
-                const isGeneratingImages = imageCountExpected > 0 && imageCount < imageCountExpected;
-                const runningStep = isGeneratingImages ? "IMG" : (STATUS_RUNNING_STEP[v.status] ?? null);
+                const isCollectingManualImages = imageCountExpected > 0 && imageCount < imageCountExpected;
+                const runningStep = isCollectingManualImages ? "IMG" : (STATUS_RUNNING_STEP[v.status] ?? null);
                 const topic = v.chosenTopic as { title?: string } | null;
                 const title = topic?.title ?? `Video #${v.id}`;
                 return (
@@ -186,7 +189,7 @@ export default async function DashboardPage() {
                           />
                         </div>
                         <span className="shrink-0 text-[12px] font-medium text-[#6E6E73] dark:text-[#AEAEB2]">
-                          IMG {imageCount}/{imageCountExpected} · {imageProgress}%
+                          Images {imageCount}/{imageCountExpected} · {imageProgress}%
                         </span>
                       </div>
                     )}

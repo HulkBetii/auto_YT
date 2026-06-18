@@ -11,6 +11,7 @@ import { CopyButton } from "./CopyButton";
 import { RetryButton } from "./RetryButton";
 import { DeleteVideoButton } from "./DeleteVideoButton";
 import { OpenFolderButton } from "./OpenFolderButton";
+import { countManualProjectImages, getManualImageProjectInfo } from "@/lib/manual-image-project";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,16 @@ export default async function VideoDetailPage({
   const promptCount = video.imagePrompts
     ? video.imagePrompts.split("\n").filter((l) => l.trim()).length
     : 0;
+  const manualProject = getManualImageProjectInfo(video);
+  const liveImageCount = countManualProjectImages(manualProject.imageOutputDir, manualProject.promptCount);
+  const displayImageCount = Math.max(video.imageCount ?? 0, liveImageCount);
+  const displayImageCountExpected = Math.max(video.imageCountExpected ?? 0, manualProject.promptCount);
+  const showManualImages =
+    video.status === "ready" ||
+    video.status === "image_gen_pending" ||
+    video.status === "assembly_pending" ||
+    video.status === "assembly_done";
+  const canOpenLocalFolders = process.platform === "darwin" && !process.env.VERCEL;
 
   return (
     <>
@@ -283,36 +294,71 @@ export default async function VideoDetailPage({
             </section>
           )}
 
-          {/* Assembly Status */}
-          {(video.status === "image_gen_pending" || video.status === "assembly_pending" || video.status === "assembly_done") && (
+          {/* Manual image and assembly status */}
+          {showManualImages && (
             <section>
               <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                ASSEMBLY STATUS
+                MANUAL IMAGES
               </p>
               <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
                 <CardContent className="p-5 space-y-4">
-                  {(video.imageCountExpected ?? 0) > 0 && (
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
-                        Images Generated
+                        Project
+                      </p>
+                      <p className="mt-0.5 text-[13px] font-mono text-[#1C1C1E] dark:text-white break-all">
+                        {manualProject.projectName}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                        Prompt Count
+                      </p>
+                      <p className="mt-0.5 text-[13px] font-mono text-[#1C1C1E] dark:text-white">
+                        {manualProject.promptCount}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                        Image Output Dir
+                      </p>
+                      {canOpenLocalFolders && (
+                        <OpenFolderButton
+                          filePath={manualProject.imageOutputDir}
+                          label="Open Folder"
+                          title="Open image output folder"
+                        />
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-[13px] font-mono text-[#007AFF] break-all">
+                      {manualProject.imageOutputDir}
+                    </p>
+                  </div>
+                  {displayImageCountExpected > 0 && (
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+                        Manual Images
                       </p>
                       <div className="flex items-center gap-3 mt-1.5">
                         <p className="text-[22px] font-semibold leading-none text-[#007AFF]">
-                          {video.imageCount ?? 0}
+                          {displayImageCount}
                           <span className="text-[15px] font-normal text-[#AEAEB2]">
-                            /{video.imageCountExpected}
+                            /{displayImageCountExpected}
                           </span>
                         </p>
                         <div className="flex-1 h-1.5 rounded-full bg-[#E5E5EA] dark:bg-white/[.10] overflow-hidden">
                           <div
                             className="h-1.5 rounded-full bg-[#007AFF] transition-all duration-150"
                             style={{
-                              width: `${Math.min(100, Math.max(0, Math.round(((video.imageCount ?? 0) / Math.max(1, video.imageCountExpected ?? 1)) * 100)))}%`,
+                              width: `${Math.min(100, Math.max(0, Math.round((displayImageCount / Math.max(1, displayImageCountExpected)) * 100)))}%`,
                             }}
                           />
                         </div>
                         <span className="text-[13px] text-[#6E6E73] shrink-0">
-                          {Math.min(100, Math.max(0, Math.round(((video.imageCount ?? 0) / Math.max(1, video.imageCountExpected ?? 1)) * 100)))}%
+                          {Math.min(100, Math.max(0, Math.round((displayImageCount / Math.max(1, displayImageCountExpected)) * 100)))}%
                         </span>
 
                       </div>
@@ -324,17 +370,17 @@ export default async function VideoDetailPage({
                         <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
                           Video Path
                         </p>
-                        <OpenFolderButton filePath={video.videoPath} />
+                        <OpenFolderButton filePath={video.videoPath} title="Open video folder" />
                       </div>
                       <p className="mt-0.5 text-[13px] font-mono text-[#34C759] break-all">
                         {video.videoPath}
                       </p>
                     </div>
                   )}
-                  {video.status === "image_gen_pending" && (video.imageCountExpected ?? 0) === 0 && (
+                  {video.status === "image_gen_pending" && displayImageCountExpected === 0 && (
                     <p className="text-[13px] text-[#007AFF] flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#007AFF] animate-pulse inline-block" />
-                      Đang khởi động image gen…
+                      Đang chờ ảnh thủ công từ RUN_VEO…
                     </p>
                   )}
                   {!video.videoPath && video.status === "assembly_pending" && (

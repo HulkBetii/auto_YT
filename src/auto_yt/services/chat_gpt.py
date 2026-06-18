@@ -27,6 +27,11 @@ THINKING_MENU_ITEM_SEL = '[role="menuitem"]:has-text("Thinking"), div[role="menu
 
 DEFAULT_REPLY_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
+TEXT_STABLE_SAMPLES = 3
+TEXT_STABLE_INTERVAL_S = 2
+TEXT_SETTLE_TIMEOUT_S = 45
+SCRIPT_MIN_CHARS = 6_500
+DEFAULT_MIN_RESPONSE_CHARS = 1
 
 
 class ChatGPTResponseError(Exception):
@@ -106,9 +111,74 @@ async def _get_last_assistant_text(page) -> str | None:
         if count == 0:
             return None
         last = locator.nth(count - 1)
-        return (await last.inner_text(timeout=5_000)).strip()
+        text = await last.evaluate("(node) => node.innerText || node.textContent || ''", timeout=5_000)
+        return str(text).strip()
     except Exception:
         return None
+
+
+async def _scroll_last_assistant_into_view(page) -> None:
+    """Best-effort scroll so long responses finish rendering before extraction."""
+    try:
+        locator = page.locator(ASSISTANT_MSG_SEL)
+        count = await locator.count()
+        if count == 0:
+            return
+        await locator.nth(count - 1).scroll_into_view_if_needed(timeout=2_000)
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    except Exception:
+        return
+
+
+def _expected_min_response_chars(prompt: str) -> int:
+    """Infer a conservative lower bound for prompts that must return long text."""
+    normalized = prompt.lower()
+    if re.search(r"1[,.]?\s*500\s*[-–]\s*2[,.]?\s*400\s+words", normalized):
+        return SCRIPT_MIN_CHARS
+    return DEFAULT_MIN_RESPONSE_CHARS
+
+
+def _stability_key(text: str) -> str:
+    """Remove tiny UI timers that can change while the actual answer is stable."""
+    return re.sub(r"\bthought for \d+\s*(?:s|sec|seconds)\b", "thought for", text, flags=re.I)
+
+
+async def _wait_response_text_stable(page, prompt: str, timeout_s: int) -> str:
+    """Wait until the last assistant response is non-empty, long enough, and stable."""
+    min_chars = _expected_min_response_chars(prompt)
+    settle_timeout = min(TEXT_SETTLE_TIMEOUT_S, max(12, timeout_s // 4))
+    deadline = asyncio.get_event_loop().time() + settle_timeout
+    last_text = ""
+    last_key = ""
+    stable_samples = 0
+
+    while asyncio.get_event_loop().time() < deadline:
+        await _scroll_last_assistant_into_view(page)
+        text = await _get_last_assistant_text(page) or ""
+        key = _stability_key(text)
+
+        if text and len(text) >= min_chars and key == last_key:
+            stable_samples += 1
+        else:
+            stable_samples = 1 if text and len(text) >= min_chars else 0
+
+        if stable_samples >= TEXT_STABLE_SAMPLES:
+            return text
+
+        last_text = text or last_text
+        last_key = key
+        await asyncio.sleep(TEXT_STABLE_INTERVAL_S)
+
+    if not last_text:
+        raise ChatGPTResponseError("Assistant message appeared but text is empty.")
+
+    if len(last_text) < min_chars:
+        raise ChatGPTResponseError(
+            f"Assistant response looks incomplete: {len(last_text)} chars < expected minimum {min_chars} chars."
+        )
+
+    logger.warning("Response text did not fully stabilize within %ss; using latest %d chars", settle_timeout, len(last_text))
+    return last_text
 
 
 # --- Public API ----------------------------------------------------------
@@ -175,11 +245,7 @@ async def send_prompt(
 
     # Wait for streaming to finish
     await _wait_streaming_done(page, timeout_s)
-    await asyncio.sleep(1)
-
-    text = await _get_last_assistant_text(page)
-    if not text:
-        raise ChatGPTResponseError("Assistant message appeared but text is empty.")
+    text = await _wait_response_text_stable(page, prompt, timeout_s)
 
     logger.info("Response received (%d chars)", len(text))
     return text

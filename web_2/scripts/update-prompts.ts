@@ -106,6 +106,66 @@ Questions to answer: [KEY_QUESTIONS]
 
 Return ONLY the script text. No title, no headers, no timestamps, no notes.`;
 
+const S3_TEMPLATE = `You are a creative director for a doodle-animation YouTube channel. Your job is to write visual scene descriptions that a human illustrator will draw.
+
+Video title: [TOPIC_TITLE]
+Timestamped narration script:
+[TIMESTAMPED_SCRIPT]
+
+For EACH timestamp segment, write one image prompt describing exactly what should be drawn at that moment.
+The timestamped script is the source of truth for scene count. Treat every timestamp line as important: one timestamp line must produce exactly one image prompt. Do not skip, merge, split, cap, or invent extra timestamp lines.
+
+## VISUAL STYLE RULES (apply to every prompt)
+
+**Characters:**
+- Main "you" character: round white-headed stick figure with spiky bright ORANGE hair. Use when script addresses viewer directly or shows a modern everyman.
+- Ancient/prehistoric humans: round white-headed stick figure with shaggy/messy BROWN hair.
+- Neutral modern everyman: round white-headed stick figure with BALD head (no hair).
+- Expressions: wide eyes + open mouth = surprise; gritted teeth + angled brows = strain/anger; curved brows + frown = worry/sadness; small smile = calm/content.
+- State the hair/head type explicitly in every prompt that includes a person.
+
+**Backgrounds (flat solid color — pick by emotional tone):**
+- White or cream = default / neutral / concept text frames
+- White/cream top + gray ground strip = neutral modern or "limbo" scene
+- Light blue sky + tan/brown ground + simple green trees = outdoor daytime / nature / daily life
+- Orange sky + tan ground + grass tufts + lone acacia tree = ancient / prehistoric / dawn / dusk / "deep past"
+- Dark navy blue + yellow crescent moon + gray ground = calm night
+- Deep indigo/purple + scattered star dots + brown ground = deep night / sleeping
+- White/cream + dark rain cloud + blue raindrops = danger / hardship / sadness
+
+**Scene continuity:** If 2-5 consecutive timestamps describe the same moment or argument, keep the same core scene and only adjust expression, pose, object, on-screen label, or one new visual clue. Do NOT generate a brand-new scene every few seconds.
+
+**Proven frame types (use when appropriate):**
+- Concept text frame: plain white/cream background + bold red ALL-CAPS hand-lettered text centered (a number, term, or key phrase)
+- Label-on-object frame: a large object (boulder, hourglass) with the key word hand-lettered across it in white or red caps
+- Thought bubble: cloud-shaped bubble above a stick figure's head containing a mini-scene, "?", or "HMMM"
+- Red X negation: a figure or idea with a big bold red X drawn across the whole frame = "not this / wrong"
+- Tribe/campfire: several white-headed stick figures around an orange campfire on tan ground, light blue sky
+- Archaeologist/discovery: a white-headed stick figure with brown pith helmet, backpack, yellow lantern beside a dark cave entrance
+- Evolution sequence: left-to-right human/creature progression with a black right-pointing arrow
+- Sadness/hardship: a sad orange-haired stick figure with arms hugging knees under a dark gray rain cloud with blue raindrops
+
+**Translate abstract narration to concrete visuals:** if the script says "survival was a constant struggle", show a worried orange-haired stick figure straining to push a huge dark gray boulder with bold white ALL-CAPS text "SURVIVAL" on it; if it says "300,000 years", show a plain white background with bold red hand-lettered text "300,000 YEARS" centered.
+
+## OUTPUT FORMAT RULES
+
+- One prompt per narration segment
+- One timestamp line = one prompt
+- Each line MUST start with the exact timestamp from the script: [MM:SS]
+- Use every timestamp from the script exactly once, in chronological order
+- After the timestamp, write a single sentence describing the scene (present tense, scene-first)
+- For short adjacent beats, preserve enough context from the previous line so the image still makes sense by itself
+- Prefer clear action, body signal, object, facial expression, or labeled concept over vague symbolic imagery
+- Include: which characters are present (with hair/head type), their expression, action, objects in scene, flat background color, any on-screen text
+- Do NOT include style prefix or suffix — they will be added automatically
+- Do NOT include dialogue, sound effects, or stage directions
+
+Output format (one line per segment):
+[00:00] A lone prehistoric stick figure with messy brown hair and a worried frown stands on orange-sky prehistoric savanna with tan ground and a lone acacia tree, gripping a rough wooden spear, scanning the horizon.
+[00:04] Close-up concept text frame on plain white background: bold red hand-lettered ALL-CAPS text "300,000 YEARS" centered, no characters.
+
+Return ONLY the timestamped prompts, one per line. No headers, no numbering, no extra text.`;
+
 const S4_TEMPLATE = `You are a YouTube SEO expert for an educational doodle-animation channel about ancient humans and prehistoric life.
 
 Video topic: [TOPIC_TITLE]
@@ -140,6 +200,13 @@ async function updatePrompts() {
     changeReason: "restore master script DNA",
   });
   console.log("  ✓ S2");
+
+  await insertAhPromptVersion({
+    promptKey: "S3",
+    template: S3_TEMPLATE,
+    changeReason: "restore master one timestamp line equals one image prompt",
+  });
+  console.log("  ✓ S3");
 
   await insertAhPromptVersion({
     promptKey: "S4",

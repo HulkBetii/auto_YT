@@ -15,15 +15,17 @@ import {
 } from "@/lib/db/repo/videos";
 import { extractJson } from "@/lib/utils/json";
 import { notify } from "@/lib/notifications";
+import { getManualImageProjectInfo } from "@/lib/manual-image-project";
 import { enqueueAhStage } from "./createJob";
 import { rankTopics, type AhTopic } from "./rank";
-import { runTTSAndWhisperForPendingVideo, smartBucketTranscript } from "./tts";
+import { describePendingTtsWait, runTTSAndWhisperForPendingVideo, smartBucketTranscript } from "./tts";
 import { getAhConfigValue, setAhConfigValue } from "@/lib/db/repo/channel-config";
 
 export interface AhChainCycleResult {
   processed: number;
   results: Array<{ jobId: number; stage: string; ok: boolean; error?: string }>;
   ttsRan: boolean;
+  ttsWaiting: string | null;
   staleReset: number;
 }
 
@@ -139,8 +141,19 @@ async function handleS4Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
   await updateAhVideoStatus(videoId, "ready");
 
   const video = await getAhVideo(videoId);
-  const topic = video?.chosenTopic as { title?: string } | null;
-  await notify(`✅ <b>${topic?.title ?? `Video #${videoId}`}</b> is ready to publish.`);
+  const manualProject = getManualImageProjectInfo({
+    id: videoId,
+    imagePrompts: video?.imagePrompts,
+  });
+  await notify(
+    [
+      `✅ Video #${videoId} ready for manual images`,
+      `Project: <code>${manualProject.projectName}</code>`,
+      `Folder: <code>${manualProject.imageOutputDir}</code>`,
+      `Prompts: ${manualProject.promptCount}`,
+      "Create images in that exact folder.",
+    ].join("\n"),
+  );
 }
 
 const STAGE_HANDLERS: Record<
@@ -152,9 +165,6 @@ const STAGE_HANDLERS: Record<
   S3: handleS3Done,
   S4: handleS4Done,
 };
-
-const FIRST_IMAGE_STALE_MINUTES = 15;
-const IMAGE_PROGRESS_STALE_MINUTES = 30;
 
 async function repairMissingS3Jobs(): Promise<number> {
   const videos = await listAhVideos({ status: "s3_pending" }, 20);
@@ -181,26 +191,6 @@ async function repairMissingS3Jobs(): Promise<number> {
   return repaired;
 }
 
-async function flagStaleImageGeneration(): Promise<number> {
-  const videos = await listAhVideos({ status: "image_gen_pending" }, 20);
-  let flagged = 0;
-
-  for (const video of videos) {
-    const imageCount = video.imageCount ?? 0;
-    const thresholdMinutes = imageCount > 0 ? IMAGE_PROGRESS_STALE_MINUTES : FIRST_IMAGE_STALE_MINUTES;
-    const ageMinutes = (Date.now() - new Date(video.updatedAt).getTime()) / 60000;
-    if (ageMinutes < thresholdMinutes) continue;
-
-    await updateAhVideoStatus(video.id, "needs_attention");
-    await notify(
-      `🟠 Video #${video.id} image generation stalled at ${imageCount}/${video.imageCountExpected ?? 0} images for ${Math.round(ageMinutes)}min.`,
-    );
-    flagged++;
-  }
-
-  return flagged;
-}
-
 export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   // Record cron heartbeat
   await setAhConfigValue("cron_last_run_at", new Date().toISOString()).catch(() => {});
@@ -208,7 +198,7 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   // Pause guard — toggled from the dashboard
   const paused = await getAhConfigValue("pipeline_paused").catch(() => null);
   if (paused === "true") {
-    return { processed: 0, results: [], ttsRan: false, staleReset: 0 };
+    return { processed: 0, results: [], ttsRan: false, ttsWaiting: null, staleReset: 0 };
   }
 
   const staleReset = await resetStaleRunningAhJobs(15);
@@ -218,10 +208,6 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   const s3Repaired = await repairMissingS3Jobs();
   if (s3Repaired > 0) {
     console.log(`[chain] Repaired ${s3Repaired} missing S3 job(s)`);
-  }
-  const staleImageVideos = await flagStaleImageGeneration();
-  if (staleImageVideos > 0) {
-    console.log(`[chain] Flagged ${staleImageVideos} stale image generation video(s)`);
   }
 
   const doneJobs = await listUnconsumedDoneAhJobs();
@@ -277,11 +263,13 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
 
   // Run TTS+Whisper server-side for any tts_pending video
   const ttsRan = await runTTSAndWhisperForPendingVideo();
+  const ttsWaiting = ttsRan ? null : await describePendingTtsWait();
 
   return {
     processed: doneJobs.length,
     results,
     ttsRan,
+    ttsWaiting,
     staleReset,
   };
 }

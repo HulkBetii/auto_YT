@@ -116,6 +116,7 @@ Timestamped narration script:
 [TIMESTAMPED_SCRIPT]
 
 For EACH timestamp segment, write one image prompt describing exactly what should be drawn at that moment.
+The timestamped script is the source of truth for scene count. Treat every timestamp line as important: one timestamp line must produce exactly one image prompt. Do not skip, merge, split, cap, or invent extra timestamp lines.
 
 ## VISUAL STYLE RULES (apply to every prompt)
 
@@ -135,7 +136,7 @@ For EACH timestamp segment, write one image prompt describing exactly what shoul
 - Deep indigo/purple + scattered star dots + brown ground = deep night / sleeping
 - White/cream + dark rain cloud + blue raindrops = danger / hardship / sadness
 
-**Scene continuity:** If 2–3 consecutive timestamps describe the same moment, keep the same scene and only adjust the character's expression or add one new element. Do NOT generate a brand-new scene every few seconds.
+**Scene continuity:** If 2-5 consecutive timestamps describe the same moment or argument, keep the same core scene and only adjust expression, pose, object, on-screen label, or one new visual clue. Do NOT generate a brand-new scene every few seconds.
 
 **Proven frame types (use when appropriate):**
 - Concept text frame: plain white/cream background + bold red ALL-CAPS hand-lettered text centered (a number, term, or key phrase)
@@ -152,8 +153,12 @@ For EACH timestamp segment, write one image prompt describing exactly what shoul
 ## OUTPUT FORMAT RULES
 
 - One prompt per narration segment
+- One timestamp line = one prompt
 - Each line MUST start with the exact timestamp from the script: [MM:SS]
+- Use every timestamp from the script exactly once, in chronological order
 - After the timestamp, write a single sentence describing the scene (present tense, scene-first)
+- For short adjacent beats, preserve enough context from the previous line so the image still makes sense by itself
+- Prefer clear action, body signal, object, facial expression, or labeled concept over vague symbolic imagery
 - Include: which characters are present (with hair/head type), their expression, action, objects in scene, flat background color, any on-screen text
 - Do NOT include style prefix or suffix — they will be added automatically
 - Do NOT include dialogue, sound effects, or stage directions

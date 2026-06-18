@@ -1,6 +1,7 @@
 import { getAllAhConfig } from "@/lib/db/repo/channel-config";
 import { AH_CONFIG_KEYS } from "@/lib/db/schema";
 import { SettingField } from "./SettingField";
+import { SettingSelect } from "./SettingSelect";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,12 @@ const FIELDS = [
   },
 ] as const;
 
+const TTS_PROVIDER_MODE_OPTIONS = [
+  { value: "auto", label: "Auto: AI33 primary -> AI33 backup -> Genmax" },
+  { value: "ai33_backup", label: "AI33 backup only: MiniMax voice ID 2" },
+  { value: "genmax", label: "Genmax only: voice ID Genmax" },
+] as const;
+
 export default async function SettingsPage() {
   const config = await getAllAhConfig();
 
@@ -56,6 +63,13 @@ export default async function SettingsPage() {
           PIPELINE CONFIG
         </p>
         <div className="space-y-3">
+          <SettingSelect
+            fieldKey={AH_CONFIG_KEYS.ttsProviderMode}
+            label="TTS Provider Mode"
+            description="Switch immediately on the next Run Pipeline cycle"
+            initialValue={config[AH_CONFIG_KEYS.ttsProviderMode] ?? "auto"}
+            options={TTS_PROVIDER_MODE_OPTIONS}
+          />
           {FIELDS.map((f) => (
             <SettingField
               key={f.key}

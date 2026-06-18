@@ -23,7 +23,7 @@ export const VIDEO_STATUS_LABELS: Record<string, string> = {
   s3_pending:        "S3 · Img Prompts",
   s4_pending:        "S4 · Metadata",
   ready:             "Ready",
-  image_gen_pending: "Gen Images",
+  image_gen_pending: "Manual Images",
   assembly_pending:  "Assembling",
   assembly_done:     "Done ✓",
   needs_attention:   "Failed",

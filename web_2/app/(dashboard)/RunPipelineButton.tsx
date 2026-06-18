@@ -9,6 +9,7 @@ interface CycleResult {
   ok: boolean;
   processed: number;
   ttsRan: boolean;
+  ttsWaiting?: string | null;
   staleReset: number;
   results: Array<{ jobId: number; stage: string; ok: boolean; error?: string }>;
   error?: string;
@@ -61,6 +62,7 @@ export function RunPipelineButton() {
               <span>
                 Processed {summary.processed} job{summary.processed !== 1 ? "s" : ""}
                 {summary.ttsRan ? " · TTS ran" : ""}
+                {summary.ttsWaiting ? ` · ${summary.ttsWaiting}` : ""}
                 {summary.staleReset > 0 ? ` · reset ${summary.staleReset} stale` : ""}.
               </span>
               {failedJobs.length > 0 && (

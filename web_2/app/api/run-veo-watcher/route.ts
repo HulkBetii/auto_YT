@@ -1,19 +1,18 @@
-import { execFile } from "node:child_process";
-import { stat } from "node:fs/promises";
-import path from "node:path";
-import { promisify } from "node:util";
-
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import {
+  getRunVeoWatcherStatus,
+  startRunVeoWatcher,
+  stopRunVeoWatcher,
+} from "@/lib/run-veo-watcher";
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const execFileAsync = promisify(execFile);
-
 const BodySchema = z.object({
-  path: z.string().min(1),
+  action: z.enum(["start", "stop"]),
 });
 
 const allowedOrigins = new Set([
@@ -30,7 +29,7 @@ function getCorsHeaders(request: NextRequest): Record<string, string> {
 
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
@@ -75,17 +74,17 @@ export async function OPTIONS(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   if (!(await assertAuth(request))) {
     return json(request, { ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  if (process.platform !== "darwin") {
-    return json(
-      request,
-      { ok: false, error: "Open in folder is only available on a local macOS server." },
-      { status: 501 },
-    );
+  return json(request, { ok: true, watcher: await getRunVeoWatcherStatus() });
+}
+
+export async function POST(request: NextRequest) {
+  if (!(await assertAuth(request))) {
+    return json(request, { ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
   const body = BodySchema.safeParse(await request.json().catch(() => null));
@@ -93,29 +92,10 @@ export async function POST(request: NextRequest) {
     return json(request, { ok: false, error: "Invalid body" }, { status: 400 });
   }
 
-  const targetPath = body.data.path;
-  if (targetPath.includes("\0") || !path.isAbsolute(targetPath)) {
-    return json(request, { ok: false, error: "Invalid path" }, { status: 400 });
-  }
+  const watcher =
+    body.data.action === "start"
+      ? await startRunVeoWatcher()
+      : await stopRunVeoWatcher();
 
-  try {
-    const targetStat = await stat(targetPath);
-    if (targetStat.isDirectory()) {
-      await execFileAsync("open", [targetPath]);
-    } else {
-      await execFileAsync("open", ["-R", targetPath]);
-    }
-    return json(request, { ok: true });
-  } catch {
-    const parentPath = path.dirname(targetPath);
-
-    try {
-      const parentStat = await stat(parentPath);
-      if (!parentStat.isDirectory()) throw new Error("Parent path is not a directory.");
-      await execFileAsync("open", [parentPath]);
-      return json(request, { ok: true });
-    } catch {
-      return json(request, { ok: false, error: "Folder not found" }, { status: 404 });
-    }
-  }
+  return json(request, { ok: true, watcher });
 }

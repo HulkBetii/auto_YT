@@ -16,24 +16,20 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({})) as {
     tool_online?: boolean;
-    imagen_error_at?: string;
   };
 
-  await setAhConfigValue("worker_last_seen", new Date().toISOString());
+  await setAhConfigValue("run_veo_watcher_last_seen", new Date().toISOString());
 
   if (body.tool_online !== undefined) {
     await setAhConfigValue(
-      "tool_last_active",
+      "run_veo_tool_last_active",
       body.tool_online ? new Date().toISOString() : "offline",
     );
   }
-  if (body.imagen_error_at) {
-    await setAhConfigValue("imagen_last_error", body.imagen_error_at);
-  }
 
-  const [workerPaused, toolPaused] = await Promise.all([
-    getAhConfigValue("worker_paused").then((v) => v === "true"),
+  const [watcherPaused, toolPaused] = await Promise.all([
+    getAhConfigValue("run_veo_watcher_paused").then((v) => v === "true"),
     getAhConfigValue("tool_paused").then((v) => v === "true"),
   ]);
-  return NextResponse.json({ ok: true, workerPaused, toolPaused });
+  return NextResponse.json({ ok: true, workerPaused: watcherPaused, toolPaused });
 }

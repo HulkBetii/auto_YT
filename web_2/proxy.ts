@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/health", "/_next", "/favicon.ico"];
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/api/auth",
+  "/api/cron",
+  "/api/health",
+  "/api/open-folder",
+  "/api/run-veo-watcher",
+  "/_next",
+  "/favicon.ico",
+];
 
 export function proxy(request: NextRequest) {
   const secret = process.env.DASHBOARD_SECRET;
