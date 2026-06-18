@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 DB_CONFIG_PATH = DATA_DIR / "db_config.json"
 POLL_INTERVAL_S = 30
 PROMPT_TIMEOUT_S = 360
+WEB2_CHAIN_TICK_INTERVAL_S = 5 * 60
 
 # How many times a *transient* ChatGPT failure (timeout, no-response, etc. —
 # ChatGPTResponseError) gets automatically retried in-place before the job is
@@ -693,6 +694,7 @@ async def run() -> None:
     try:
         await tabs.bootstrap()
         await record_heartbeat(dsn, "running")
+        last_web2_chain_tick = 0.0
 
         logger.info("Worker started — polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL_S)
         while True:
@@ -703,8 +705,10 @@ async def run() -> None:
                     job = await claim_next_ah_job(dsn)
 
                 if job is None:
-                    # TTS is handled by Vercel cron (AI33 fire-and-poll in web_2/lib/pipeline/tts.ts)
-                    # Running it here races with Vercel and causes the OpenAI fallback to preempt AI33.
+                    now = asyncio.get_running_loop().time()
+                    if now - last_web2_chain_tick >= WEB2_CHAIN_TICK_INTERVAL_S:
+                        await trigger_chain_cycle(web2_url, web2_secret)
+                        last_web2_chain_tick = now
                     await tabs.sweep_terminal_tabs(dsn)
                     await record_heartbeat(dsn, "running")
                     await asyncio.sleep(POLL_INTERVAL_S)
