@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyButton } from "./CopyButton";
 import { RetryButton } from "./RetryButton";
+import { RetryVideoButton } from "./RetryVideoButton";
 import { DeleteVideoButton } from "./DeleteVideoButton";
 import { OpenFolderButton } from "./OpenFolderButton";
 import { countManualProjectImages, getManualImageProjectInfo } from "@/lib/manual-image-project";
@@ -96,6 +97,9 @@ export default async function VideoDetailPage({
           <Badge className={`text-[12px] ${statusBadgeClass(video.status)}`}>
             {VIDEO_STATUS_LABELS[video.status] ?? video.status}
           </Badge>
+          {video.status !== "assembly_done" && (
+            <RetryVideoButton videoId={video.id} />
+          )}
           <DeleteVideoButton videoId={video.id} />
         </div>
       </div>

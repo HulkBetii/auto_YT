@@ -5,6 +5,7 @@ import { formatDateTime, formatRelative, statusBadgeClass } from "@/lib/ui/forma
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { RetryButton } from "../videos/[id]/RetryButton";
+import { RetryVideoButton } from "../videos/[id]/RetryVideoButton";
 
 export const dynamic = "force-dynamic";
 
@@ -56,9 +57,12 @@ export default async function NeedsAttentionPage() {
                         Video #{video.id} · Updated {formatRelative(video.updatedAt)}
                       </p>
                     </div>
-                    <Badge className={`shrink-0 text-[12px] ${statusBadgeClass(video.status)}`}>
-                      {video.status}
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <RetryVideoButton videoId={video.id} />
+                      <Badge className={`text-[12px] ${statusBadgeClass(video.status)}`}>
+                        {video.status}
+                      </Badge>
+                    </div>
                   </div>
 
                   {/* Failed jobs */}
@@ -98,7 +102,7 @@ export default async function NeedsAttentionPage() {
                       </table>
                     </div>
                   ) : (
-                    <p className="text-[13px] text-[#AEAEB2]">No failed jobs — may have been manually consumed.</p>
+                    <p className="text-[13px] text-[#AEAEB2]">No failed jobs — use Retry video to resume from the next pipeline stage.</p>
                   )}
                 </CardContent>
               </Card>
