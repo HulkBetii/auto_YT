@@ -1,9 +1,43 @@
-export {};
+# Current Tool Prompts
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-require("dotenv").config({ path: ".env.local" });
+Generated at: 2026-06-20T06:17:20.018Z
+Source: active rows in `ah_prompt_versions` from the current `DATABASE_URL`.
 
-const S1_TEMPLATE = `You are a creative director for a viral English-language YouTube channel about ancient humans and prehistoric civilisations — a hand-drawn doodle animation channel.
+## Code-Supported Behavior Notes
+
+- **Prompt versioning:** active templates are loaded from `ah_prompt_versions`; updating prompts inserts a new version and deactivates the old active version. Code: `lib/db/repo/prompt-versions.ts`, `scripts/update-prompts.ts`, `app/api/prompts/route.ts`.
+- **S1 output contract:** S1 returns only a JSON array. Each topic now includes `head_keyword`; ranking requires it and uses it in the S4 SEO handoff. Code: `lib/pipeline/rank.ts`, `lib/pipeline/chain.ts`.
+- **S1 recent-topic avoidance:** new videos inject `[RECENT_TOPICS]` from the latest videos so candidates avoid repeating the same behavior/title pattern/angle. Code: `app/api/videos/create/route.ts`, `lib/db/repo/videos.ts`.
+- **Topic ranking duplicate guard:** after S1 returns candidates, `rankTopics` compares against recent topics and prefers a different core behavior/angle without hard-failing the job. Code: `lib/pipeline/rank.ts`.
+- **S2 output contract:** S2 still returns pure narration text only. The `// CONFIRM pace` marker is kept in `scripts/update-prompts.ts` beside the 1,400-1,900 word band.
+- **S2 -> TTS -> S3 -> S4 chaining:** S2 saves script and moves to TTS; TTS/Whisper transcript creates S3; S3 creates S4; S4 marks the video `ready`. Code: `lib/pipeline/chain.ts`, `lib/pipeline/tts.ts`.
+- **S3 image count contract:** one Whisper timestamp line becomes exactly one image prompt. Code does not merge, split, cap, or target a fixed scene count. Code: `lib/pipeline/tts.ts`, active S3 prompt.
+- **Image prompt style lock:** S3 returns bare timestamped scene descriptions. Code then adds the doodle style prefix and negative style lock automatically, and strips visible timestamp/hash/color-label artifacts before sending prompts onward. Code: `formatImagePrompts` in `lib/pipeline/chain.ts`.
+- **S4 input wiring:** S4 receives `[HEAD_KEYWORD]` from the chosen S1 topic and `[CHAPTER_TIMESTAMPS]` derived from Whisper timestamps. Code: `lib/pipeline/chain.ts`, `app/api/videos/[id]/retry/route.ts`.
+- **S4 output contract:** S4 returns JSON with `title`, `description`, `tags`, `chapters`, and `thumbnail`. Code stores `chapters` in `ah_videos.yt_chapters` and `thumbnail` in `ah_videos.yt_thumbnail`. Migration: `drizzle/0003_add_youtube_metadata_json.sql`.
+- **Dashboard metadata display:** video detail renders title, description, tags, chapters, and thumbnail concept when present. Code: `app/(dashboard)/videos/[id]/page.tsx`.
+- **Manual image project folders:** after S4, web_2 derives RUN_VEO project info from video id: `ah_v{id}`, `Workflows/ah_v{id}/Download/image`, prompt count, and final video path. Code: `lib/manual-image-project.ts`, `app/api/videos/ready-for-assembly/route.ts`.
+- **RUN_VEO sync expectation:** filenames are `{prompt_id}_{image_index}_{ddmmyyyy}_{hhmmss}.jpg`; topic/video separation is by project folder, not filename. RUN_VEO watcher/assembler validates unique prompt ids and ignores invalid/out-of-range images.
+- **Open folder UI:** video detail has local-helper support for opening containing folders. Code: `app/(dashboard)/videos/[id]/OpenFolderButton.tsx`, `app/api/open-folder/route.ts`.
+- **Retry support:** retry routes re-enqueue from the correct resumable stage using active prompt templates and now pass the new S4 variables. Code: `app/api/videos/[id]/retry/route.ts`, `app/api/jobs/[id]/retry/route.ts`.
+
+## Active Prompt Summary
+
+- **S1:** active v7 — add head_keyword search-anchor, mark S1 title as working title, align viral_type enum with 7 angles
+- **S2:** active v7 — retention engineering (fast first payoff + open loops), tighten word band, stronger anti-hallucination, TTS-friendly, keep pure-script output
+- **S3:** active v10 — compose for 16:9, keep in-image text short for render reliability, reinforce whole-video character consistency; image-count logic unchanged
+- **S4:** active v7 — SEO 2026 compliance — 3 hashtags, 8-12 tags, add chapters + thumbnail, keyword-first title/description, continuation links, conditional FTC
+
+---
+
+## S1 Active Prompt
+
+- Version: 7
+- Change reason: add head_keyword search-anchor, mark S1 title as working title, align viral_type enum with 7 angles
+- Created at: 2026-06-20T06:11:16.208Z
+
+```text
+You are a creative director for a viral English-language YouTube channel about ancient humans and prehistoric civilisations — a hand-drawn doodle animation channel.
 
 ## CHANNEL KNOWLEDGE BASE
 
@@ -65,10 +99,19 @@ Example structure (do NOT copy this content):
   }
 ]
 
-IMPORTANT: Return ONLY the JSON array. No markdown fences, no commentary.`;
+IMPORTANT: Return ONLY the JSON array. No markdown fences, no commentary.
+```
 
-// CONFIRM pace: 1,400-1,900 words should remain calibrated to roughly 9-12 minutes for the current TTS voice.
-const S2_TEMPLATE = `You are a professional YouTube scriptwriter specialising in doodle-animation educational videos about ancient humans.
+---
+
+## S2 Active Prompt
+
+- Version: 7
+- Change reason: retention engineering (fast first payoff + open loops), tighten word band, stronger anti-hallucination, TTS-friendly, keep pure-script output
+- Created at: 2026-06-20T06:11:16.993Z
+
+```text
+You are a professional YouTube scriptwriter specialising in doodle-animation educational videos about ancient humans.
 
 Write the full narration script for a video titled: [TOPIC_TITLE]
 Angle: [TOPIC_ANGLE]
@@ -113,9 +156,19 @@ Questions to answer: [KEY_QUESTIONS]
 - Pure narration only — no headers, no bullet points, no visual cues, no stage directions, no parenthetical notes of any kind
 - End with a closing line that directly echoes the very first line, completely reframed
 
-Return ONLY the script text. No title, no headers, no timestamps, no notes.`;
+Return ONLY the script text. No title, no headers, no timestamps, no notes.
+```
 
-const S3_TEMPLATE = `You are a creative director for a doodle-animation YouTube channel. Your job is to write visual scene descriptions that a human illustrator (or image model) will draw.
+---
+
+## S3 Active Prompt
+
+- Version: 10
+- Change reason: compose for 16:9, keep in-image text short for render reliability, reinforce whole-video character consistency; image-count logic unchanged
+- Created at: 2026-06-20T06:11:17.779Z
+
+```text
+You are a creative director for a doodle-animation YouTube channel. Your job is to write visual scene descriptions that a human illustrator (or image model) will draw.
 
 Video title: [TOPIC_TITLE]
 Timestamped narration script:
@@ -180,90 +233,48 @@ Output format (one line per segment):
 [00:00] A lone prehistoric stick figure with messy brown hair and a worried frown stands on orange-sky savanna with tan ground and a lone acacia tree, gripping a rough wooden spear, scanning the horizon.
 [00:04] Plain white concept frame, centered bold red ALL-CAPS "300,000 YEARS", no characters.
 
-Return ONLY the timestamped prompts, one per line. No headers, no numbering, no extra text.`;
+Return ONLY the timestamped prompts, one per line. No headers, no numbering, no extra text.
+```
 
-const S4_TEMPLATE = `You are a YouTube SEO expert for an educational doodle-animation channel about ancient humans and prehistoric life.
+---
+
+## S4 Active Prompt
+
+- Version: 7
+- Change reason: SEO 2026 compliance — 3 hashtags, 8-12 tags, add chapters + thumbnail, keyword-first title/description, continuation links, conditional FTC
+- Created at: 2026-06-20T06:11:18.569Z
+
+```text
+You are a YouTube SEO expert for an educational doodle-animation channel about ancient humans and prehistoric life.
 
 Video topic: [TOPIC_TITLE]
-Primary keyword: [HEAD_KEYWORD]
+Head keyword: [HEAD_KEYWORD]
 Script excerpt: [SCRIPT_EXCERPT]
+Chapter timestamps (if available): [CHAPTER_TIMESTAMPS]
 
-Generate ONLY the variable parts of the video metadata. Constant boilerplate, chapter timestamps, and links are added later by the system — do NOT include them.
+Generate YouTube metadata optimised for discovery, click-through, and 2026 ranking signals.
 
 Rules:
-- The title must not promise anything the script does not deliver.
-- Put the primary keyword in the first 5 words of the title and in the first sentence of the hook.
-- Use the channel's calm, intelligent 2nd-person voice ("you", "your body", "your brain").
-- Do NOT write dividers, emojis, "Subscribe", upload schedule, hashtags, chapter times, or any URL. Those are added by code.
+- The title must NOT promise anything the script does not deliver (high CTR + low retention is penalised).
+- Put the primary keyword in the first 5 words of the title and in the first 2 sentences of the description.
+- Use the channel's calm 2nd-person voice.
 
 Return a JSON object with EXACTLY these fields:
 {
-  "title": "Final YouTube title, 40-65 chars, hook-first, primary keyword in the first 5 words. Use one proven formula: 'How Did Ancient Humans Actually ___?', 'Why Your Body/Brain Still ___ (Ancient/Stone Age Reason)', 'What ___ Was Like 300,000 Years Ago', 'You Wouldn't Last a Day as an Ancient Human'.",
-  "hook_paragraph": "1-2 sentences in calm 2nd-person that contain the primary keyword in the first sentence and tease the core reframe.",
-  "discover_bullets": [
-    "Takeaway 1 — the daily-life angle (concrete)",
-    "Takeaway 2 — the evidence angle (a real, well-known researcher/study/site)",
-    "Takeaway 3 — the modern-mirror angle (what it means for the viewer today)"
+  "title": "Final YouTube title, 40-65 chars, hook-first, curiosity-gap, primary keyword in the first 5 words. Use a proven angle: 'How Did Ancient Humans ___?', 'How Did Ancient Humans Survive ___?', 'The CRAZIEST ___ Used by Ancient Humans', 'Why You Wouldn't Last a Day in ___', 'What If ___?'.",
+  "description": "Full description: (1) a 2-3 sentence hook in calm 2nd-person that contains the primary keyword in the first 2 sentences and teases the core reframe; (2) a 3-4 sentence paragraph on what the viewer will discover; (3) a CHAPTERS block titled 'Chapters:' with each line as 'M:SS Title' starting at 0:00 (use [CHAPTER_TIMESTAMPS] if provided, otherwise infer 5-6 logical chapters from the script excerpt); (4) a 'More to explore:' line inviting viewers to a related video / playlist (use placeholders [RELATED_VIDEO_URL] and [PLAYLIST_URL]); (5) one line inviting likes, comments, subscribes in the channel voice; (6) IF the description will contain affiliate links, include this FTC line: 'Some links may be affiliate links; I may earn a small commission at no extra cost to you.'; (7) exactly 3 hashtags on the final line, each starting with #.",
+  "tags": "comma-separated string of 8-12 tags only. Mix broad niche terms (ancient humans, early humans, human evolution, prehistoric life, daily life in history) with 2-4 specific long-tail phrases derived from this video's head keyword. No hashtags.",
+  "chapters": [
+    { "time": "0:00", "title": "Intro / hook" }
   ],
-  "chapter_titles": [
-    "Intro label for 0:00 (e.g. 'The Freeze')",
-    "The Reframe",
-    "The Evidence",
-    "A Day Reconstructed",
-    "The Twist",
-    "What It Means for You Today"
-  ],
-  "tags": "comma-separated string of 8-12 tags. Mix broad niche terms (ancient humans, how ancient humans lived, human evolution, prehistoric life, early humans) with 2-4 topic-specific long-tail phrases from this video.",
   "thumbnail": {
-    "concept": "one-sentence doodle thumbnail concept matching this channel's exact established visual style: hand-drawn 2D doodle, flat solid colors, bold black outlines, slightly wobbly imperfect marker lines, no gradients/shadows/photorealism — featuring the orange-haired 'you' or a brown-haired ancient human with a strong, exaggerated facial emotion against a high-contrast flat background, directly illustrating this video's specific topic (not a generic scene)",
-    "text": "0-3 words of bold ALL-CAPS thumbnail text (or empty string)",
-    "emotion": "dominant facial emotion (surprise / shock / worry / awe)",
-    "accent_color": "high-contrast accent color (red, yellow, orange, or deep blue)"
+    "concept": "one-sentence doodle thumbnail concept in the channel's hand-drawn style (orange-haired 'you' or brown-haired ancient human, strong facial emotion, high-contrast flat background)",
+    "text": "0-3 words of bold ALL-CAPS thumbnail text (or empty string if image-only)",
+    "emotion": "the dominant facial emotion (surprise / shock / worry / awe)",
+    "accent_color": "high-contrast accent color for text/background (red, yellow, orange, or deep blue)"
   }
 }
 
-chapter_titles must be in strict chronological order, the first one corresponds to 0:00, and there must be between 5 and 6 of them.
+Return ONLY the JSON object. No markdown fences, no commentary.
+```
 
-Return ONLY the JSON object. No markdown fences, no commentary.`;
-
-async function updatePrompts() {
-  const { insertAhPromptVersion } = await import("../lib/db/repo/prompt-versions");
-
-  console.log("Updating prompt versions...");
-
-  await insertAhPromptVersion({
-    promptKey: "S1",
-    template: S1_TEMPLATE,
-    changeReason: "add head_keyword search-anchor, mark S1 title as working title, align viral_type enum with 7 angles",
-  });
-  console.log("  ✓ S1");
-
-  await insertAhPromptVersion({
-    promptKey: "S2",
-    template: S2_TEMPLATE,
-    changeReason: "retention engineering (fast first payoff + open loops), tighten word band, stronger anti-hallucination, TTS-friendly, keep pure-script output",
-  });
-  console.log("  ✓ S2");
-
-  await insertAhPromptVersion({
-    promptKey: "S3",
-    template: S3_TEMPLATE,
-    changeReason: "compose for 16:9, keep in-image text short for render reliability, reinforce whole-video character consistency; image-count logic unchanged",
-  });
-  console.log("  ✓ S3");
-
-  await insertAhPromptVersion({
-    promptKey: "S4",
-    template: S4_TEMPLATE,
-    changeReason: "S4 outputs variable JSON only; description assembled in code with real chapters + config URLs",
-  });
-  console.log("  ✓ S4");
-
-  console.log("\nPrompt update complete.");
-  process.exit(0);
-}
-
-updatePrompts().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});

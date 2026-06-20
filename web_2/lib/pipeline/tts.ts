@@ -5,26 +5,92 @@ import { AH_CONFIG_KEYS } from "@/lib/db/schema";
 import { transcribeAudio } from "./whisper";
 import { enqueueAhStage } from "./createJob";
 
+// MIN=4: cuts image count ~47% with zero flash (<=2s) scenes and the fewest
+// mid-sentence splits (MIN=5 cuts further but doubles mid-sentence splits).
+const SMART_BUCKET_MIN_DURATION = 4;
+// At 3, buckets sometimes land under MIN and still split a sentence; 4 clears
+// that without increasing image count.
+const SMART_BUCKET_MAX_SEGMENTS_PER_BUCKET = 4;
+// Hard cap enforced via look-ahead flush below, never exceeded.
+const SMART_BUCKET_MAX_DURATION = 12;
+// Duration estimate for the trailing segment, which has no "next" timestamp.
+const SMART_BUCKET_CHARS_PER_SEC = 15;
+const SMART_BUCKET_SENTENCE_END = /[.!?]["')]?\s*$/;
+
+type WhisperSeg = { t: number; text: string };
+type SmartBucket = { t: number; text: string; dur: number; segs: number };
+
 /**
- * Passes the timestamped Whisper transcript to S3 unchanged except for
- * filtering malformed/empty lines. Master prompt rule: one timestamp line =
- * one image prompt. Do not merge, split, cap, or target a scene count here.
+ * Greedily merges short Whisper timestamp lines into scenes of roughly
+ * MIN_DURATION-MAX_DURATION seconds of screen time (gap to the next segment's
+ * start, which includes any pause — that's what the image is actually shown
+ * for, not the spoken duration), so fast/staccato narration doesn't produce a
+ * flood of near-instant image prompts. Falls back to 1:1 passthrough for
+ * segments that are already long enough.
  */
 export function smartBucketTranscript(transcript: string): string {
   const segs = transcript.split("\n").filter(l => l.trim()).map(l => {
     const m = l.match(/^\[(\d{2}):(\d{2})\]\s*(.*)/);
     if (!m) return null;
     return { t: parseInt(m[1]) * 60 + parseInt(m[2]), text: m[3].trim() };
-  }).filter(Boolean) as { t: number; text: string }[];
+  }).filter(Boolean) as WhisperSeg[];
 
   if (segs.length === 0) return transcript;
 
-  console.log(`[smartBucket] pass-through ${segs.length} Whisper timestamp lines -> ${segs.length} S3 scenes`);
+  const buckets: SmartBucket[] = [];
+  let cur: SmartBucket | null = null;
 
-  return segs.map(seg => {
-    const mm = String(Math.floor(seg.t / 60)).padStart(2, "0");
-    const ss = String(seg.t % 60).padStart(2, "0");
-    return `[${mm}:${ss}] ${seg.text}`;
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    const dur = i + 1 < segs.length
+      ? segs[i + 1].t - seg.t
+      : Math.max(2, Math.round(seg.text.length / SMART_BUCKET_CHARS_PER_SEC));
+
+    // Look-ahead flush: stop BEFORE adding a segment that would push the
+    // current bucket past MAX_DURATION, so the cap is never overshot.
+    if (cur && cur.dur + dur > SMART_BUCKET_MAX_DURATION) {
+      buckets.push(cur);
+      cur = null;
+    }
+
+    if (!cur) {
+      cur = { t: seg.t, text: seg.text, dur, segs: 1 };
+      if (dur > SMART_BUCKET_MAX_DURATION) {
+        console.warn(`[smartBucket] single segment at ${seg.t}s spans ${dur}s (> ${SMART_BUCKET_MAX_DURATION}s max) — kept as its own scene, not split`);
+      }
+    } else {
+      cur.text += " " + seg.text;
+      cur.dur += dur;
+      cur.segs += 1;
+    }
+
+    const hitMin = cur.dur >= SMART_BUCKET_MIN_DURATION;
+    const endsSentence = SMART_BUCKET_SENTENCE_END.test(seg.text);
+    const hardCap = cur.segs >= SMART_BUCKET_MAX_SEGMENTS_PER_BUCKET || cur.dur >= SMART_BUCKET_MAX_DURATION;
+
+    if (hardCap || (hitMin && endsSentence)) {
+      buckets.push(cur);
+      cur = null;
+    }
+  }
+
+  if (cur) {
+    if (cur.dur < SMART_BUCKET_MIN_DURATION && buckets.length > 0) {
+      const last = buckets[buckets.length - 1];
+      last.text += " " + cur.text;
+      last.dur += cur.dur;
+      last.segs += cur.segs;
+    } else {
+      buckets.push(cur);
+    }
+  }
+
+  console.log(`[smartBucket] merged ${segs.length} Whisper timestamp lines -> ${buckets.length} S3 scenes`);
+
+  return buckets.map(bucket => {
+    const mm = String(Math.floor(bucket.t / 60)).padStart(2, "0");
+    const ss = String(bucket.t % 60).padStart(2, "0");
+    return `[${mm}:${ss}] ${bucket.text}`;
   }).join("\n");
 }
 

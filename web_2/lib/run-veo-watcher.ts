@@ -1,11 +1,22 @@
-import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
+const DEFAULT_RUN_VEO_DIR = "/Users/sangspm/Desktop/RUN_VEO_V1.1";
+
+function loadChildProcess(): typeof import("node:child_process") {
+  // Local-only process control should stay invisible to Next's NFT tracer.
+  const getBuiltinModule = (process as typeof process & {
+    getBuiltinModule?: (specifier: string) => unknown;
+  }).getBuiltinModule;
+  if (getBuiltinModule) {
+    return getBuiltinModule("node:child_process") as typeof import("node:child_process");
+  }
+
+  const runtimeRequire = Function("return require")() as NodeRequire;
+  return runtimeRequire("node:child_process") as typeof import("node:child_process");
+}
 
 function getRunVeoPaths() {
-  const defaultRunVeoDir = ["", "Users", "sangspm", "Desktop", "RUN_VEO_V1.1"].join("/");
-  const runVeoDir = (process.env.RUN_VEO_DIR ?? defaultRunVeoDir).replace(/\/$/, "");
+  const runVeoDir = (process.env.RUN_VEO_DIR ?? DEFAULT_RUN_VEO_DIR).replace(/\/$/, "");
   return {
     runVeoDir,
     scriptPath: `${runVeoDir}/pipeline_watch.py`,
@@ -33,6 +44,8 @@ function isAlive(pid: number): boolean {
 async function findWatcherPids(scriptPath: string): Promise<number[]> {
   const pids = new Set<number>();
   try {
+    const { execFile } = loadChildProcess();
+    const execFileAsync = promisify(execFile);
     const { stdout } = await execFileAsync("ps", ["-axo", "pid=,command="]);
     for (const line of stdout.split("\n")) {
       const match = line.trim().match(/^(\d+)\s+(.+)$/);
@@ -82,6 +95,7 @@ export async function startRunVeoWatcher(): Promise<RunVeoWatcherStatus> {
   if (!current.available || current.running) return current;
 
   const { runVeoDir, scriptPath } = getRunVeoPaths();
+  const { spawn } = loadChildProcess();
   const child = spawn(process.env.RUN_VEO_PYTHON ?? "python3", [scriptPath], {
     detached: true,
     stdio: "ignore",

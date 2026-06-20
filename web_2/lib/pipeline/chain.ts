@@ -16,6 +16,14 @@ import {
 import { extractJson } from "@/lib/utils/json";
 import { notify } from "@/lib/notifications";
 import { getManualImageProjectInfo } from "@/lib/manual-image-project";
+import { channelConfig } from "@/lib/config/channel";
+import {
+  buildDescription,
+  computeChapterTimestamps,
+  fmtChapterTime,
+  parseS4Variable,
+  parseWhisperSegments,
+} from "./descriptionBuilder";
 import { enqueueAhStage } from "./createJob";
 import { rankTopics, type AhTopic } from "./rank";
 import { describePendingTtsWait, runTTSAndWhisperForPendingVideo, smartBucketTranscript } from "./tts";
@@ -90,6 +98,11 @@ const QUOTED_TEXT_RE =
   /\b(?:bold\s+)?(?:red|black|white|blue|orange|green|yellow|cream|gray|grey)?\s*(?:hand[- ]lettered\s+)?text\s+[“"][^”"]+[”"]/giu;
 const LABEL_TEXT_RE = /\b(?:label(?:ed|led)?|caption(?:ed)?)\s+[“"][^”"]+[”"]/giu;
 
+interface YouTubeChapter {
+  time: string;
+  title: string;
+}
+
 function sanitizeImagePromptDescription(text: string): string {
   return text
     .replaceAll(DOODLE_STYLE_PREFIX, "")
@@ -126,7 +139,7 @@ async function handleS3Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
 
   // Read current video for topic title + script excerpt
   const video = await getAhVideo(videoId);
-  const topic = video?.chosenTopic as { title?: string } | null;
+  const topic = video?.chosenTopic as { title?: string; head_keyword?: string } | null;
   const scriptExcerpt = (video?.script ?? "").slice(0, 600);
 
   await enqueueAhStage({
@@ -134,6 +147,7 @@ async function handleS3Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
     stage: "S4",
     vars: {
       TOPIC_TITLE: topic?.title ?? "",
+      HEAD_KEYWORD: topic?.head_keyword ?? topic?.title?.toLowerCase() ?? "",
       SCRIPT_EXCERPT: scriptExcerpt,
     },
     videoId,
@@ -144,18 +158,30 @@ async function handleS3Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
 async function handleS4Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
   const videoId = job.videoId!;
 
-  const meta = extractJson<{ title?: string; description?: string; tags?: string }>(
-    job.result ?? "{}",
-  );
+  // S4 only generates the variable copy; chapters/description/links are
+  // assembled in code below from real Whisper timestamps + channelConfig,
+  // so the LLM can't hallucinate timing or boilerplate.
+  const variable = parseS4Variable(extractJson<unknown>(job.result ?? "{}"));
+
+  const video = await getAhVideo(videoId);
+  const segments = parseWhisperSegments(video?.whisperTranscript);
+  const chapterTimes = computeChapterTimestamps(segments, variable.chapter_titles.length);
+  const chapterCount = Math.min(variable.chapter_titles.length, chapterTimes.length);
+  const chapters: YouTubeChapter[] = Array.from({ length: chapterCount }, (_, i) => ({
+    time: fmtChapterTime(chapterTimes[i]),
+    title: variable.chapter_titles[i],
+  }));
+  const description = buildDescription(variable, chapterTimes, channelConfig);
 
   await updateAhVideoFields(videoId, {
-    ytTitle: meta.title ?? "",
-    ytDescription: meta.description ?? "",
-    ytTags: meta.tags ?? "",
+    ytTitle: variable.title,
+    ytDescription: description,
+    ytTags: variable.tags,
+    ytChapters: chapters as unknown as Record<string, unknown>[],
+    ytThumbnail: variable.thumbnail as unknown as Record<string, unknown>,
   });
   await updateAhVideoStatus(videoId, "ready");
 
-  const video = await getAhVideo(videoId);
   const manualProject = getManualImageProjectInfo({
     id: videoId,
     imagePrompts: video?.imagePrompts,

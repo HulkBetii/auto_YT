@@ -30,6 +30,7 @@ async function assertAuth(request: Request) {
 
 function getTopic(value: unknown): {
   title: string;
+  head_keyword?: string;
   angle: string;
   hook: string;
   key_questions: string[];
@@ -47,6 +48,7 @@ function getTopic(value: unknown): {
   const keyQuestions = topic.key_questions.filter((item): item is string => typeof item === "string");
   return {
     title: topic.title,
+    head_keyword: typeof topic.head_keyword === "string" ? topic.head_keyword : undefined,
     angle: topic.angle,
     hook: topic.hook,
     key_questions: keyQuestions,
@@ -130,6 +132,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ytTitle: null,
       ytDescription: null,
       ytTags: null,
+      ytChapters: null,
+      ytThumbnail: null,
       imageCount: 0,
       imageCountExpected: 0,
       videoPath: null,
@@ -152,13 +156,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, mode: "video", status: "s3_pending" });
   }
 
-  if (!video.ytTitle || !video.ytDescription || !video.ytTags) {
+  if (!video.ytTitle || !video.ytDescription || !video.ytTags || !video.ytChapters || !video.ytThumbnail) {
     await updateAhVideoStatus(videoId, "s4_pending");
     await enqueueAhStage({
       promptKey: "S4",
       stage: "S4",
       vars: {
         TOPIC_TITLE: topic?.title ?? "",
+        HEAD_KEYWORD: topic?.head_keyword ?? topic?.title?.toLowerCase() ?? "",
         SCRIPT_EXCERPT: video.script.slice(0, 600),
       },
       videoId,

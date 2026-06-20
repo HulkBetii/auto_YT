@@ -33,35 +33,18 @@ function extractTemplate(source: string, name: string): string {
 
 async function main() {
   const { insertAhPromptVersion } = await import("../lib/db/repo/prompt-versions");
-  const { setAhConfigValue } = await import("../lib/db/repo/channel-config");
 
   const updaterPath = path.join(process.cwd(), "scripts", "update-prompts.ts");
   const updaterSource = readFileSync(updaterPath, "utf-8");
-  const templates = {
-    S1: extractTemplate(updaterSource, "S1_TEMPLATE"),
-    S2: extractTemplate(updaterSource, "S2_TEMPLATE"),
-    S3: extractTemplate(updaterSource, "S3_TEMPLATE"),
-    S4: extractTemplate(updaterSource, "S4_TEMPLATE"),
-  };
+  const template = extractTemplate(updaterSource, "S4_TEMPLATE");
 
-  console.log("Seeding prompt versions from scripts/update-prompts.ts...");
+  const created = await insertAhPromptVersion({
+    promptKey: "S4",
+    template,
+    changeReason: "S4 outputs variable JSON only; description assembled in code with real chapters + config URLs",
+  });
 
-  for (const [promptKey, template] of Object.entries(templates)) {
-    await insertAhPromptVersion({
-      promptKey,
-      template,
-      changeReason: "initial seed from current prompt templates",
-    });
-    console.log(`  ✓ ${promptKey} prompt`);
-  }
-
-  console.log("\nSeeding channel config defaults...");
-  await setAhConfigValue("voice_id", "");
-  await setAhConfigValue("web2_url", process.env.WEB2_URL ?? "http://localhost:3001");
-  await setAhConfigValue("openai_model", "gpt-4o-mini");
-  console.log("  ✓ channel_config defaults");
-
-  console.log("\nSeed complete.");
+  console.log(`✓ S4 prompt bumped to version ${created.version} (id=${created.id})`);
   process.exit(0);
 }
 

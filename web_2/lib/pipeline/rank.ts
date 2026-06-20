@@ -5,10 +5,22 @@ import { extractJson } from "@/lib/utils/json";
 
 export interface AhTopic {
   title: string;
+  head_keyword: string;
   angle: string;
   hook: string;
   viral_type: string;
   key_questions: string[];
+}
+
+function fallbackHeadKeyword(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 7)
+    .join(" ");
 }
 
 export async function rankTopics(
@@ -34,7 +46,7 @@ Recent topics to avoid repeating:
 ${formatRecentAhTopicsForPrompt(recentTopics)}
 
 Topics:
-${candidates.map((t, i) => `${i + 1}. Title: "${t.title}"\n   Angle: ${t.angle}\n   Viral type: ${t.viral_type}`).join("\n\n")}
+${candidates.map((t, i) => `${i + 1}. Title: "${t.title}"\n   Head keyword: ${t.head_keyword || "missing"}\n   Angle: ${t.angle}\n   Viral type: ${t.viral_type}`).join("\n\n")}
 
 Selection criteria (in order of importance):
 1. Different core behavior and angle from recent topics. If every candidate overlaps, choose the least repetitive one.
@@ -61,5 +73,8 @@ Return a JSON object with a single field "index" (1-based integer) indicating yo
   if (!chosen?.title || !chosen.angle || !chosen.hook || !Array.isArray(chosen.key_questions)) {
     throw new Error("[rank] Chosen topic is missing required fields.");
   }
-  return chosen;
+  return {
+    ...chosen,
+    head_keyword: chosen.head_keyword?.trim() || fallbackHeadKeyword(chosen.title),
+  };
 }

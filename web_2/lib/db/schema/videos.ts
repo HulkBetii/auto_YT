@@ -14,6 +14,8 @@ export const ahVideos = pgTable("ah_videos", {
   ytTitle: text("yt_title"),
   ytDescription: text("yt_description"),
   ytTags: text("yt_tags"),
+  ytChapters: jsonb("yt_chapters"),
+  ytThumbnail: jsonb("yt_thumbnail"),
   // Assembly tracking (updated by local Mac worker via /api/videos/[id]/progress)
   imageCountExpected: integer("image_count_expected").default(0),
   imageCount: integer("image_count").default(0),

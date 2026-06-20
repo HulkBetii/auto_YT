@@ -44,6 +44,14 @@ const STATUS_ACTIVE_STEP: Record<string, number> = {
   needs_attention:   -1,
 };
 
+type YouTubeChapter = { time?: string; title?: string };
+type YouTubeThumbnailConcept = {
+  concept?: string;
+  text?: string;
+  emotion?: string;
+  accent_color?: string;
+};
+
 export default async function VideoDetailPage({
   params,
 }: {
@@ -61,6 +69,13 @@ export default async function VideoDetailPage({
   if (!video) notFound();
 
   const topic = video.chosenTopic as { title?: string; angle?: string } | null;
+  const ytChapters = Array.isArray(video.ytChapters)
+    ? (video.ytChapters as YouTubeChapter[])
+    : [];
+  const ytThumbnail =
+    video.ytThumbnail && typeof video.ytThumbnail === "object" && !Array.isArray(video.ytThumbnail)
+      ? (video.ytThumbnail as YouTubeThumbnailConcept)
+      : null;
   const doneCount = STATUS_DONE_STEPS[video.status] ?? 0;
   const activeStep = STATUS_ACTIVE_STEP[video.status] ?? -1;
 
@@ -245,7 +260,7 @@ export default async function VideoDetailPage({
           )}
 
           {/* YouTube metadata */}
-          {(video.ytTitle || video.ytDescription || video.ytTags) && (
+          {(video.ytTitle || video.ytDescription || video.ytTags || ytChapters.length > 0 || ytThumbnail) && (
             <section>
               <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
                 YOUTUBE METADATA
@@ -290,6 +305,46 @@ export default async function VideoDetailPage({
                           </p>
                         </div>
                         <CopyButton text={video.ytTags} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {ytChapters.length > 0 && (
+                  <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2] mb-1">Chapters</p>
+                          <div className="space-y-1">
+                            {ytChapters.map((chapter, index) => (
+                              <p key={`${chapter.time ?? index}-${chapter.title ?? ""}`} className="text-[13px] text-[#3C3C43] dark:text-[#AEAEB2]">
+                                <span className="font-mono text-[#007AFF] dark:text-[#0A84FF]">{chapter.time ?? "—"}</span>
+                                <span className="ml-2">{chapter.title ?? "Untitled"}</span>
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                        <CopyButton text={ytChapters.map((c) => `${c.time ?? ""} ${c.title ?? ""}`.trim()).join("\n")} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {ytThumbnail && (
+                  <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2] mb-1">Thumbnail</p>
+                          <p className="text-[14px] text-[#3C3C43] dark:text-[#AEAEB2] whitespace-pre-wrap">
+                            {ytThumbnail.concept ?? "—"}
+                          </p>
+                          <p className="mt-2 text-[12px] text-[#6E6E73] dark:text-[#AEAEB2]">
+                            Text: <span className="font-mono">{ytThumbnail.text ?? ""}</span>
+                            {ytThumbnail.emotion ? ` · Emotion: ${ytThumbnail.emotion}` : ""}
+                            {ytThumbnail.accent_color ? ` · Accent: ${ytThumbnail.accent_color}` : ""}
+                          </p>
+                        </div>
+                        <CopyButton text={JSON.stringify(ytThumbnail, null, 2)} />
                       </div>
                     </CardContent>
                   </Card>
