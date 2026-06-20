@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import asyncpg
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright
 
 from auto_yt.paths import ACCOUNT_PATH, DATA_DIR, gpt_profile_dir
@@ -654,12 +655,14 @@ async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard
     await trigger_chain_cycle(web_url, dashboard_secret)
 
 
-async def run() -> None:
-    dsn = load_database_url()
-    account = load_account()
-    web_url, dashboard_secret = load_chain_config()
-    web2_url, web2_secret = load_web2_config()
+async def _launch_chromium_context(pw):
+    """(Re)launch the persistent Chromium context used for every ChatGPT tab.
 
+    Factored out of `run()` so a dead BrowserContext (the whole browser
+    crashed/closed, not just one tab — TargetClosedError surfacing from
+    `ctx.new_page()` itself) can be replaced in place, instead of wedging
+    every subsequent job in 'running' forever (see git history / e2e test
+    that caught this: a crashed context left job stuck with no recovery)."""
     # Remove stale Chromium singleton lock files left by a previous crash.
     # Without this, launch_persistent_context raises ProcessSingleton errors
     # if the prior process was killed without a clean shutdown.
@@ -672,7 +675,6 @@ async def run() -> None:
         except FileNotFoundError:
             pass
 
-    pw = await async_playwright().start()
     ctx = await pw.chromium.launch_persistent_context(
         str(_profile_dir),
         headless=False,
@@ -689,6 +691,18 @@ async def run() -> None:
         except Exception:
             pass
 
+    return ctx
+
+
+async def run() -> None:
+    dsn = load_database_url()
+    account = load_account()
+    web_url, dashboard_secret = load_chain_config()
+    web2_url, web2_secret = load_web2_config()
+
+    pw = await async_playwright().start()
+    ctx = await _launch_chromium_context(pw)
+
     tabs = TabManager(ctx, account)
 
     try:
@@ -698,6 +712,7 @@ async def run() -> None:
 
         logger.info("Worker started — polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL_S)
         while True:
+            job = None
             try:
                 job = await claim_next_job(dsn)
                 if job is None:
@@ -732,8 +747,48 @@ async def run() -> None:
                 # is busy). Non-fatal — pipeline still advances via Vercel cron.
                 logger.warning("DB connection hiccup (non-fatal, retrying): %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
+            except PlaywrightError as exc:
+                # The whole BrowserContext died (not just one tab — _page_alive's
+                # per-tab recovery can't help here since ctx.new_page() itself is
+                # what's throwing). Without this branch the claimed job was left
+                # stuck in 'running' forever (claim_next_job only selects
+                # 'pending' rows) while every future job kept hitting the same
+                # dead ctx — an e2e test caught this stalling the pipeline with
+                # no alert. Requeue the job for a fresh attempt and relaunch
+                # Chromium so the next iteration gets a live context.
+                logger.exception("Browser context died during poll loop — relaunching Chromium")
+                if job is not None:
+                    requeue_fn = retry_transient_ah_job if job.get("_table") == "ah_jobs" else retry_transient_job
+                    try:
+                        await requeue_fn(dsn, job["id"], error_message=str(exc), retry_count=job.get("retry_count", 0) + 1)
+                    except Exception:
+                        logger.exception("Failed to requeue job id=%s after context death", job.get("id"))
+                try:
+                    await tabs.close_all()
+                except Exception:
+                    pass
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+                ctx = await _launch_chromium_context(pw)
+                tabs.ctx = ctx
+                tabs.topic_page = None
+                tabs.ah_topic_page = None
+                tabs.video_pages = {}
+                try:
+                    await tabs.bootstrap()
+                except Exception:
+                    logger.exception("Failed to re-bootstrap topic tab after context relaunch")
+                await asyncio.sleep(POLL_INTERVAL_S)
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Unexpected error during poll loop: %s", exc)
+                if job is not None:
+                    requeue_fn = retry_transient_ah_job if job.get("_table") == "ah_jobs" else retry_transient_job
+                    try:
+                        await requeue_fn(dsn, job["id"], error_message=str(exc), retry_count=job.get("retry_count", 0) + 1)
+                    except Exception:
+                        logger.exception("Failed to requeue job id=%s after unexpected error", job.get("id"))
                 await asyncio.sleep(POLL_INTERVAL_S)
     finally:
         await record_heartbeat(dsn, "stopped")

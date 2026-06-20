@@ -65,6 +65,7 @@ async function handleP1Done(job: Job) {
   }
 
   let accepted = 0;
+  const skipReasons: string[] = [];
   for (const topic of candidates) {
     if (accepted >= batchSize) break;
 
@@ -75,6 +76,7 @@ async function handleP1Done(job: Job) {
       embedding = await embedTopic(topic.topic, topic.title);
     } catch (err) {
       console.warn(`[anti-dup] embedding failed for "${topic.title}", skipping topic: ${err}`);
+      skipReasons.push(`"${topic.title}" — embedding failed: ${err}`);
       continue;
     }
 
@@ -85,6 +87,7 @@ async function handleP1Done(job: Job) {
     });
     if (verdict.duplicate) {
       console.log(`[anti-dup] skipping "${topic.title}" — ${verdict.reason}`);
+      skipReasons.push(`"${topic.title}" — ${verdict.reason}`);
       continue;
     }
 
@@ -116,6 +119,16 @@ async function handleP1Done(job: Job) {
         SELF_ADDRESS: topic.self_address,
       },
     });
+  }
+
+  // All candidates rejected by the anti-dup gate — the job is "done" but the
+  // pipeline made zero progress and will look identical to a successful run
+  // on the dashboard. Alert so an operator can loosen the gate / review the
+  // P1 prompt instead of this batch silently stalling indefinitely.
+  if (accepted === 0) {
+    const msg = `⚠️ P1 Job #${job.id}: ${candidates.length}件のtopicが全てanti-dupで除外されました。動画は作成されていません。\n${skipReasons.slice(0, 5).join("\n")}`;
+    console.warn(`[P1] Job #${job.id}: all ${candidates.length} candidates rejected — 0 videos created.`);
+    await notify(msg);
   }
 }
 
