@@ -273,6 +273,90 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Genmax (fallback provider — same API shape, AI33.PRO has gone through
+// stretches of "please use api v3 for this endpoint" / 401s on its TTS
+// creation endpoints while /v1/task/{id} polling and /v1/credits stayed
+// fine. web_2/lib/pipeline/tts.ts already runs this exact fallback in
+// production; ported here rather than re-deriving it.)
+// ---------------------------------------------------------------------------
+
+const GENMAX_BASE_URL = "https://api.genmax.io";
+/** Prefix marking a `tts_task_id` value as a Genmax (not AI33.PRO) task. */
+const GENMAX_TASK_PREFIX = "gx:";
+
+function isMinimaxVoiceId(voiceId: string): boolean {
+  return /^\d+$/.test(voiceId) || voiceId.startsWith("clone_") || voiceId.startsWith("minimax_");
+}
+
+async function submitGenmax(text: string, voiceId: string): Promise<string> {
+  const apiKey = process.env.GENMAX_API_KEY;
+  if (!apiKey) throw new Error("[tts-gx] GENMAX_API_KEY env var is not set");
+
+  const minimax = isMinimaxVoiceId(voiceId);
+  const rawVoiceId = voiceId.replace(/^(clone_|minimax_|elevenlabs_)/, "");
+  const body: Record<string, unknown> = {
+    text,
+    model_id: minimax ? "speech-2.8-turbo" : "eleven_multilingual_v2",
+    language_code: minimax ? "Japanese" : "ja",
+    ...(minimax && { provider: "minimax" }),
+  };
+
+  const res = await fetch(`${GENMAX_BASE_URL}/v1/text-to-speech/${encodeURIComponent(rawVoiceId)}`, {
+    method: "POST",
+    headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`[tts-gx] submit HTTP ${res.status}: ${txt}`);
+  }
+
+  const json = (await res.json()) as { id?: string };
+  if (!json.id) throw new Error(`[tts-gx] no id in response: ${JSON.stringify(json)}`);
+  return json.id;
+}
+
+async function checkGenmaxTask(taskId: string): Promise<TtsTaskCheckResult> {
+  const apiKey = process.env.GENMAX_API_KEY;
+  if (!apiKey) return { status: "error", message: "[tts-gx] GENMAX_API_KEY not set" };
+
+  let res: Response;
+  try {
+    res = await fetch(`${GENMAX_BASE_URL}/v1/history/${taskId}`, { headers: { "xi-api-key": apiKey } });
+  } catch (err) {
+    return { status: "error", message: `[tts-gx] network error: ${String(err)}` };
+  }
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    return { status: "error", message: `[tts-gx] HTTP ${res.status}: ${txt}` };
+  }
+
+  const json = (await res.json()) as { status?: string; result?: { audio_url?: string }; error?: string };
+  if (json.status === "completed") {
+    const audioUrl = json.result?.audio_url;
+    if (!audioUrl) return { status: "error", message: "[tts-gx] completed but no audio_url" };
+    return { status: "done", audioUrl };
+  }
+  if (json.status === "failed") {
+    return { status: "error", message: `[tts-gx] task failed: ${json.error ?? "unknown"}` };
+  }
+  return { status: "running" };
+}
+
+async function cancelGenmaxTask(taskId: string): Promise<void> {
+  const apiKey = process.env.GENMAX_API_KEY;
+  if (!apiKey) return;
+  try {
+    await fetch(`${GENMAX_BASE_URL}/v1/history/${taskId}`, { method: "DELETE", headers: { "xi-api-key": apiKey } });
+    console.log(`[tts-gx] cancelGenmaxTask ${taskId} done`);
+  } catch (err) {
+    console.warn(`[tts-gx] cancelGenmaxTask ${taskId} failed:`, err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -366,14 +450,24 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
           continue;
         }
 
-        const taskId = await submitTTS(ttsText, voiceId);
+        let taskId: string;
+        try {
+          taskId = await submitTTS(ttsText, voiceId);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[tts] Video #${video.id} AI33.PRO submit failed — trying Genmax fallback: ${msg}`);
+          taskId = GENMAX_TASK_PREFIX + (await submitGenmax(ttsText, voiceId));
+        }
         await setVideoTtsTaskId(video.id, taskId); // also saves tts_submitted_at = now()
         console.log(`[tts] Video #${video.id} submitted task ${taskId} (voice: ${voiceId})`);
         results.push({ videoId: video.id, ok: false, error: "submitted" });
       } else {
         // ── Path B: check existing task once, no blocking loop ────────────────
         const taskId = video.ttsTaskId;
-        const result = await checkTTSTask(taskId);
+        const isGenmax = taskId.startsWith(GENMAX_TASK_PREFIX);
+        const rawTaskId = isGenmax ? taskId.slice(GENMAX_TASK_PREFIX.length) : taskId;
+        const result = isGenmax ? await checkGenmaxTask(rawTaskId) : await checkTTSTask(rawTaskId);
+        const cancel = isGenmax ? cancelGenmaxTask : cancelTTSTask;
 
         if (result.status === "running") {
           const ageMs = video.ttsSubmittedAt
@@ -382,7 +476,7 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
 
           if (ageMs > MAX_TTS_AGE_MS) {
             console.warn(`[tts] Video #${video.id} task ${taskId} stuck ${Math.round(ageMs / 60000)}min — cancelling`);
-            await cancelTTSTask(taskId);
+            await cancel(rawTaskId);
             await clearVideoTtsTaskId(video.id);
             results.push({ videoId: video.id, ok: false, error: `stale_cancelled after ${Math.round(ageMs / 60000)}min` });
           } else {
@@ -396,7 +490,7 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
         } else {
           // error — cancel to reclaim frozen credits, clear so next tick can retry
           console.warn(`[tts] Video #${video.id} task ${taskId} error: ${result.message}`);
-          await cancelTTSTask(taskId);
+          await cancel(rawTaskId);
           await clearVideoTtsTaskId(video.id);
           results.push({ videoId: video.id, ok: false, error: result.message });
         }
