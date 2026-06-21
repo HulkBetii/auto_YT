@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 
 import { db } from "../db";
+import { getConfigValue } from "../db/repo/channel-config";
 import { listRecentVideos } from "../db/repo/videos";
 import { jobs, videos } from "../db/schema";
 import { enqueueStage } from "./createJob";
@@ -42,6 +43,10 @@ export interface NewBatchResult {
  * Single source of truth, shared by both entry points.
  */
 export async function maybeStartNewBatch(): Promise<NewBatchResult> {
+  if ((await getConfigValue("new_batch_paused")) === "true") {
+    return { triggered: false, reason: "new_batch_paused is true — set it to false in channel_config to resume" };
+  }
+
   const inFlightVideos = await db
     .select({ id: videos.id })
     .from(videos)
