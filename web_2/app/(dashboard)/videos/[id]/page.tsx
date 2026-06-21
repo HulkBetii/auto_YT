@@ -11,6 +11,7 @@ import { CopyButton } from "./CopyButton";
 import { RetryButton } from "./RetryButton";
 import { RetryVideoButton } from "./RetryVideoButton";
 import { DeleteVideoButton } from "./DeleteVideoButton";
+import { PublishToggle } from "./PublishToggle";
 import { OpenFolderButton } from "./OpenFolderButton";
 import { countManualProjectImages, getManualImageProjectInfo } from "@/lib/manual-image-project";
 
@@ -112,6 +113,11 @@ export default async function VideoDetailPage({
           <Badge className={`text-[12px] ${statusBadgeClass(video.status)}`}>
             {VIDEO_STATUS_LABELS[video.status] ?? video.status}
           </Badge>
+          {video.publishedAt && (
+            <Badge className="text-[12px] bg-[#D1F2D1] text-[#1A7A1A] border-0">
+              Published
+            </Badge>
+          )}
           {video.status !== "assembly_done" && (
             <RetryVideoButton videoId={video.id} />
           )}
@@ -152,6 +158,13 @@ export default async function VideoDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Publish marker */}
+      <PublishToggle
+        videoId={video.id}
+        publishedAt={video.publishedAt ? new Date(video.publishedAt).toISOString() : null}
+        youtubeUrl={video.youtubeUrl ?? null}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: info sidebar */}

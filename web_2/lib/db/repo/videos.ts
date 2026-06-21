@@ -26,10 +26,15 @@ export async function getAhVideo(videoId: number) {
   return row ?? null;
 }
 
-export async function listAhVideos(filter?: { status?: AhVideoStatus }, limit = 30) {
+export async function listAhVideos(
+  filter?: { status?: AhVideoStatus; published?: boolean },
+  limit = 30,
+) {
   let q = db.select().from(ahVideos).$dynamic();
   if (filter?.status) {
     q = q.where(eq(ahVideos.status, filter.status));
+  } else if (filter?.published) {
+    q = q.where(sql`${ahVideos.publishedAt} IS NOT NULL`);
   }
   return q.orderBy(desc(ahVideos.createdAt)).limit(limit);
 }

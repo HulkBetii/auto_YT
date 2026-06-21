@@ -16,6 +16,7 @@ const STATUS_TABS = [
   { key: "s3_pending", label: "S3" },
   { key: "s4_pending", label: "S4" },
   { key: "ready", label: "Ready" },
+  { key: "published", label: "Published" },
   { key: "needs_attention", label: "Failed" },
 ] as const;
 
@@ -28,9 +29,12 @@ export default async function VideosPage({
   const activeStatus = status && status !== "all" ? status : undefined;
 
   type FilterStatus = Parameters<typeof listAhVideos>[0];
-  const filter: FilterStatus = activeStatus
-    ? { status: activeStatus as NonNullable<FilterStatus>["status"] }
-    : undefined;
+  const filter: FilterStatus =
+    activeStatus === "published"
+      ? { published: true }
+      : activeStatus
+        ? { status: activeStatus as NonNullable<FilterStatus>["status"] }
+        : undefined;
   const videos = await listAhVideos(filter, 50);
 
   return (
@@ -78,6 +82,11 @@ export default async function VideosPage({
                 <span className="min-w-0 flex-1 truncate text-[15px] text-[#1C1C1E] dark:text-white">
                   {title}
                 </span>
+                {v.publishedAt && (
+                  <Badge className="shrink-0 text-[11px] bg-[#D1F2D1] text-[#1A7A1A] border-0">
+                    Published
+                  </Badge>
+                )}
                 <Badge className={`shrink-0 text-[11px] ${statusBadgeClass(v.status)}`}>
                   {VIDEO_STATUS_LABELS[v.status] ?? v.status}
                 </Badge>

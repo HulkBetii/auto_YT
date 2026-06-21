@@ -20,6 +20,10 @@ export const ahVideos = pgTable("ah_videos", {
   imageCountExpected: integer("image_count_expected").default(0),
   imageCount: integer("image_count").default(0),
   videoPath: text("video_path"),
+  // Publish marker — set manually once the finished video is uploaded to YouTube.
+  // Orthogonal to `status`: a video can be assembly_done AND published.
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  youtubeUrl: text("youtube_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
