@@ -30,6 +30,7 @@ from auto_yt.services.chatgpt_login import ChatGPTLoginError, login_gpt_auto, re
 from auto_yt.services.job_queue import (
     claim_next_job, complete_job, fail_job, retry_transient_job, trigger_chain_cycle,
     claim_next_ah_job, complete_ah_job, fail_ah_job, retry_transient_ah_job,
+    claim_next_dr_job, complete_dr_job, fail_dr_job, retry_transient_dr_job,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -90,6 +91,31 @@ def load_chain_config() -> tuple[str, str]:
             "Add both to data/db_config.json or env to fix."
         )
     return web_url, secret
+
+
+def load_web3_config() -> tuple[str, str]:
+    """Return (web3_url, web3_dashboard_secret) for firing dr_job callbacks.
+
+    Reads WEB3_URL / WEB3_DASHBOARD_SECRET from env, then db_config.json.
+    Returns ("", "") if not configured — _hit_url silently skips in that case.
+    """
+    url = os.getenv("WEB3_URL", "").strip()
+    secret = os.getenv("WEB3_DASHBOARD_SECRET", "").strip()
+    if url and secret:
+        return url, secret
+    if DB_CONFIG_PATH.exists():
+        try:
+            data = json.loads(DB_CONFIG_PATH.read_text(encoding="utf-8"))
+            url = url or str(data.get("WEB3_URL") or "").strip()
+            secret = secret or str(data.get("WEB3_DASHBOARD_SECRET") or "").strip()
+        except Exception:
+            pass
+    if not url or not secret:
+        logger.warning(
+            "WEB3_URL / WEB3_DASHBOARD_SECRET not set — "
+            "dr_jobs callbacks will not fire. Add both to data/db_config.json or env."
+        )
+    return url, secret
 
 
 def load_web2_config() -> tuple[str, str]:
@@ -297,12 +323,21 @@ async def ensure_logged_in(page, account: dict) -> dict:
 # than keeping hundreds of idle tabs alive for weeks.
 TERMINAL_VIDEO_STATUSES = ("ready_to_publish", "needs_attention")   # web/ pipeline
 AH_TERMINAL_VIDEO_STATUSES = ("ready", "needs_attention")           # ah pipeline
+DR_TERMINAL_VIDEO_STATUSES = ("ready", "assembly_done", "needs_attention")  # dr pipeline
 
 
 async def fetch_video_status(dsn: str, video_id: int) -> str | None:
     conn = await asyncpg.connect(dsn)
     try:
         return await conn.fetchval("SELECT status FROM videos WHERE id = $1", video_id)
+    finally:
+        await conn.close()
+
+
+async def fetch_dr_episode_status(dsn: str, episode_id: int) -> str | None:
+    conn = await asyncpg.connect(dsn)
+    try:
+        return await conn.fetchval("SELECT status FROM dr_episodes WHERE id = $1", episode_id)
     finally:
         await conn.close()
 
@@ -356,6 +391,45 @@ async def save_ah_conversation_url(dsn: str, video_id: int, url: str) -> None:
         await conn.close()
 
 
+def _dr_conversation_key(episode_id: int) -> str:
+    return f"dr_conversation_url:{episode_id}"
+
+
+async def fetch_dr_conversation_url(dsn: str, episode_id: int) -> str | None:
+    """Restore the per-episode ChatGPT conversation so D1..D4 share one session
+    (keeps the scene/visual context coherent across stages)."""
+    conn = await asyncpg.connect(dsn)
+    try:
+        value = await conn.fetchval(
+            "SELECT value FROM dr_channel_config WHERE key = $1",
+            _dr_conversation_key(episode_id),
+        )
+        if isinstance(value, str) and _is_chatgpt_conversation_url(value):
+            return value
+        return None
+    finally:
+        await conn.close()
+
+
+async def save_dr_conversation_url(dsn: str, episode_id: int, url: str) -> None:
+    if not _is_chatgpt_conversation_url(url):
+        return
+
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            """
+            INSERT INTO dr_channel_config (key, value, updated_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+            """,
+            _dr_conversation_key(episode_id),
+            url,
+        )
+    finally:
+        await conn.close()
+
+
 class TabManager:
     """Owns one Playwright page (= one ChatGPT conversation) per "routing key"
     so unrelated pieces of content never bleed context into each other, and
@@ -386,6 +460,7 @@ class TabManager:
         self.account = account
         self.topic_page = None          # P1 reservoir (web/ pipeline)
         self.ah_topic_page = None       # S1 reservoir (ah pipeline)
+        self.dr_topic_page = None       # D0 reservoir (dr pipeline)
         self.video_pages: dict[int | tuple, object] = {}
         # ah_videos use ("ah", video_id) tuple keys to avoid int-key collisions
 
@@ -485,15 +560,70 @@ class TabManager:
             self.ah_topic_page = await self._new_logged_in_page()
         return self.ah_topic_page
 
+    async def _get_dr_topic_page(self):
+        if self.dr_topic_page is None or not await _page_alive(self.dr_topic_page):
+            if self.dr_topic_page is not None:
+                logger.warning("DR topic-reservoir tab is dead — reopening...")
+                try:
+                    await self.dr_topic_page.close()
+                except Exception:
+                    pass
+            logger.info("Opening dedicated 'DR scene reservoir' tab for D0...")
+            self.dr_topic_page = await self._new_logged_in_page()
+        return self.dr_topic_page
+
+    async def _get_dr_episode_page(self, dsn: str, episode_id: int):
+        # D1..D4 for one episode share a single ChatGPT conversation so the scene
+        # and visual context stay coherent. The conversation URL is persisted per
+        # episode, so continuity survives a tab loss or worker restart.
+        key = ("dr", episode_id)
+        page = self.video_pages.get(key)
+        if page is None or not await _page_alive(page):
+            if page is not None:
+                logger.warning("DR tab for episode #%s is dead — reopening...", episode_id)
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+
+            saved_url = await fetch_dr_conversation_url(dsn, episode_id)
+            logger.info(
+                "Opening dedicated DR tab for episode #%s%s...",
+                episode_id,
+                " from saved conversation" if saved_url else "",
+            )
+            page = await self._new_logged_in_page()
+            if saved_url:
+                try:
+                    await page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)
+                    await asyncio.sleep(2)
+                    logger.info("Restored DR episode #%s conversation: %s", episode_id, saved_url)
+                except Exception as exc:
+                    logger.warning(
+                        "Could not restore DR episode #%s conversation %s — using fresh chat: %s",
+                        episode_id, saved_url, exc,
+                    )
+            self.video_pages[key] = page
+        return page
+
     async def get_page_for(self, job: dict, dsn: str):
         """Routes a claimed job to the right conversation tab.
 
         web/ pipeline: P1 → shared topic_page; P2..P6 → per-video_id page.
         ah pipeline:   S1 → shared ah_topic_page; S2..S4 → per-("ah",video_id) page.
         """
-        is_ah = job.get("_table") == "ah_jobs"
+        table = job.get("_table")
 
-        if is_ah:
+        if table == "dr_jobs":
+            if job["stage"] == "D0":
+                return await self._get_dr_topic_page()
+            episode_id = job.get("video_id")
+            if episode_id is None:
+                logger.warning("DR job id=%s stage=%s has no episode_id — using scratch tab", job["id"], job["stage"])
+                return await self._new_logged_in_page()
+            return await self._get_dr_episode_page(dsn, episode_id)
+
+        if table == "ah_jobs":
             if job["stage"] == "S1":
                 return await self._get_ah_topic_page()
             video_id = job.get("video_id")
@@ -524,6 +654,9 @@ class TabManager:
                 if isinstance(key, tuple) and key[0] == "ah":
                     status = await fetch_ah_video_status(dsn, key[1])
                     terminal = AH_TERMINAL_VIDEO_STATUSES
+                elif isinstance(key, tuple) and key[0] == "dr":
+                    status = await fetch_dr_episode_status(dsn, key[1])
+                    terminal = DR_TERMINAL_VIDEO_STATUSES
                 else:
                     status = await fetch_video_status(dsn, key)
                     terminal = TERMINAL_VIDEO_STATUSES
@@ -545,7 +678,7 @@ class TabManager:
             except Exception:
                 pass
         self.video_pages.clear()
-        for attr in ("topic_page", "ah_topic_page"):
+        for attr in ("topic_page", "ah_topic_page", "dr_topic_page"):
             page = getattr(self, attr, None)
             if page is not None:
                 try:
@@ -576,6 +709,13 @@ async def record_heartbeat(dsn: str, status: str) -> None:
             await conn.execute(
                 """
                 INSERT INTO ah_channel_config (key, value, updated_at)
+                VALUES ('worker_last_seen', NOW()::text, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = NOW()::text, updated_at = NOW()
+                """,
+            )
+            await conn.execute(
+                """
+                INSERT INTO dr_channel_config (key, value, updated_at)
                 VALUES ('worker_last_seen', NOW()::text, NOW())
                 ON CONFLICT (key) DO UPDATE SET value = NOW()::text, updated_at = NOW()
                 """,
@@ -618,6 +758,44 @@ async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") ->
     await complete_ah_job(dsn, job_id, result=response, web2_secret=web2_secret)
     if isinstance(video_id, int):
         await save_ah_conversation_url(dsn, video_id, page.url)
+
+
+async def process_dr_job(page, dsn: str, job: dict, *, web3_secret: str = "") -> None:
+    """Same ChatGPT execution flow as process_ah_job, but writes to dr_jobs and
+    fires the per-job callback_url stored in metadata. DR prompts are stateless,
+    so no conversation URL is persisted."""
+    job_id = job["id"]
+    stage = job["stage"]
+    prompt_text = job["prompt_text"]
+    retry_count = job["retry_count"]
+
+    logger.info("Running dr_job id=%s stage=%s (prompt %d chars)", job_id, stage, len(prompt_text))
+    try:
+        response = await send_prompt(prompt_text, page, timeout_s=PROMPT_TIMEOUT_S)
+    except ChatGPTResponseError as exc:
+        next_retry = retry_count + 1
+        if next_retry <= MAX_TRANSIENT_RETRIES:
+            logger.warning(
+                "DR job id=%s transient failure (attempt %d/%d) — requeuing: %s",
+                job_id, next_retry, MAX_TRANSIENT_RETRIES, exc,
+            )
+            await retry_transient_dr_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
+        else:
+            logger.warning("DR job id=%s exhausted retries — hard-failing: %s", job_id, exc)
+            await fail_dr_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
+        return
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("DR job id=%s unexpected error", job_id)
+        await fail_dr_job(dsn, job_id, error_message=f"{exc.__class__.__name__}: {exc}", retry_count=retry_count + 1)
+        return
+
+    await complete_dr_job(dsn, job_id, result=response, web3_secret=web3_secret)
+    # Persist the conversation so the next stage (D2..D4) continues the same chat.
+    # Skip D0: it runs in the SHARED scene-reservoir tab, not the per-episode chat —
+    # saving its URL here would make D1 restore the scene-gen conversation.
+    episode_id = job.get("video_id")
+    if isinstance(episode_id, int) and stage != "D0":
+        await save_dr_conversation_url(dsn, episode_id, page.url)
 
 
 async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard_secret: str = "") -> None:
@@ -699,6 +877,7 @@ async def run() -> None:
     account = load_account()
     web_url, dashboard_secret = load_chain_config()
     web2_url, web2_secret = load_web2_config()
+    web3_url, web3_secret = load_web3_config()
 
     pw = await async_playwright().start()
     ctx = await _launch_chromium_context(pw)
@@ -718,6 +897,9 @@ async def run() -> None:
                 if job is None:
                     # Also poll the Ancient Humans pipeline after the main queue is empty
                     job = await claim_next_ah_job(dsn)
+                if job is None:
+                    # Then the Drifter 2077 pipeline
+                    job = await claim_next_dr_job(dsn)
 
                 if job is None:
                     now = asyncio.get_running_loop().time()
@@ -732,6 +914,8 @@ async def run() -> None:
                 page = await tabs.get_page_for(job, dsn)
                 if job.get("_table") == "ah_jobs":
                     await process_ah_job(page, dsn, job, web2_secret=web2_secret)
+                elif job.get("_table") == "dr_jobs":
+                    await process_dr_job(page, dsn, job, web3_secret=web3_secret)
                 else:
                     await process_job(page, dsn, job, web_url=web_url, dashboard_secret=dashboard_secret)
                 await tabs.sweep_terminal_tabs(dsn)
@@ -758,7 +942,12 @@ async def run() -> None:
                 # Chromium so the next iteration gets a live context.
                 logger.exception("Browser context died during poll loop — relaunching Chromium")
                 if job is not None:
-                    requeue_fn = retry_transient_ah_job if job.get("_table") == "ah_jobs" else retry_transient_job
+                    _table = job.get("_table")
+                    requeue_fn = (
+                        retry_transient_ah_job if _table == "ah_jobs"
+                        else retry_transient_dr_job if _table == "dr_jobs"
+                        else retry_transient_job
+                    )
                     try:
                         await requeue_fn(dsn, job["id"], error_message=str(exc), retry_count=job.get("retry_count", 0) + 1)
                     except Exception:
@@ -775,6 +964,7 @@ async def run() -> None:
                 tabs.ctx = ctx
                 tabs.topic_page = None
                 tabs.ah_topic_page = None
+                tabs.dr_topic_page = None
                 tabs.video_pages = {}
                 try:
                     await tabs.bootstrap()
@@ -784,7 +974,12 @@ async def run() -> None:
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Unexpected error during poll loop: %s", exc)
                 if job is not None:
-                    requeue_fn = retry_transient_ah_job if job.get("_table") == "ah_jobs" else retry_transient_job
+                    _table = job.get("_table")
+                    requeue_fn = (
+                        retry_transient_ah_job if _table == "ah_jobs"
+                        else retry_transient_dr_job if _table == "dr_jobs"
+                        else retry_transient_job
+                    )
                     try:
                         await requeue_fn(dsn, job["id"], error_message=str(exc), retry_count=job.get("retry_count", 0) + 1)
                     except Exception:

@@ -326,3 +326,108 @@ async def retry_transient_ah_job(dsn: str, job_id: int, *, error_message: str, r
         logger.info("Requeued ah_job id=%s for transient retry (attempt %d)", job_id, retry_count)
     finally:
         await conn.close()
+
+
+# ── Drifter 2077 pipeline (dr_jobs) ──────────────────────────────────────────
+DR_SUPPORTED_STAGES = ("D0", "D1", "D2A", "D2B", "D2C", "D3", "D4")
+
+
+async def claim_next_dr_job(dsn: str) -> dict | None:
+    """Atomically claim one pending dr_job (oldest first) and mark it 'running'.
+
+    Returns the claimed row as a dict with '_table'='dr_jobs', or None.
+    """
+    conn = await _connect(dsn)
+    try:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                SELECT id, episode_id, stage, prompt_text, retry_count, metadata
+                FROM dr_jobs
+                WHERE status = 'pending' AND stage = ANY($1::text[])
+                ORDER BY created_at ASC
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+                """,
+                list(DR_SUPPORTED_STAGES),
+            )
+            if row is None:
+                return None
+
+            await conn.execute(
+                "UPDATE dr_jobs SET status = 'running', started_at = NOW() WHERE id = $1",
+                row["id"],
+            )
+            logger.info("Claimed dr_job id=%s stage=%s episode_id=%s", row["id"], row["stage"], row["episode_id"])
+            result = dict(row)
+            result["_table"] = "dr_jobs"
+            # Mirror the ah field name so worker routing can use job["video_id"].
+            result["video_id"] = row["episode_id"]
+            if isinstance(result.get("metadata"), str):
+                import json as _json
+                result["metadata"] = _json.loads(result["metadata"])
+            return result
+    finally:
+        await conn.close()
+
+
+async def complete_dr_job(dsn: str, job_id: int, *, result: str, web3_secret: str = "") -> None:
+    """Mark a dr_job done, store result, and fire its callback URL."""
+    conn = await _connect(dsn)
+    row = None
+    try:
+        row = await conn.fetchrow(
+            """
+            UPDATE dr_jobs
+            SET status = 'done', result = $2, finished_at = NOW(), error_message = NULL
+            WHERE id = $1
+            RETURNING metadata
+            """,
+            job_id, result,
+        )
+        logger.info("Completed dr_job id=%s", job_id)
+    finally:
+        await conn.close()
+
+    if row is not None:
+        import json as _json
+        meta = row["metadata"]
+        if isinstance(meta, str):
+            meta = _json.loads(meta)
+        callback_url = (meta or {}).get("web_callback_url", "")
+        await _hit_url(callback_url, web3_secret)
+
+
+async def fail_dr_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
+    """Mark a dr_job permanently failed."""
+    conn = await _connect(dsn)
+    try:
+        await conn.execute(
+            """
+            UPDATE dr_jobs
+            SET status = 'failed', error_message = $2, retry_count = $3, finished_at = NOW()
+            WHERE id = $1
+            """,
+            job_id, error_message, retry_count,
+        )
+        logger.info("Failed dr_job id=%s retry_count=%s: %s", job_id, retry_count, error_message)
+    finally:
+        await conn.close()
+
+
+async def retry_transient_dr_job(dsn: str, job_id: int, *, error_message: str, retry_count: int) -> None:
+    """Requeue a dr_job for a transient retry."""
+    conn = await _connect(dsn)
+    try:
+        await conn.execute(
+            """
+            UPDATE dr_jobs
+            SET status = 'pending', error_message = $2, retry_count = $3,
+                started_at = NULL, finished_at = NULL
+            WHERE id = $1
+            """,
+            job_id, error_message, retry_count,
+        )
+        logger.info("Requeued dr_job id=%s for transient retry (attempt %d)", job_id, retry_count)
+    finally:
+        await conn.close()
