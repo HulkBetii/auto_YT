@@ -267,7 +267,7 @@ def main() -> None:
 
     # ── Step 3: Loop final_video to ~target hours ─────────────────────────────
     target_sec = args.target_hours * 3600
-    loop_count = max(1, math.floor(target_sec / audio_duration))
+    loop_count = max(1, math.ceil(target_sec / audio_duration))
 
     if loop_count <= 1:
         print(f"Audio already >= {args.target_hours}h — no further looping needed.")
