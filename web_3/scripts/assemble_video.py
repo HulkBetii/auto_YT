@@ -194,7 +194,11 @@ def main() -> None:
 
     crossfade = args.crossfade if args.crossfade is not None else ep["crossfade_sec"]
     download_dir = _project_dir(args.episode_id, args.out)
+    image_dir = download_dir / "image"
+    video_dir = download_dir / "video"
     audio_dir = download_dir / "audio"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    video_dir.mkdir(parents=True, exist_ok=True)
     audio_dir.mkdir(parents=True, exist_ok=True)
 
     audio_file = audio_dir / f"dr_e{args.episode_id}_final_audio.mp3"
@@ -235,8 +239,8 @@ def main() -> None:
     # ── Step 2: Mux loop video + audio → final_video.mp4 ─────────────────────
     loop_video = _find_loop_video(download_dir)
     if loop_video is None:
-        print(f"\n⚠️  No loop video found in {download_dir / 'video'}.")
-        print("   Place your loop.mp4 there and re-run this script.")
+        print(f"\n⚠️  No loop video found in {video_dir}.")
+        print(f"   Place your loop.mp4 here: {video_dir / 'loop.mp4'}")
         print("   Audio assembly is complete — only video muxing remains.")
         return
 
