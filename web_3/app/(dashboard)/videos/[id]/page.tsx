@@ -17,6 +17,8 @@ import { DeleteVideoButton } from "./DeleteVideoButton";
 import { RetryVideoButton } from "./RetryVideoButton";
 import { PublishToggle } from "./PublishToggle";
 import { TrackClips } from "./TrackClips";
+import { OpenFolderButton } from "./OpenFolderButton";
+import { getManualEpisodeProjectInfo } from "@/lib/manual-image-project";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +79,7 @@ export default async function EpisodeDetailPage({ params }: { params: Promise<{ 
   const playlists = (episode.ytPlaylists as string[] | null) ?? [];
 
   const title = episode.ytTitle ?? scene?.scene_name ?? `Episode #${episode.id}`;
+  const projectInfo = getManualEpisodeProjectInfo({ id: episode.id, trackCount: audio.length });
 
   return (
     <>
@@ -96,6 +99,16 @@ export default async function EpisodeDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <OpenFolderButton
+            folderPath={projectInfo.imageOutputDir}
+            label="Image Folder"
+            title="Open image prompt output folder"
+          />
+          <OpenFolderButton
+            folderPath={projectInfo.videoOutputDir}
+            label="Video Folder"
+            title="Open loop video folder"
+          />
           <RetryVideoButton videoId={episode.id} />
           <DeleteVideoButton videoId={episode.id} />
         </div>

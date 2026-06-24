@@ -1,17 +1,12 @@
-export {};
-
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require("dotenv").config({ path: ".env.local" });
 
-// Shared channel DNA lock, embedded in every stage so each stateless job keeps
-// the Drifter 2077 identity even without conversation memory.
 const DNA_LOCK = `## GLOBAL CHANNEL DNA LOCK
 - Cyberpunk Noir + Dark Jazz + Strict 16-bit Pixel Art + Rainy City Ambience.
 - Dark Jazz is the main sonic identity. Cyberpunk is the world. Pixel art is the visual language. Ambient sound is the connective tissue.
 - Everything must feel like a lonely late-night cyberpunk jazz session inside a rain-soaked pixel city.
 - NEVER drift into: Pure Synthwave, EDM, Progressive House, Trap, Pop, Rock, cheerful cafe jazz, generic lo-fi hip hop, photorealism, 3D CGI, smooth gradients, modern vector art, glossy AI fantasy art, bright motivational music.`;
 
-// ── D0: Scene generator (auto entry point) ───────────────────────────────────
 const D0_TEMPLATE = `You are the Executive Creative Director for the YouTube channel "Drifter 2077".
 
 ${DNA_LOCK}
@@ -34,7 +29,6 @@ Return ONLY a JSON array of [TARGET_COUNT] objects. Each object MUST have exactl
 
 Return ONLY the JSON array. No markdown fences, no commentary.`;
 
-// ── D1: Visual Foundation (Section 1) ────────────────────────────────────────
 const D1_TEMPLATE = `You are the Executive Creative Director for the YouTube channel "Drifter 2077".
 
 ${DNA_LOCK}
@@ -45,22 +39,25 @@ ${DNA_LOCK}
 ## TASK
 Define the visual scene, loopable video motion, the ambient sound map, and the harmonic palette that will later dictate the Dark Jazz music.
 
-### IMAGE PROMPT (Nano Banana) — must include:
-- STYLE LOCK: strict 16-bit retro pixel art, 2D side-scrolling view, flat perspective, cyberpunk noir, high-contrast chiaroscuro, heavy dithering, visible scanlines, limited palette with neon highlights, sharp blocky pixels, nearest-neighbor, no anti-aliasing.
-- NEGATIVE: no 3D, no photorealism, no modern CGI, no smooth gradients/bokeh/vector art, no anime, no painterly brushwork, no soft blur, no readable text.
-- CHARACTER DNA "The Watcher": solitary pixel figure in profile/side view, rain-soaked dark trench coat and wide-brimmed fedora, face hidden in shadow, only a tiny orange pixel cigarette glow, brooding/static/tired/observant.
-- SCENE: expand the input into a layered 2D side-view scene with Foreground / Midground (The Watcher) / Background (parallax cyberpunk city). Add 3-5 subtle noir-jazz props (old radio, cracked speaker, jazz club sign, saxophone poster, whiskey glass, ashtray, vinyl sleeve, etc.).
-- LIGHTING: neon reflections on wet surfaces, deep black shadows, dithered rim light, one strong accent color, blocky pixel glow (not smooth bloom).
-- COMPOSITION: silhouette readable at thumbnail size, one clean dark negative-space area for optional title.
+### IMAGE PROMPT (Nano Banana) — must include these STRICT VISUAL DNA rules:
+- TRUE 16-BIT PIXEL ART: Must specify uniform pixel grid, hard edges, no anti-aliasing, no smooth gradients/bloom/bokeh, limited 32-64 color palette, visible dither patterns (checkerboard/bayer). Specify base 640x360 resolution scaled nearest-neighbor to 4K.
+- 3-LAYER COMPOSITION:
+  1. Foreground: Dark silhouettes, rain drops, railings, clutter.
+  2. Midground: Warm/localized light, The Watcher, NPC(s), main props.
+  3. Background: Cold skyline/alley opening, blurry rain, distant lights providing depth.
+- THE WATCHER: Codenamed "The Watcher". Must be in the midground, wearing a long brown trench coat and wide-brimmed fedora, face hidden in shadow, tiny orange cigarette glow. Must NOT be the brightest focal spotlight in the frame.
+- NPCS: 1-2 background/foreground characters (e.g. robot waiter, umbrella wanderer, ramen cook). They must not compete with The Watcher.
+- COLOR PALETTE: Contrast Warm (amber/neon orange/red light sources) vs Cold (deep blue/grey rain/sky) vs Neutral (rust/concrete). No pure electric magenta/cyan unless muted/dirty.
+- WORLD DETAILS: Rain, puddle reflections, steam/smoke, rust, peeling walls, hanging cables, old signs, cluttered grit.
+- NEGATIVE: Photorealism, voxel 3D, anime/manga, synthwave flat neon, HD illustration with fake dither, readable text/typography.
 
-### VEO PROMPT — must include:
-- Maintain strict 16-bit pixel look, no 3D/realistic conversion, keep dithering and scanlines, nearest-neighbor, zero interpolation, no motion blur.
-- Static tripod shot, no pan/zoom/shake, no cuts/fades.
-- The Watcher mostly still: subtle breathing, slowly pulsing cigarette glow.
-- Animate one environmental Loopable Motion A (rain/snow/fog/steam/dust) and one mechanical Loopable Motion B (neon flicker, fan spin, vending glow, light sweep) seamlessly.
-- Perfect seamless loop: final frame matches first frame exactly.
-- Audio: only environmental ambience from the Ambient Sound Map below — no melody, no drums, no vocals, no spoken words.
-- Comfortable for long listening: slow, hypnotic, loopable.
+### VEO PROMPT — loop motion must include:
+- Maintain strict 16-bit pixel look, no 3D conversion, preserve dithering/scanlines, nearest-neighbor zero interpolation, no motion blur.
+- Static tripod camera, no pan/zoom/shake, no cuts/fades.
+- The Watcher: mostly still, subtle breathing, slow pulsing cigarette glow.
+- EXACTLY TWO LOOPS: One environmental motion (e.g. falling rain, rising steam, drifting fog) + One mechanical/light motion (e.g. flickering neon sign, spinning fan, sweeping light).
+- Perfect seamless loop: final frame matches first frame perfectly.
+- Audio: only environmental ambience from the Ambient Sound Map below — no melody, no drums.
 
 ### AMBIENT SOUND MAP — these exact sounds are preserved through all later stages:
 - ambient_bed: constant background sound (e.g. rain on concrete, distant traffic, city wind)
@@ -77,15 +74,14 @@ Define the visual scene, loopable video motion, the ambient sound map, and the h
 ## OUTPUT
 Return ONLY a JSON object with exactly these fields:
 - scene_analysis: brief analysis (core location, emotional mood, visual focus, dark jazz atmosphere)
-- image_prompt: the full Nano Banana prompt as a single string
-- veo_prompt: the full Veo 3 prompt as a single string
-- ambient_sound_map: an object with the 5 string fields above (ambient_bed, tonal_hum, rhythmic_texture, human_trace, silence_gap)
-- harmonic_palette: an object { key_center, mode, tempo_anchor_bpm } as described above
+- image_prompt: the full Nano Banana prompt as a single string combining all rules above
+- veo_prompt: the full Veo 3 loop prompt as a single string combining all rules above
+- ambient_sound_map: an object with the 5 string fields above
+- harmonic_palette: an object { key_center, mode, tempo_anchor_bpm }
 - intro_text: one short moody noir sentence reflecting on the scene
 
 Return ONLY the JSON object. No markdown fences, no commentary.`;
 
-// ── D2: Audio Architecture — shared rules ────────────────────────────────────
 const D2_RULES = `${DNA_LOCK}
 
 ## CORE GENRE LOCK
@@ -161,7 +157,6 @@ ${D2_RULES}
 CRITICAL: output EXACTLY 5 objects — not 6, not more, not fewer. Count them before returning.
 Return ONLY a JSON array of those 5 track objects with the fields described above. No markdown fences, no commentary.`;
 
-// ── D3: Thumbnail (Section 3) ────────────────────────────────────────────────
 const D3_TEMPLATE = `You are a YouTube Thumbnail Designer specialized in Cyberpunk Noir Dark Jazz 16-bit Pixel Art for the channel "Drifter 2077".
 
 ${DNA_LOCK}
@@ -171,20 +166,21 @@ SCENE NAME: [SCENE_NAME]
 VISUAL HIGHLIGHTS: [VISUAL_HIGHLIGHTS]
 ACCENT COLOR: [ACCENT_COLOR]
 
-## RULES
-- 16:9 aspect ratio, strict 16-bit pixel art, sharp blocky pixels, heavy dithering, visible scanlines, high-contrast chiaroscuro, limited palette.
-- The Watcher is the clear silhouette anchor; the orange cigarette glow must read at small size; strong dithered rim light around fedora/coat/shoulders.
-- Layered pixel parallax depth (not photographic DoF), blocky pixel neon glow (not smooth bloom), 2-4 subtle dark-jazz cues, one clean dark negative-space area for optional text.
-- NO text/letters/readable signs in the image. No 3D, photorealism, smooth gradients/bokeh, modern CGI, vector art, anime, soft blur.
+## RULES FOR THUMBNAIL (NANO BANANA PROMPT)
+- 16:9 aspect ratio, STRICT TRUE 16-BIT PIXEL ART: uniform pixel grid, sharp blocky pixels, heavy dithering (bayer/checkerboard), visible scanlines, high-contrast chiaroscuro, limited 32-64 color palette.
+- THE WATCHER: must be the clear silhouette anchor in the midground; the orange cigarette glow must read at small thumbnail size; strong dithered rim light around fedora/coat/shoulders.
+- LAYERED COMPOSITION: Foreground silhouettes, Warm midground focus, Cold background providing deep perspective.
+- STRONG CONTRAST: Use warm/cold contrast and ensure a clean, dark negative-space area for optional text overlay.
+- NO TEXT: NO letters, words, or readable signs in the image itself.
+- NEGATIVE: No 3D, no photorealism, no modern CGI, no anime, no soft blur, no HD illustration with fake dither, no vector art.
 
 ## OUTPUT
 Return ONLY a JSON object with exactly these fields:
-- strategy: an object with { composition, color_palette, ctr_hook, dark_jazz_signal } (each a short string)
-- nano_banana_prompt: the full thumbnail prompt as a single string (FORMAT / SUBJECT / BACKGROUND / DARK JAZZ NOIR DETAILS / LIGHTING / COMPOSITION / NEGATIVE CONSTRAINT)
+- strategy: an object with { composition, color_palette, ctr_hook, dark_jazz_signal } (each a short string optimizing for high Click-Through Rate)
+- nano_banana_prompt: the full thumbnail prompt as a single string (FORMAT / SUBJECT / BACKGROUND / DARK JAZZ NOIR DETAILS / LIGHTING / COMPOSITION / NEGATIVE CONSTRAINT) - ensuring all rules above are embedded.
 
 Return ONLY the JSON object. No markdown fences, no commentary.`;
 
-// ── D4: Package / SEO (Section 4) ────────────────────────────────────────────
 const D4_TEMPLATE = `You are a YouTube SEO Specialist & Copywriter for the high-end Cyberpunk Noir Dark Jazz Pixel Art channel "Drifter 2077".
 
 ${DNA_LOCK}
@@ -209,7 +205,7 @@ Return ONLY a JSON object with exactly these fields:
 - titles: array of 5 high-CTR title variations (SEO-heavy, vibe, coding/study, storytelling, long-session)
 - best_title: the single strongest title (must be one of titles)
 - slug: lowercase hyphenated URL slug including dark-jazz, cyberpunk-noir, pixel-ambience and one use-case keyword
-- pov_intro: a moody cinematic noir paragraph beginning "POV:\\nYou are The Watcher.\\nYou found a moment of quiet at [SCENE_NAME]..." then describing the scene
+- pov_intro: a moody cinematic noir paragraph beginning "POV:\nYou are The Watcher.\nYou found a moment of quiet at [SCENE_NAME]..." then describing the scene
 - scene_details: 1-2 sentences mentioning the visual highlights of this pixel art loop
 - pinned_comment: a full pinned comment in the voice of The Watcher, opening "Day [number 400-900] in the city." and ending with a specific question about the scene/mood/soundscape, signed "— The Watcher"
 - hidden_tags: a single comma-separated string of YouTube tags (include dark jazz, noir jazz, doom jazz, cyberpunk jazz, film noir jazz, rainy night jazz, jazz for coding/studying/sleep, cyberpunk ambience, 16-bit pixel art, neon city ambience, smoky saxophone, muted trumpet, upright bass, plus scene-specific keywords)
@@ -217,38 +213,51 @@ Return ONLY a JSON object with exactly these fields:
 
 Return ONLY the JSON object. No markdown fences, no commentary.`;
 
-async function updatePrompts() {
-  const { insertDrPromptVersion } = await import("../lib/db/repo/prompt-versions");
+async function main() {
+  const { db } = await import("../lib/db");
+  const { drPromptVersions } = await import("../lib/db/schema");
+  const { getLatestDrVersionNumber } = await import("../lib/db/repo/prompt-versions");
+  const { eq } = await import("drizzle-orm");
 
-  console.log("Updating Drifter 2077 prompt versions...");
-
-  // `seed: true` = (re)insert as a new active version. D0/D3/D4 are unchanged
-  // since v2, so they are left as-is to avoid pointless version bumps. Flip
-  // `seed` to re-seed everything (e.g. a fresh DB).
-  const seeds: Array<{ key: string; template: string; reason: string; seed: boolean }> = [
+  const versions = [
     { key: "D0", template: D0_TEMPLATE, reason: "scene generator with recent-scene avoidance", seed: false },
-    { key: "D1", template: D1_TEMPLATE, reason: "v3: add harmonic_palette (shared key/mode/tempo for whole album)", seed: true },
-    { key: "D2A", template: D2A_TEMPLATE, reason: "v3: harmonic palette input + signature timbres", seed: true },
-    { key: "D2B", template: D2B_TEMPLATE, reason: "v3: BPM 60-75 + negative space + harmonic palette + signature timbres", seed: true },
-    { key: "D2C", template: D2C_TEMPLATE, reason: "v3: harmonic palette input + signature timbres (mellotron/arco/bass clarinet)", seed: true },
-    { key: "D3", template: D3_TEMPLATE, reason: "thumbnail nano banana prompt + strategy", seed: false },
+    { key: "D1", template: D1_TEMPLATE, reason: "v4: strict true 16-bit visual DNA + layered scene + loop motion spec", seed: true },
+    { key: "D2A", template: D2A_TEMPLATE, reason: "v3: harmonic palette input + signature timbres", seed: false },
+    { key: "D2B", template: D2B_TEMPLATE, reason: "v3: BPM 60-75 + negative space + harmonic palette + signature timbres", seed: false },
+    { key: "D2C", template: D2C_TEMPLATE, reason: "v3: harmonic palette input + signature timbres (mellotron/arco/bass clarinet)", seed: false },
+    { key: "D3", template: D3_TEMPLATE, reason: "v3: strict true 16-bit thumbnail DNA + CTR composition", seed: true },
     { key: "D4", template: D4_TEMPLATE, reason: "SEO package; code assembles description/chapters/hashtags", seed: false },
   ];
 
-  for (const seed of seeds) {
-    if (!seed.seed) {
-      console.log(`  – ${seed.key} (skipped — unchanged)`);
-      continue;
-    }
-    await insertDrPromptVersion({ promptKey: seed.key, template: seed.template, changeReason: seed.reason });
-    console.log(`  ✓ ${seed.key}`);
-  }
+  let seeded = 0;
+  for (const { key, template, reason, seed } of versions) {
+    if (!seed) continue;
+    
+    await db
+      .update(drPromptVersions)
+      .set({ isActive: false })
+      .where(eq(drPromptVersions.promptKey, key));
 
-  console.log("\nPrompt update complete.");
+    const nextVersion = (await getLatestDrVersionNumber(key)) + 1;
+
+    await db.insert(drPromptVersions).values({
+      promptKey: key,
+      version: nextVersion,
+      template,
+      isActive: true,
+      createdBy: "seed",
+      changeReason: reason,
+    });
+    
+    console.log(`Seeded ${key} v${nextVersion} (${reason})`);
+    seeded++;
+  }
+  
+  if (seeded === 0) console.log("Nothing to seed.");
   process.exit(0);
 }
 
-updatePrompts().catch((err) => {
-  console.error(err);
+main().catch((e) => {
+  console.error(e);
   process.exit(1);
 });

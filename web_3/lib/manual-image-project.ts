@@ -9,6 +9,7 @@ export interface ManualEpisodeProjectInfo {
   projectName: string;
   projectDir: string;
   imageOutputDir: string;
+  videoOutputDir: string;
   audioOutputDir: string;
   finalVideoPath: string;
   trackCount: number;
@@ -36,6 +37,7 @@ export function getManualEpisodeProjectInfo(episode: ManualEpisodeProject): Manu
     projectName,
     projectDir,
     imageOutputDir: path.join(downloadDir, "image"),
+    videoOutputDir: path.join(downloadDir, "video"),
     audioOutputDir: path.join(downloadDir, "audio"),
     finalVideoPath: path.join(downloadDir, "final_video.mp4"),
     trackCount: episode.trackCount ?? 0,
