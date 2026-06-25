@@ -13,8 +13,8 @@ const taskId = process.argv[2];
 if (!taskId) { console.error("Usage: tsx check_tts_task.mts <task_id>"); process.exit(1); }
 
 const apiKey = process.env.VIVOO_API_KEY!;
-const res = await fetch(`https://api.ai33.pro/v3/task/${taskId}`, {
-  headers: { Authorization: apiKey },
+const res = await fetch(`https://api.ai33.pro/v1/task/${taskId}`, {
+  headers: { "xi-api-key": apiKey },
 });
 console.log("HTTP status:", res.status);
 const json = await res.json();

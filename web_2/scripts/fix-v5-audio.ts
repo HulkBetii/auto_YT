@@ -134,14 +134,17 @@ async function main() {
       continue;
     }
     console.log(`\nChunk ${i + 1}/${chunks.length} (${chunks[i].length} chars) — submitting...`);
-    const res = await fetch(
-      `${TTS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
-        body: JSON.stringify({ text: chunks[i], model_id: "eleven_multilingual_v2" }),
-      }
-    );
+    const form = new FormData();
+    form.set("text", chunks[i]);
+    form.set("voice_id", voiceId);
+    form.set("speed", "1");
+    form.set("with_transcript", "false");
+
+    const res = await fetch(`${TTS_BASE_URL}/v3/text-to-speech`, {
+      method: "POST",
+      headers: { "xi-api-key": apiKey },
+      body: form,
+    });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       // Release lock before throwing

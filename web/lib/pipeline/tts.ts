@@ -146,53 +146,24 @@ export async function getVoiceId(featuredPerson: string | null): Promise<string 
 /**
  * Submits a TTS job to AI33.PRO.
  * Auth: `xi-api-key: <key>` header for all endpoints.
- *
- * Routing by voice prefix:
- *   elevenlabs_* → POST /v1/text-to-speech/{voice_id}  (JSON body, no speed param)
- *   clone_*      → POST /v1m/task/text-to-speech        (JSON body, Minimax with speed)
+ * v3 uses one FormData endpoint; voiceId must keep its provider prefix
+ * (`elevenlabs_`, `minimax_`, `clone_`, `edge_`, or `kokoro_`).
  */
 export async function submitTTS(text: string, voiceId: string): Promise<string> {
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
-  const headers = { "xi-api-key": apiKey, "Content-Type": "application/json" };
+  const form = new FormData();
+  form.set("text", text);
+  form.set("voice_id", voiceId);
+  form.set("speed", "1");
+  form.set("with_transcript", "false");
 
-  // Resolve voice type from voiceId:
-  //   elevenlabs_* prefix → ElevenLabs (strip prefix to get raw ID)
-  //   clone_* prefix     → Minimax clone (strip prefix to get numeric ID)
-  //   pure digits        → Minimax clone (no prefix in DB for legacy entries)
-  //   alphanumeric       → ElevenLabs (no prefix in DB for legacy entries)
-  let elVoiceId: string | null = null;
-  let cloneVoiceId: string | null = null;
-  if (voiceId.startsWith("elevenlabs_")) {
-    elVoiceId = voiceId.replace("elevenlabs_", "");
-  } else if (voiceId.startsWith("clone_")) {
-    cloneVoiceId = voiceId.replace("clone_", "");
-  } else if (/^\d+$/.test(voiceId)) {
-    cloneVoiceId = voiceId;
-  } else {
-    elVoiceId = voiceId;
-  }
-
-  let res: Response;
-  if (elVoiceId !== null) {
-    res = await fetch(`${TTS_BASE_URL}/v1/text-to-speech/${elVoiceId}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
-    });
-  } else {
-    res = await fetch(`${TTS_BASE_URL}/v1m/task/text-to-speech`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        text,
-        model: "speech-2.6-hd",
-        voice_setting: { voice_id: cloneVoiceId, speed: 1 },
-        language_boost: "Auto",
-      }),
-    });
-  }
+  const res = await fetch(`${TTS_BASE_URL}/v3/text-to-speech`, {
+    method: "POST",
+    headers: { "xi-api-key": apiKey },
+    body: form,
+  });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -265,8 +236,8 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ task_ids: [taskId] }),
     });
-    const json = (await res.json()) as { success?: boolean; refunded_credits?: number };
-    console.log(`[tts] cancelTTSTask ${taskId} → refunded ${json.refunded_credits ?? 0} credits`);
+    const json = (await res.json()) as { success?: boolean; refund_credits?: number; refunded_credits?: number };
+    console.log(`[tts] cancelTTSTask ${taskId} → refunded ${json.refund_credits ?? json.refunded_credits ?? 0} credits`);
   } catch (err) {
     console.warn(`[tts] cancelTTSTask ${taskId} failed (credits may stay frozen):`, err);
   }

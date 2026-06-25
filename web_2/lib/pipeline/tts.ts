@@ -192,41 +192,23 @@ async function getAhVoiceIdGx(videoVoiceId: string | null): Promise<string> {
 /**
  * Submits a TTS job to AI33.PRO.
  * Auth: `xi-api-key` header per the current API docs.
- *
- * Voice ID routing:
- *   elevenlabs_* / raw alphanumeric -> /v1/text-to-speech/{voice_id}
- *   minimax_* / clone_* / raw digits -> /v1m/task/text-to-speech
+ * v3 uses one FormData endpoint and expects provider-prefixed voice IDs.
  */
 export async function submitTTS(text: string, voiceId: string): Promise<string> {
   const apiKey = process.env.VIVOO_API_KEY;
   if (!apiKey) throw new Error("[tts] VIVOO_API_KEY env var is not set");
 
-  const headers = { "Content-Type": "application/json", "xi-api-key": apiKey };
-  const isMinimax =
-    voiceId.startsWith("minimax_") ||
-    voiceId.startsWith("clone_") ||
-    /^\d+$/.test(voiceId);
-  const normalizedVoiceId = normalizeProviderVoiceId(voiceId);
+  const form = new FormData();
+  form.set("text", text);
+  form.set("voice_id", voiceId);
+  form.set("speed", "1");
+  form.set("with_transcript", "false");
 
-  const res = isMinimax
-    ? await fetch(`${TTS_BASE_URL}/v1m/task/text-to-speech`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          text,
-          model: "speech-2.6-hd",
-          voice_setting: { voice_id: normalizedVoiceId, speed: 1 },
-          language_boost: "English",
-        }),
-      })
-    : await fetch(
-        `${TTS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(normalizedVoiceId)}?output_format=mp3_44100_128`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
-        },
-      );
+  const res = await fetch(`${TTS_BASE_URL}/v3/text-to-speech`, {
+    method: "POST",
+    headers: { "xi-api-key": apiKey },
+    body: form,
+  });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -253,7 +235,8 @@ export async function cancelTTSTask(taskId: string): Promise<void> {
       headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
       body: JSON.stringify({ task_ids: [taskId] }),
     });
-    console.log(`[tts] cancelTTSTask ${taskId} → HTTP ${res.status}`);
+    const json = (await res.json().catch(() => null)) as { refund_credits?: number; refunded_credits?: number } | null;
+    console.log(`[tts] cancelTTSTask ${taskId} → HTTP ${res.status}, refunded ${json?.refund_credits ?? json?.refunded_credits ?? 0} credits`);
   } catch (err) {
     console.warn(`[tts] cancelTTSTask ${taskId} failed (credits may stay frozen):`, err);
   }
