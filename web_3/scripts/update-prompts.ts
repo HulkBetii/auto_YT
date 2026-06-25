@@ -46,7 +46,7 @@ Define the visual scene, loopable video motion, the ambient sound map, and the h
   2. Midground: Warm/localized light, The Watcher, NPC(s), main props.
   3. Background: Cold skyline/alley opening, blurry rain, distant lights providing depth.
 - THE WATCHER: Codenamed "The Watcher". Must be in the midground, wearing a long brown trench coat and wide-brimmed fedora, face hidden in shadow, tiny orange cigarette glow. Must NOT be the brightest focal spotlight in the frame.
-- NPCS: 1-2 background/foreground characters (e.g. robot waiter, umbrella wanderer, ramen cook). They must not compete with The Watcher.
+- NON-HUMAN NPCS ONLY: 1-2 background/foreground figures must be robots, androids, drones, vending machines, service machines, mechanical cooks, maintenance bots, holographic kiosks, or other believable cyberpunk machinery that fits the specific scene. Do NOT depict ordinary humans as NPCs; The Watcher is the only human-like figure. NPCs must not compete with The Watcher.
 - COLOR PALETTE: Contrast Warm (amber/neon orange/red light sources) vs Cold (deep blue/grey rain/sky) vs Neutral (rust/concrete). No pure electric magenta/cyan unless muted/dirty.
 - WORLD DETAILS: Rain, puddle reflections, steam/smoke, rust, peeling walls, hanging cables, old signs, cluttered grit.
 - NEGATIVE: Photorealism, voxel 3D, anime/manga, synthwave flat neon, HD illustration with fake dither, readable text/typography.
@@ -168,8 +168,10 @@ ACCENT COLOR: [ACCENT_COLOR]
 
 ## RULES FOR THUMBNAIL (NANO BANANA PROMPT)
 - 16:9 aspect ratio, STRICT TRUE 16-BIT PIXEL ART: uniform pixel grid, sharp blocky pixels, heavy dithering (bayer/checkerboard), visible scanlines, high-contrast chiaroscuro, limited 32-64 color palette.
+- VISUAL CONTINUITY WITH VIDEO: The thumbnail must feel like a stronger hero-frame crop from the exact same video scene, preserving the same location, weather, accent color, Warm-vs-Cold palette, foreground/midground/background layer logic, The Watcher design, and non-human NPC rule. Do NOT invent a different setting, different character design, or unrelated props just for CTR.
 - THE WATCHER: must be the clear silhouette anchor in the midground; the orange cigarette glow must read at small thumbnail size; strong dithered rim light around fedora/coat/shoulders.
 - LAYERED COMPOSITION: Foreground silhouettes, Warm midground focus, Cold background providing deep perspective.
+- NON-HUMAN NPCS ONLY: If any secondary figures appear, they must be robots, androids, drones, vending machines, service machines, mechanical cooks, maintenance bots, holographic kiosks, or other scene-appropriate machinery. Do NOT include ordinary human NPCs; The Watcher is the only human-like figure.
 - STRONG CONTRAST: Use warm/cold contrast and ensure a clean, dark negative-space area for optional text overlay.
 - NO TEXT: NO letters, words, or readable signs in the image itself.
 - NEGATIVE: No 3D, no photorealism, no modern CGI, no anime, no soft blur, no HD illustration with fake dither, no vector art.
@@ -177,7 +179,7 @@ ACCENT COLOR: [ACCENT_COLOR]
 ## OUTPUT
 Return ONLY a JSON object with exactly these fields:
 - strategy: an object with { composition, color_palette, ctr_hook, dark_jazz_signal } (each a short string optimizing for high Click-Through Rate)
-- nano_banana_prompt: the full thumbnail prompt as a single string (FORMAT / SUBJECT / BACKGROUND / DARK JAZZ NOIR DETAILS / LIGHTING / COMPOSITION / NEGATIVE CONSTRAINT) - ensuring all rules above are embedded.
+- nano_banana_prompt: the full thumbnail prompt as a single string (FORMAT / SUBJECT / BACKGROUND / DARK JAZZ NOIR DETAILS / LIGHTING / COMPOSITION / VISUAL CONTINUITY WITH VIDEO / NEGATIVE CONSTRAINT) - ensuring all rules above are embedded.
 
 Return ONLY the JSON object. No markdown fences, no commentary.`;
 
@@ -221,11 +223,11 @@ async function main() {
 
   const versions = [
     { key: "D0", template: D0_TEMPLATE, reason: "scene generator with recent-scene avoidance", seed: false },
-    { key: "D1", template: D1_TEMPLATE, reason: "v4: strict true 16-bit visual DNA + layered scene + loop motion spec", seed: true },
+    { key: "D1", template: D1_TEMPLATE, reason: "v5: non-human NPCs + strict true 16-bit visual DNA + layered scene", seed: true },
     { key: "D2A", template: D2A_TEMPLATE, reason: "v3: harmonic palette input + signature timbres", seed: false },
     { key: "D2B", template: D2B_TEMPLATE, reason: "v3: BPM 60-75 + negative space + harmonic palette + signature timbres", seed: false },
     { key: "D2C", template: D2C_TEMPLATE, reason: "v3: harmonic palette input + signature timbres (mellotron/arco/bass clarinet)", seed: false },
-    { key: "D3", template: D3_TEMPLATE, reason: "v3: strict true 16-bit thumbnail DNA + CTR composition", seed: true },
+    { key: "D3", template: D3_TEMPLATE, reason: "v5: thumbnail-video visual continuity + non-human secondary figures", seed: true },
     { key: "D4", template: D4_TEMPLATE, reason: "SEO package; code assembles description/chapters/hashtags", seed: false },
   ];
 

@@ -1,8 +1,16 @@
 import { getActiveDrPromptVersion } from "@/lib/db/repo/prompt-versions";
 import { createDrJob, findDrJobByCause } from "@/lib/db/repo/jobs";
+import { getDrConfigValue } from "@/lib/db/repo/channel-config";
+import { DR_CONFIG_KEYS } from "@/lib/db/schema";
 import { interpolate } from "@/lib/utils/template";
 
-const WEB3_URL = process.env.WEB3_URL ?? "http://localhost:3002";
+const DEFAULT_WEB3_URL = "http://localhost:3002";
+
+async function getWebCallbackBaseUrl(): Promise<string> {
+  const configuredUrl = (await getDrConfigValue(DR_CONFIG_KEYS.web3Url))?.trim();
+  const envUrl = process.env.WEB3_URL?.trim();
+  return (configuredUrl || envUrl || DEFAULT_WEB3_URL).replace(/\/+$/, "");
+}
 
 export async function enqueueDrStage(input: {
   promptKey: string;
@@ -29,10 +37,11 @@ export async function enqueueDrStage(input: {
   }
 
   const promptText = interpolate(promptVersion.template, input.vars);
+  const webCallbackBaseUrl = await getWebCallbackBaseUrl();
 
   const metadata: Record<string, unknown> = {
     ...input.metadata,
-    web_callback_url: `${WEB3_URL}/api/cron/process-jobs`,
+    web_callback_url: `${webCallbackBaseUrl}/api/cron/process-jobs`,
   };
   if (input.causedByJobId != null) {
     metadata.causedByJobId = input.causedByJobId;

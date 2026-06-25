@@ -57,7 +57,7 @@ D0 scene-gen → D1 visual+ambient → D2A(1-5) → D2B(6-15) → D2C(16-20) →
 - Polls `dr_jobs` after `jobs` and `ah_jobs`; routing key `("dr", episode_id)`. Code: `worker.py:get_page_for`, `job_queue.py:claim_next_dr_job`.
 - **D0** runs in a shared "scene reservoir" tab (`dr_topic_page`).
 - **D1–D4 share ONE ChatGPT conversation per episode.** The conversation URL is persisted in `dr_channel_config` key `dr_conversation_url:{id}` and restored on the next stage, so continuity survives a tab loss / worker restart. Code: `worker.py:_get_dr_episode_page`, `save_dr_conversation_url`, `process_dr_job`.
-- After each job the worker fires the callback in job metadata (`WEB3_URL/api/cron/process-jobs`) to advance the chain immediately; GitHub Actions cron (`*/5`) is the backstop.
+- After each job the worker fires the callback in job metadata (`web3_url` config, falling back to `WEB3_URL`, plus `/api/cron/process-jobs`) to advance the chain immediately; GitHub Actions cron (`*/5`) is the backstop.
 
 ## 4. Config keys (`dr_channel_config`)
 
@@ -88,7 +88,7 @@ Full text lives in `scripts/update-prompts.ts`; summaries + contracts below.
 ### D1 — Visual Foundation (v3) = master-prompt Section 1
 - **In:** `[SCENE_INPUT]` (5-field block; from D0 or manual entry, formatted by `formatSceneInput`).
 - **Out:** JSON `{ scene_analysis, image_prompt, veo_prompt, ambient_sound_map:{ambient_bed,tonal_hum,rhythmic_texture,human_trace,silence_gap}, harmonic_palette:{key_center,mode,tempo_anchor_bpm}, intro_text }`.
-- **Code:** `handleD1Done` validates the 5 ambient fields (`validateAmbient`) + the harmonic palette (`parseHarmonicPalette`, tempo 40–84), stores `visualFoundation` + `ambientSoundMap` + `harmonicPalette`, enqueues D2A with `[HARMONIC_PALETTE]`. `image_prompt` carries the full Nano Banana style lock + "The Watcher" character DNA; `veo_prompt` the seamless-loop spec.
+- **Code:** `handleD1Done` validates the 5 ambient fields (`validateAmbient`) + the harmonic palette (`parseHarmonicPalette`, tempo 40–84), stores `visualFoundation` + `ambientSoundMap` + `harmonicPalette`, enqueues D2A with `[HARMONIC_PALETTE]`. `image_prompt` carries the full Nano Banana style lock + "The Watcher" character DNA; secondary NPCs must be non-human robots/androids/machines that fit the scene; `veo_prompt` the seamless-loop spec.
 
 ### D2A / D2B / D2C — Audio Architecture (v3) = Section 2 batches
 - **In:** `[AMBIENT_SOUND_MAP]`, `[HARMONIC_PALETTE]`, `[SCENE_NAME]`.
@@ -99,7 +99,7 @@ Full text lives in `scripts/update-prompts.ts`; summaries + contracts below.
 ### D3 — Thumbnail (v2) = Section 3
 - **In:** `[SCENE_NAME]`, `[VISUAL_HIGHLIGHTS]`, `[ACCENT_COLOR]`.
 - **Out:** JSON `{ strategy:{composition,color_palette,ctr_hook,dark_jazz_signal}, nano_banana_prompt }`.
-- **Code:** `handleD3Done` stores `thumbnail`, enqueues D4. Render is manual/local.
+- **Code:** `handleD3Done` stores `thumbnail`, enqueues D4. Render is manual/local. Any secondary figures in the thumbnail prompt must be non-human robots/androids/machines.
 
 ### D4 — SEO Package (v2) = Section 4
 - **In:** `[SCENE_NAME]`, `[AMBIENT_SOUND_MAP]`, `[TRACK_TITLES]`.
@@ -167,6 +167,7 @@ Define the visual scene, loopable video motion, the ambient sound map, and the h
 - STYLE LOCK: strict 16-bit retro pixel art, 2D side-scrolling view, flat perspective, cyberpunk noir, high-contrast chiaroscuro, heavy dithering, visible scanlines, limited palette with neon highlights, sharp blocky pixels, nearest-neighbor, no anti-aliasing.
 - NEGATIVE: no 3D, no photorealism, no modern CGI, no smooth gradients/bokeh/vector art, no anime, no painterly brushwork, no soft blur, no readable text.
 - CHARACTER DNA "The Watcher": solitary pixel figure in profile/side view, rain-soaked dark trench coat and wide-brimmed fedora, face hidden in shadow, only a tiny orange pixel cigarette glow, brooding/static/tired/observant.
+- NON-HUMAN NPCS ONLY: 1-2 secondary foreground/background figures must be robots, androids, drones, vending machines, service machines, mechanical cooks, maintenance bots, holographic kiosks, or other believable cyberpunk machinery that fits the specific scene. Do NOT depict ordinary humans as NPCs; The Watcher is the only human-like figure.
 - SCENE: expand the input into a layered 2D side-view scene with Foreground / Midground (The Watcher) / Background (parallax cyberpunk city). Add 3-5 subtle noir-jazz props (old radio, cracked speaker, jazz club sign, saxophone poster, whiskey glass, ashtray, vinyl sleeve, etc.).
 - LIGHTING: neon reflections on wet surfaces, deep black shadows, dithered rim light, one strong accent color, blocky pixel glow (not smooth bloom).
 - COMPOSITION: silhouette readable at thumbnail size, one clean dark negative-space area for optional title.
@@ -284,14 +285,16 @@ ACCENT COLOR: [ACCENT_COLOR]
 
 ## RULES
 - 16:9 aspect ratio, strict 16-bit pixel art, sharp blocky pixels, heavy dithering, visible scanlines, high-contrast chiaroscuro, limited palette.
+- Visual continuity with video: thumbnail must feel like a stronger hero-frame crop from the exact same video scene, preserving the same location, weather, accent color, Warm-vs-Cold palette, foreground/midground/background layer logic, The Watcher design, and non-human NPC rule. Do NOT invent a different setting, different character design, or unrelated props just for CTR.
 - The Watcher is the clear silhouette anchor; the orange cigarette glow must read at small size; strong dithered rim light around fedora/coat/shoulders.
+- If any secondary figures appear, they must be robots, androids, drones, vending machines, service machines, mechanical cooks, maintenance bots, holographic kiosks, or other scene-appropriate machinery. Do NOT include ordinary human NPCs; The Watcher is the only human-like figure.
 - Layered pixel parallax depth (not photographic DoF), blocky pixel neon glow (not smooth bloom), 2-4 subtle dark-jazz cues, one clean dark negative-space area for optional text.
 - NO text/letters/readable signs in the image. No 3D, photorealism, smooth gradients/bokeh, modern CGI, vector art, anime, soft blur.
 
 ## OUTPUT
 Return ONLY a JSON object with exactly these fields:
 - strategy: an object with { composition, color_palette, ctr_hook, dark_jazz_signal } (each a short string)
-- nano_banana_prompt: the full thumbnail prompt as a single string (FORMAT / SUBJECT / BACKGROUND / DARK JAZZ NOIR DETAILS / LIGHTING / COMPOSITION / NEGATIVE CONSTRAINT)
+- nano_banana_prompt: the full thumbnail prompt as a single string (FORMAT / SUBJECT / BACKGROUND / DARK JAZZ NOIR DETAILS / LIGHTING / COMPOSITION / VISUAL CONTINUITY WITH VIDEO / NEGATIVE CONSTRAINT)
 
 Return ONLY the JSON object. No markdown fences, no commentary.
 ```

@@ -3,11 +3,13 @@
 
 Combines:
   1. Audio assembly (crossfade + ambient bed + loudnorm) via assemble_audio logic.
-  2. Mux with a user-provided loop.mp4 to produce final_video.mp4 (~1 playlist cycle).
-  3. Loop final_video.mp4 up to ~8 hours for the YouTube long-form upload.
+  2. Mux video/loop.mp4 with the assembled audio to produce final_video.mp4
+     (~1 playlist cycle). No overlays/filters — loop.mp4 is already final art.
+  3. Repeat final_video.mp4 up to ~8 hours.
+  4. Prepend video/intro.mp4 once at the very beginning. Music starts after intro.
 
 Usage:
-    python3 scripts/assemble_video.py <episode_id> [--target-hours 8] [--bed-gain-db -18]
+    python3 scripts/assemble_video.py <episode_id> [--target-hours 8] [--bed-gain-db -18] [--video-bitrate 18M]
 
 Requires: ffmpeg on PATH, `pip install asyncpg`.
 """
@@ -15,7 +17,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import glob
 import json
 import math
 import os
@@ -33,6 +34,7 @@ except ImportError:
 
 DEFAULT_CROSSFADE_SEC = 3.0
 DEFAULT_BED_GAIN_DB = -18.0
+DEFAULT_VIDEO_BITRATE = "18M"
 LOUDNORM = "loudnorm=I=-14:TP=-1:LRA=11"
 DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1"
 DEFAULT_TARGET_HOURS = 8
@@ -132,15 +134,106 @@ def _get_duration(path: Path) -> float:
     return float(result.stdout.strip())
 
 
+def _get_stream_signature(path: Path) -> dict:
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries",
+            "stream=codec_type,codec_name,width,height,r_frame_rate,time_base,sample_rate,channels",
+            "-of", "json", str(path),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    streams = json.loads(result.stdout).get("streams", [])
+    video = next((s for s in streams if s.get("codec_type") == "video"), None)
+    audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    if video is None or audio is None:
+        sys.exit(f"{path} must contain one video stream and one audio stream.")
+    return {
+        "video_codec": video.get("codec_name"),
+        "width": video.get("width"),
+        "height": video.get("height"),
+        "fps": video.get("r_frame_rate"),
+        "video_time_base": video.get("time_base"),
+        "audio_codec": audio.get("codec_name"),
+        "sample_rate": audio.get("sample_rate"),
+        "channels": audio.get("channels"),
+    }
+
+
+def _assert_concat_compatible(first: Path, second: Path) -> None:
+    first_sig = _get_stream_signature(first)
+    second_sig = _get_stream_signature(second)
+    if first_sig == second_sig:
+        return
+    details = "\n".join(
+        f"  {key}: {first_sig.get(key)} != {second_sig.get(key)}"
+        for key in first_sig
+        if first_sig.get(key) != second_sig.get(key)
+    )
+    sys.exit(
+        "Cannot concat with -c copy because stream settings differ:\n"
+        f"  first:  {first}\n"
+        f"  second: {second}\n"
+        f"{details}\n"
+        "Re-export intro.mp4 and loop.mp4 with matching codec, resolution, fps, and audio settings."
+    )
+
+
+def _video_track_timescale(path: Path) -> str:
+    time_base = _get_stream_signature(path)["video_time_base"]
+    match = re.fullmatch(r"1/(\d+)", str(time_base))
+    if not match:
+        sys.exit(f"Unsupported video time_base for {path}: {time_base}")
+    return match.group(1)
+
+
+def _remux_intro_for_concat(intro_video: Path, loop_body: Path, out: Path) -> Path:
+    target_timescale = _video_track_timescale(loop_body)
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(intro_video),
+        "-c", "copy",
+        "-video_track_timescale", target_timescale,
+        "-movflags", "+faststart",
+        str(out),
+    ]
+    subprocess.run(cmd, check=True)
+    return out
+
+
 def _find_loop_video(download_dir: Path) -> Path | None:
-    video_dir = download_dir / "video"
-    if not video_dir.exists():
-        return None
-    for ext in ("*.mp4", "*.mov", "*.webm"):
-        files = sorted(video_dir.glob(ext))
-        if files:
-            return files[0]
-    return None
+    path = download_dir / "video" / "loop.mp4"
+    return path if path.exists() else None
+
+
+def _find_intro_video(download_dir: Path) -> Path | None:
+    path = download_dir / "video" / "intro.mp4"
+    return path if path.exists() else None
+
+
+def _build_mux_cmd(
+    loop_video: Path,
+    audio_file: Path,
+    final_video: Path,
+    audio_duration: float,
+    video_bitrate: str,
+) -> list[str]:
+    """Plain stream mux: the looped pixel-art video against the assembled
+    audio — no overlays, no filters."""
+    return [
+        "ffmpeg", "-y",
+        "-stream_loop", "-1", "-i", str(loop_video),
+        "-i", str(audio_file),
+        "-t", str(audio_duration),
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "h264_videotoolbox",
+        "-b:v", video_bitrate,
+        "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2",
+        "-shortest",
+        "-movflags", "+faststart",
+        str(final_video),
+    ]
 
 
 def _build_audio_cmd(
@@ -182,10 +275,16 @@ def main() -> None:
     ap.add_argument("--out", default=None, help="output dir (default: RUN_VEO project folder)")
     ap.add_argument("--crossfade", type=float, default=None, help="override crossfade seconds")
     ap.add_argument("--bed-gain-db", type=float, default=DEFAULT_BED_GAIN_DB)
+    ap.add_argument("--video-bitrate", default=DEFAULT_VIDEO_BITRATE,
+                    help=f"video bitrate for h264_videotoolbox (default: {DEFAULT_VIDEO_BITRATE})")
     ap.add_argument("--target-hours", type=float, default=DEFAULT_TARGET_HOURS,
                     help="target video length in hours (default: 8)")
+    ap.add_argument("--duration-sec", type=float, default=None,
+                    help="override final_video duration for short smoke tests")
     ap.add_argument("--skip-audio", action="store_true",
                     help="skip audio assembly if final_audio.mp3 already exists")
+    ap.add_argument("--skip-video", action="store_true",
+                    help="skip the cycle mux if final_video.mp4 already exists (resume from Step 3)")
     args = ap.parse_args()
 
     ep = asyncio.run(_load_episode(args.episode_id))
@@ -245,55 +344,83 @@ def main() -> None:
         return
 
     audio_duration = _get_duration(audio_file)
-    final_video = download_dir / "final_video.mp4"
+    render_duration = args.duration_sec if args.duration_sec is not None else audio_duration
+    final_video = download_dir / ("final_video_30s.mp4" if args.duration_sec is not None else "final_video.mp4")
 
-    print(f"\nMuxing {loop_video.name} ({_get_duration(loop_video):.1f}s loop) + audio ({audio_duration:.1f}s)...")
+    if args.skip_video and final_video.exists():
+        print(f"Skipping cycle mux — {final_video} already exists.")
+    else:
+        print(f"\nMuxing {loop_video.name} ({_get_duration(loop_video):.1f}s loop) + audio ({render_duration:.1f}s) at {args.video_bitrate}...")
+        mux_cmd = _build_mux_cmd(loop_video, audio_file, final_video, render_duration, args.video_bitrate)
+        subprocess.run(mux_cmd, check=True)
+        print(f"✅ Final video (1 cycle): {final_video} ({render_duration:.0f}s)")
 
-    mux_cmd = [
-        "ffmpeg", "-y",
-        "-stream_loop", "-1", "-i", str(loop_video),
-        "-i", str(audio_file),
-        "-t", str(audio_duration),
-        "-map", "0:v", "-map", "1:a",
-        "-c:v", "h264_videotoolbox",
-        "-b:v", "40M",
-        "-c:a", "aac", "-b:a", "320k",
-        "-shortest",
-        "-movflags", "+faststart",
-        str(final_video),
-    ]
-    subprocess.run(mux_cmd, check=True)
-    print(f"✅ Final video (1 cycle): {final_video} ({audio_duration:.0f}s)")
+    # ── Step 3: Loop final_video to ~target hours, then prepend intro ─────────
+    if args.duration_sec is not None:
+        print("Short smoke test requested — skipping long-video concat and DB update.")
+        return
 
-    # ── Step 3: Loop final_video to ~target hours ─────────────────────────────
     target_sec = args.target_hours * 3600
     loop_count = max(1, math.ceil(target_sec / audio_duration))
 
-    if loop_count <= 1:
-        print(f"Audio already >= {args.target_hours}h — no further looping needed.")
-        long_video = final_video
-    else:
-        long_video = download_dir / f"dr_e{args.episode_id}_final_{int(args.target_hours)}h.mp4"
+    intro_video = _find_intro_video(download_dir)
+    if intro_video is None:
+        print(f"\n⚠️  No intro video found in {video_dir}.")
+        print(f"   Place your intro.mp4 here: {video_dir / 'intro.mp4'}")
+        print("   final_video.mp4 is complete — only intro prepend remains.")
+        return
 
+    repeated_video = download_dir / f"dr_e{args.episode_id}_loop_{int(args.target_hours)}h.mp4"
+    if loop_count <= 1:
+        print(f"Audio already >= {args.target_hours}h — using final_video.mp4 as loop body.")
+        repeated_video = final_video
+    else:
         concat_list = download_dir / "_concat.txt"
+        entries = [final_video.name] * loop_count
         concat_list.write_text(
-            "\n".join(f"file '{final_video.name}'" for _ in range(loop_count)),
+            "\n".join(f"file '{name}'" for name in entries),
             encoding="utf-8",
         )
 
         total_sec = loop_count * audio_duration
-        print(f"\nLooping {loop_count}× ({total_sec / 3600:.1f}h) → {long_video}")
+        print(f"\nLooping {loop_count}× ({total_sec / 3600:.1f}h) → {repeated_video}")
 
         loop_cmd = [
             "ffmpeg", "-y",
             "-f", "concat", "-safe", "0", "-i", str(concat_list),
             "-c", "copy",
             "-movflags", "+faststart",
-            str(long_video),
+            str(repeated_video),
         ]
-        subprocess.run(loop_cmd, check=True)
+        try:
+            subprocess.run(loop_cmd, check=True)
+        finally:
+            concat_list.unlink(missing_ok=True)
+        print(f"✅ Loop body: {repeated_video} ({total_sec / 3600:.1f}h)")
+
+    long_video = download_dir / f"dr_e{args.episode_id}_final_{int(args.target_hours)}h.mp4"
+    intro_for_concat = download_dir / "_intro_for_concat.mp4"
+    _remux_intro_for_concat(intro_video, repeated_video, intro_for_concat)
+    _assert_concat_compatible(intro_for_concat, repeated_video)
+    concat_list = download_dir / "_concat_with_intro.txt"
+    concat_list.write_text(
+        f"file '{intro_for_concat.name}'\nfile '{repeated_video.name}'",
+        encoding="utf-8",
+    )
+    print(f"\nPrepending intro.mp4 once → {long_video}")
+    intro_cmd = [
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", str(concat_list),
+        "-c", "copy",
+        "-movflags", "+faststart",
+        str(long_video),
+    ]
+    try:
+        subprocess.run(intro_cmd, check=True)
+    finally:
         concat_list.unlink(missing_ok=True)
-        print(f"✅ Long video: {long_video} ({total_sec / 3600:.1f}h)")
+        intro_for_concat.unlink(missing_ok=True)
+    print(f"✅ Long video with intro: {long_video}")
 
     # ── Step 4: Update DB status ──────────────────────────────────────────────
     asyncio.run(_update_status(args.episode_id, "assembly_done", str(long_video)))
