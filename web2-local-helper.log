@@ -30290,3 +30290,6 @@ params: ready,30
  GET /api/cron/process-jobs 200 in 4.4s (next.js: 13ms, proxy.ts: 17ms, application-code: 4.4s)
  POST /api/worker/heartbeat 200 in 1994ms (next.js: 4ms, proxy.ts: 15ms, application-code: 1976ms)
  GET /api/videos/ready-for-assembly 200 in 283ms (next.js: 1921µs, proxy.ts: 6ms, application-code: 275ms)
+ GET /api/cron/process-jobs 200 in 4.4s (next.js: 6ms, proxy.ts: 13ms, application-code: 4.3s)
+ POST /api/worker/heartbeat 200 in 2.0s (next.js: 3ms, proxy.ts: 6ms, application-code: 2.0s)
+ GET /api/videos/ready-for-assembly 200 in 279ms (next.js: 6ms, proxy.ts: 4ms, application-code: 269ms)
