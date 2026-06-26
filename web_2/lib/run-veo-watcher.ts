@@ -1,6 +1,6 @@
 import { promisify } from "node:util";
 
-const DEFAULT_RUN_VEO_DIR = "/Users/sangspm/Desktop/RUN_VEO_V1.1";
+const DEFAULT_RUN_VEO_DIR = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1";
 
 function loadChildProcess(): typeof import("node:child_process") {
   // Local-only process control should stay invisible to Next's NFT tracer.

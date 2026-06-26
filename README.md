@@ -54,7 +54,7 @@ auto_YT/
 ### Python worker
 
 ```bash
-cd /Users/sangspm/Documents/auto_YT
+cd /Users/sangspm/Downloads/VibeCoding/auto_YT
 pip install -r requirements.txt
 python -m playwright install chromium
 ```
@@ -67,7 +67,7 @@ Local secret files expected under `data/`:
 ### Web app
 
 ```bash
-cd /Users/sangspm/Documents/auto_YT/web
+cd /Users/sangspm/Downloads/VibeCoding/auto_YT/web
 pnpm install
 cp .env.local.example .env.local  # if an example exists; otherwise create manually
 pnpm lint
@@ -88,7 +88,7 @@ Required `web/.env.local` keys:
 ### 1. Start the web dashboard
 
 ```bash
-cd /Users/sangspm/Documents/auto_YT/web
+cd /Users/sangspm/Downloads/VibeCoding/auto_YT/web
 pnpm dev
 ```
 
@@ -99,7 +99,7 @@ Open `http://localhost:3000`. If `DASHBOARD_SECRET` is set, login with that valu
 In another terminal:
 
 ```bash
-cd /Users/sangspm/Documents/auto_YT
+cd /Users/sangspm/Downloads/VibeCoding/auto_YT
 PYTHONPATH=src python -m auto_yt.worker
 ```
 
@@ -126,10 +126,10 @@ curl -H "Authorization: Bearer $DASHBOARD_SECRET" http://localhost:3000/api/cron
 ## Validation Commands
 
 ```bash
-cd /Users/sangspm/Documents/auto_YT/web
+cd /Users/sangspm/Downloads/VibeCoding/auto_YT/web
 pnpm lint
 pnpm build
 
-cd /Users/sangspm/Documents/auto_YT
+cd /Users/sangspm/Downloads/VibeCoding/auto_YT
 python3 -m py_compile src/auto_yt/worker.py src/auto_yt/services/*.py
 ```

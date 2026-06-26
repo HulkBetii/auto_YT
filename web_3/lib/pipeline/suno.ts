@@ -18,6 +18,7 @@ import { enqueueDrStage } from "./createJob";
 
 const SUNO_BASE_URL = "https://api.ai33.pro";
 const DEFAULT_MODEL_VERSION = "v4.5-all";
+const DEFAULT_WEB3_URL = "http://localhost:3002";
 // One cron cycle drives the fan-out at a time; lease expires if it crashes.
 const SUNO_LEASE_MS = 2 * 60 * 1000;
 // Max tracks submitted per cycle — throttles Suno credit burn and API load.
@@ -52,8 +53,18 @@ async function getModelVersion(): Promise<string> {
   return (await getDrConfigValue(DR_CONFIG_KEYS.sunoModelVersion)) || DEFAULT_MODEL_VERSION;
 }
 
+async function getSunoReceiveUrl(): Promise<string | undefined> {
+  const secret = process.env.CRON_SECRET || process.env.DASHBOARD_SECRET;
+  const configuredUrl = (await getDrConfigValue(DR_CONFIG_KEYS.web3Url))?.trim();
+  const envUrl = process.env.WEB3_URL?.trim();
+  const baseUrl = (configuredUrl || envUrl || DEFAULT_WEB3_URL).replace(/\/+$/, "");
+  const url = new URL(`${baseUrl}/api/suno-callback`);
+  if (secret) url.searchParams.set("secret", secret);
+  return url.toString();
+}
+
 /** Submits one custom-mode Suno generation. Returns its task_id. */
-export async function submitSuno(spec: TrackSpec, modelVersion: string): Promise<string> {
+export async function submitSuno(spec: TrackSpec, modelVersion: string, receiveUrl?: string): Promise<string> {
   const res = await fetch(`${SUNO_BASE_URL}/v1s/task/music-generation`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "xi-api-key": getSunoApiKey() },
@@ -63,6 +74,7 @@ export async function submitSuno(spec: TrackSpec, modelVersion: string): Promise
       lyrics: spec.structure.slice(0, MAX_LYRICS),
       tags: spec.style_tags.slice(0, MAX_TAGS),
       major_model_version: modelVersion,
+      receive_url: receiveUrl,
     }),
   });
 
@@ -246,6 +258,7 @@ export async function runSunoForPendingEpisode(): Promise<boolean> {
     }
 
     const modelVersion = await getModelVersion();
+    const receiveUrl = await getSunoReceiveUrl();
     const minClipSec = Number(await getDrConfigValue(DR_CONFIG_KEYS.minClipSec)) || DEFAULT_MIN_CLIP_SEC;
     let changed = false;
 
@@ -290,7 +303,7 @@ export async function runSunoForPendingEpisode(): Promise<boolean> {
         continue;
       }
       try {
-        track.taskId = await submitSuno(spec, modelVersion);
+        track.taskId = await submitSuno(spec, modelVersion, receiveUrl);
         track.status = "running";
         changed = true;
         submitted++;

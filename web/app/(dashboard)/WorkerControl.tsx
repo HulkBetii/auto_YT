@@ -47,9 +47,16 @@ export function WorkerControl() {
   }, []);
 
   useEffect(() => {
-    poll();
-    const id = setInterval(poll, 10_000);
-    return () => clearInterval(id);
+    const initialId = window.setTimeout(() => {
+      void poll();
+    }, 0);
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 10_000);
+    return () => {
+      window.clearTimeout(initialId);
+      window.clearInterval(intervalId);
+    };
   }, [poll]);
 
   async function toggleWorker() {

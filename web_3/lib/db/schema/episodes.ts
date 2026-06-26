@@ -150,7 +150,7 @@ export const STATUS_LABELS: Record<string, string> = {
   d3_pending: "Thumbnail",
   d4_pending: "Package",
   ready: "Ready",
-  image_gen_pending: "Manual Images",
+  image_gen_pending: "Manual Assets",
   assembly_pending: "Assembling",
   assembly_done: "Done",
   needs_attention: "Failed",

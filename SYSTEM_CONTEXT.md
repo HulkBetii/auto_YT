@@ -12,7 +12,7 @@ Mục tiêu: Claude đọc file này và hiểu đầy đủ công cụ mà khô
 ### Kiến trúc monorepo
 
 ```
-/Users/sangspm/Documents/auto_YT/
+/Users/sangspm/Downloads/VibeCoding/auto_YT/
 ├── web/                    ← Next.js App Router (Vercel) — orchestrator & UI
 │   ├── app/                ← Next.js routes
 │   │   ├── (dashboard)/    ← Dashboard UI (layout, videos, settings)

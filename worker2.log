@@ -1,0 +1,2845 @@
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+INFO:auto_yt.services.job_queue:Claimed job id=59 stage=P3 video_id=28
+INFO:__main__:Opening dedicated tab for video #28...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=59 stage=P3 (prompt 3626 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3626 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2973 chars)
+INFO:auto_yt.services.job_queue:Completed job id=59
+INFO:auto_yt.services.job_queue:Claimed job id=56 stage=P3 video_id=25
+INFO:__main__:Opening dedicated tab for video #25...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=56 stage=P3 (prompt 3105 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3105 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2755 chars)
+INFO:auto_yt.services.job_queue:Completed job id=56
+INFO:auto_yt.services.job_queue:Claimed job id=60 stage=P4 video_id=24
+INFO:__main__:Opening dedicated tab for video #24...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=60 stage=P4 (prompt 6258 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6258 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2876 chars)
+INFO:auto_yt.services.job_queue:Completed job id=60
+INFO:auto_yt.services.job_queue:Claimed job id=61 stage=P4 video_id=26
+INFO:__main__:Opening dedicated tab for video #26...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=61 stage=P4 (prompt 5883 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5883 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2613 chars)
+INFO:auto_yt.services.job_queue:Completed job id=61
+INFO:auto_yt.services.job_queue:Claimed job id=62 stage=P4 video_id=28
+INFO:__main__:Running job id=62 stage=P4 (prompt 6445 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6445 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2645 chars)
+INFO:auto_yt.services.job_queue:Completed job id=62
+INFO:auto_yt.services.job_queue:Claimed job id=63 stage=P4 video_id=25
+INFO:__main__:Running job id=63 stage=P4 (prompt 5706 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5706 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2436 chars)
+INFO:auto_yt.services.job_queue:Completed job id=63
+INFO:auto_yt.services.job_queue:Claimed job id=64 stage=P4 video_id=27
+INFO:__main__:Opening dedicated tab for video #27...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=64 stage=P4 (prompt 5797 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5797 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2556 chars)
+INFO:auto_yt.services.job_queue:Completed job id=64
+INFO:auto_yt.services.job_queue:Claimed job id=65 stage=P_score video_id=24
+INFO:__main__:Running job id=65 stage=P_score (prompt 9311 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9311 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (374 chars)
+INFO:auto_yt.services.job_queue:Completed job id=65
+INFO:auto_yt.services.job_queue:Claimed job id=66 stage=P_score video_id=26
+INFO:__main__:Running job id=66 stage=P_score (prompt 8674 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8674 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (351 chars)
+INFO:auto_yt.services.job_queue:Completed job id=66
+INFO:__main__:Video #24 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=67 stage=P_score video_id=28
+INFO:__main__:Running job id=67 stage=P_score (prompt 9267 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9267 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (361 chars)
+INFO:auto_yt.services.job_queue:Completed job id=67
+INFO:__main__:Video #26 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=68 stage=P_score video_id=25
+INFO:__main__:Running job id=68 stage=P_score (prompt 8318 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8318 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (292 chars)
+INFO:auto_yt.services.job_queue:Completed job id=68
+INFO:__main__:Video #28 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=69 stage=P_score video_id=27
+INFO:__main__:Running job id=69 stage=P_score (prompt 8533 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8533 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (394 chars)
+INFO:auto_yt.services.job_queue:Completed job id=69
+INFO:__main__:Video #25 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #27 reached 'ready_to_publish' — closing its dedicated tab.
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Database error during poll loop: connection was closed in the middle of operation
+INFO:auto_yt.services.job_queue:Claimed job id=72 stage=P1 video_id=None
+WARNING:__main__:Topic-reservoir tab is dead — reopening (e.g. account/profile changed)...
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=72 stage=P1 (prompt 2536 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2536 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3556 chars)
+INFO:auto_yt.services.job_queue:Completed job id=72
+INFO:auto_yt.services.job_queue:Claimed job id=73 stage=P2 video_id=30
+INFO:__main__:Opening dedicated tab for video #30...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=73 stage=P2 (prompt 1094 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1094 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2949 chars)
+INFO:auto_yt.services.job_queue:Completed job id=73
+INFO:auto_yt.services.job_queue:Claimed job id=74 stage=P2 video_id=31
+INFO:__main__:Opening dedicated tab for video #31...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=74 stage=P2 (prompt 1099 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1099 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3552 chars)
+INFO:auto_yt.services.job_queue:Completed job id=74
+INFO:auto_yt.services.job_queue:Claimed job id=75 stage=P2 video_id=32
+INFO:__main__:Opening dedicated tab for video #32...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=75 stage=P2 (prompt 1085 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1085 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2486 chars)
+INFO:auto_yt.services.job_queue:Completed job id=75
+INFO:auto_yt.services.job_queue:Claimed job id=76 stage=P2 video_id=33
+INFO:__main__:Opening dedicated tab for video #33...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=76 stage=P2 (prompt 1102 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1102 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2461 chars)
+INFO:auto_yt.services.job_queue:Completed job id=76
+INFO:auto_yt.services.job_queue:Claimed job id=77 stage=P2 video_id=34
+INFO:__main__:Opening dedicated tab for video #34...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=77 stage=P2 (prompt 1097 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1097 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3024 chars)
+INFO:auto_yt.services.job_queue:Completed job id=77
+INFO:auto_yt.services.job_queue:Claimed job id=78 stage=P3 video_id=31
+INFO:__main__:Running job id=78 stage=P3 (prompt 4240 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4240 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2428 chars)
+INFO:auto_yt.services.job_queue:Completed job id=78
+INFO:auto_yt.services.job_queue:Claimed job id=79 stage=P3 video_id=33
+INFO:__main__:Running job id=79 stage=P3 (prompt 3150 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3150 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3022 chars)
+INFO:auto_yt.services.job_queue:Completed job id=79
+INFO:auto_yt.services.job_queue:Claimed job id=80 stage=P3 video_id=30
+INFO:__main__:Running job id=80 stage=P3 (prompt 3637 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3637 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3070 chars)
+INFO:auto_yt.services.job_queue:Completed job id=80
+INFO:auto_yt.services.job_queue:Claimed job id=81 stage=P3 video_id=32
+INFO:__main__:Running job id=81 stage=P3 (prompt 3171 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3171 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2678 chars)
+INFO:auto_yt.services.job_queue:Completed job id=81
+INFO:auto_yt.services.job_queue:Claimed job id=82 stage=P3 video_id=34
+INFO:__main__:Running job id=82 stage=P3 (prompt 3716 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3716 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2546 chars)
+INFO:auto_yt.services.job_queue:Completed job id=82
+INFO:auto_yt.services.job_queue:Claimed job id=83 stage=P4 video_id=31
+INFO:__main__:Running job id=83 stage=P4 (prompt 6513 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6513 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2748 chars)
+INFO:auto_yt.services.job_queue:Completed job id=83
+INFO:auto_yt.services.job_queue:Claimed job id=84 stage=P4 video_id=33
+INFO:__main__:Running job id=84 stage=P4 (prompt 6018 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6018 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2511 chars)
+INFO:auto_yt.services.job_queue:Completed job id=84
+INFO:auto_yt.services.job_queue:Claimed job id=85 stage=P4 video_id=30
+INFO:__main__:Running job id=85 stage=P4 (prompt 6553 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6553 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2734 chars)
+INFO:auto_yt.services.job_queue:Completed job id=85
+INFO:auto_yt.services.job_queue:Claimed job id=86 stage=P4 video_id=32
+INFO:__main__:Running job id=86 stage=P4 (prompt 5696 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5696 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2766 chars)
+INFO:auto_yt.services.job_queue:Completed job id=86
+INFO:auto_yt.services.job_queue:Claimed job id=87 stage=P4 video_id=34
+INFO:__main__:Running job id=87 stage=P4 (prompt 6107 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6107 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2567 chars)
+INFO:auto_yt.services.job_queue:Completed job id=87
+INFO:auto_yt.services.job_queue:Claimed job id=88 stage=P_score video_id=31
+INFO:__main__:Running job id=88 stage=P_score (prompt 9443 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9443 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (368 chars)
+INFO:auto_yt.services.job_queue:Completed job id=88
+INFO:auto_yt.services.job_queue:Claimed job id=89 stage=P_score video_id=33
+INFO:__main__:Running job id=89 stage=P_score (prompt 8709 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8709 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (302 chars)
+INFO:auto_yt.services.job_queue:Completed job id=89
+INFO:__main__:Video #31 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #33 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=90 stage=P_score video_id=30
+INFO:__main__:Running job id=90 stage=P_score (prompt 9468 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9468 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (421 chars)
+INFO:auto_yt.services.job_queue:Completed job id=90
+INFO:auto_yt.services.job_queue:Claimed job id=91 stage=P_score video_id=32
+INFO:__main__:Running job id=91 stage=P_score (prompt 8645 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8645 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (373 chars)
+INFO:auto_yt.services.job_queue:Completed job id=91
+INFO:__main__:Video #30 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=92 stage=P_score video_id=34
+INFO:__main__:Running job id=92 stage=P_score (prompt 8852 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8852 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (595 chars)
+INFO:auto_yt.services.job_queue:Completed job id=92
+INFO:__main__:Video #32 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=93 stage=P3 video_id=34
+INFO:__main__:Running job id=93 stage=P3 (prompt 3716 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3716 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2726 chars)
+INFO:auto_yt.services.job_queue:Completed job id=93
+INFO:auto_yt.services.job_queue:Claimed job id=94 stage=P4 video_id=34
+INFO:__main__:Running job id=94 stage=P4 (prompt 6287 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6287 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2596 chars)
+INFO:auto_yt.services.job_queue:Completed job id=94
+INFO:auto_yt.services.job_queue:Claimed job id=95 stage=P_score video_id=34
+INFO:__main__:Running job id=95 stage=P_score (prompt 9061 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9061 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (836 chars)
+INFO:auto_yt.services.job_queue:Completed job id=95
+INFO:__main__:Video #34 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=96 stage=P1 video_id=None
+INFO:__main__:Running job id=96 stage=P1 (prompt 2909 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2909 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3564 chars)
+INFO:auto_yt.services.job_queue:Completed job id=96
+INFO:auto_yt.services.job_queue:Claimed job id=97 stage=P2 video_id=35
+INFO:__main__:Opening dedicated tab for video #35...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=97 stage=P2 (prompt 1096 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1096 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3986 chars)
+INFO:auto_yt.services.job_queue:Completed job id=97
+INFO:auto_yt.services.job_queue:Claimed job id=98 stage=P2 video_id=36
+INFO:__main__:Opening dedicated tab for video #36...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=98 stage=P2 (prompt 1098 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1098 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3931 chars)
+INFO:auto_yt.services.job_queue:Completed job id=98
+INFO:auto_yt.services.job_queue:Claimed job id=99 stage=P2 video_id=37
+INFO:__main__:Opening dedicated tab for video #37...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=99 stage=P2 (prompt 1101 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1101 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3033 chars)
+INFO:auto_yt.services.job_queue:Completed job id=99
+INFO:auto_yt.services.job_queue:Claimed job id=100 stage=P2 video_id=38
+INFO:__main__:Opening dedicated tab for video #38...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=100 stage=P2 (prompt 1097 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1097 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2663 chars)
+INFO:auto_yt.services.job_queue:Completed job id=100
+INFO:auto_yt.services.job_queue:Claimed job id=101 stage=P2 video_id=39
+INFO:__main__:Opening dedicated tab for video #39...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=101 stage=P2 (prompt 1099 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1099 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2949 chars)
+INFO:auto_yt.services.job_queue:Completed job id=101
+INFO:auto_yt.services.job_queue:Claimed job id=102 stage=P3 video_id=38
+INFO:__main__:Running job id=102 stage=P3 (prompt 3353 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3353 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2861 chars)
+INFO:auto_yt.services.job_queue:Completed job id=102
+INFO:auto_yt.services.job_queue:Claimed job id=103 stage=P3 video_id=36
+INFO:__main__:Running job id=103 stage=P3 (prompt 4618 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4618 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2632 chars)
+INFO:auto_yt.services.job_queue:Completed job id=103
+INFO:auto_yt.services.job_queue:Claimed job id=104 stage=P3 video_id=37
+INFO:__main__:Running job id=104 stage=P3 (prompt 3723 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3723 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2848 chars)
+INFO:auto_yt.services.job_queue:Completed job id=104
+INFO:auto_yt.services.job_queue:Claimed job id=105 stage=P3 video_id=39
+INFO:__main__:Running job id=105 stage=P3 (prompt 3639 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3639 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2604 chars)
+INFO:auto_yt.services.job_queue:Completed job id=105
+INFO:auto_yt.services.job_queue:Claimed job id=106 stage=P3 video_id=35
+INFO:__main__:Running job id=106 stage=P3 (prompt 4675 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4675 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2476 chars)
+INFO:auto_yt.services.job_queue:Completed job id=106
+INFO:auto_yt.services.job_queue:Claimed job id=107 stage=P4 video_id=38
+INFO:__main__:Running job id=107 stage=P4 (prompt 6060 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6060 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2804 chars)
+INFO:auto_yt.services.job_queue:Completed job id=107
+INFO:auto_yt.services.job_queue:Claimed job id=108 stage=P4 video_id=36
+INFO:__main__:Running job id=108 stage=P4 (prompt 7096 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7096 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3097 chars)
+INFO:auto_yt.services.job_queue:Completed job id=108
+INFO:auto_yt.services.job_queue:Claimed job id=109 stage=P4 video_id=37
+INFO:__main__:Running job id=109 stage=P4 (prompt 6417 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6417 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3011 chars)
+INFO:auto_yt.services.job_queue:Completed job id=109
+INFO:auto_yt.services.job_queue:Claimed job id=110 stage=P4 video_id=39
+INFO:__main__:Running job id=110 stage=P4 (prompt 6089 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6089 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2657 chars)
+INFO:auto_yt.services.job_queue:Completed job id=110
+INFO:auto_yt.services.job_queue:Claimed job id=111 stage=P4 video_id=35
+INFO:__main__:Running job id=111 stage=P4 (prompt 6997 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6997 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3188 chars)
+INFO:auto_yt.services.job_queue:Completed job id=111
+INFO:auto_yt.services.job_queue:Claimed job id=112 stage=P_score video_id=38
+INFO:__main__:Running job id=112 stage=P_score (prompt 9043 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9043 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (414 chars)
+INFO:auto_yt.services.job_queue:Completed job id=112
+INFO:auto_yt.services.job_queue:Claimed job id=113 stage=P_score video_id=36
+INFO:__main__:Running job id=113 stage=P_score (prompt 10375 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (10375 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (445 chars)
+INFO:auto_yt.services.job_queue:Completed job id=113
+INFO:auto_yt.services.job_queue:Claimed job id=114 stage=P_score video_id=37
+INFO:__main__:Running job id=114 stage=P_score (prompt 9607 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9607 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (354 chars)
+INFO:auto_yt.services.job_queue:Completed job id=114
+INFO:__main__:Video #36 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #38 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=115 stage=P_score video_id=39
+INFO:__main__:Running job id=115 stage=P_score (prompt 8925 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8925 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (335 chars)
+INFO:auto_yt.services.job_queue:Completed job id=115
+INFO:auto_yt.services.job_queue:Claimed job id=116 stage=P_score video_id=35
+INFO:__main__:Running job id=116 stage=P_score (prompt 10365 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (10365 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (336 chars)
+INFO:auto_yt.services.job_queue:Completed job id=116
+INFO:__main__:Video #35 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #37 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #39 reached 'ready_to_publish' — closing its dedicated tab.
+ERROR:__main__:Database error during poll loop: connection was closed in the middle of operation
+ERROR:__main__:Database error during poll loop: connection was closed in the middle of operation
+ERROR:__main__:Database error during poll loop: connection was closed in the middle of operation
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+INFO:auto_yt.services.job_queue:Claimed job id=117 stage=P1 video_id=None
+WARNING:__main__:Topic-reservoir tab is dead — reopening (e.g. account/profile changed)...
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=117 stage=P1 (prompt 2099 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2099 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3561 chars)
+INFO:auto_yt.services.job_queue:Completed job id=117
+INFO:auto_yt.services.job_queue:Claimed job id=118 stage=P2 video_id=40
+INFO:__main__:Opening dedicated tab for video #40...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=118 stage=P2 (prompt 1096 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1096 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3059 chars)
+INFO:auto_yt.services.job_queue:Completed job id=118
+INFO:auto_yt.services.job_queue:Claimed job id=119 stage=P2 video_id=41
+INFO:__main__:Opening dedicated tab for video #41...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=119 stage=P2 (prompt 1095 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1095 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3811 chars)
+INFO:auto_yt.services.job_queue:Completed job id=119
+INFO:auto_yt.services.job_queue:Claimed job id=120 stage=P2 video_id=42
+INFO:__main__:Opening dedicated tab for video #42...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=120 stage=P2 (prompt 1097 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1097 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (4650 chars)
+INFO:auto_yt.services.job_queue:Completed job id=120
+INFO:auto_yt.services.job_queue:Claimed job id=121 stage=P2 video_id=43
+INFO:__main__:Opening dedicated tab for video #43...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=121 stage=P2 (prompt 1095 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1095 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3932 chars)
+INFO:auto_yt.services.job_queue:Completed job id=121
+INFO:auto_yt.services.job_queue:Claimed job id=122 stage=P2 video_id=44
+INFO:__main__:Opening dedicated tab for video #44...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=122 stage=P2 (prompt 1095 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1095 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2575 chars)
+INFO:auto_yt.services.job_queue:Completed job id=122
+INFO:auto_yt.services.job_queue:Claimed job id=123 stage=P3 video_id=40
+INFO:__main__:Running job id=123 stage=P3 (prompt 3747 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3747 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2473 chars)
+INFO:auto_yt.services.job_queue:Completed job id=123
+INFO:auto_yt.services.job_queue:Claimed job id=124 stage=P3 video_id=42
+INFO:__main__:Running job id=124 stage=P3 (prompt 5341 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5341 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2757 chars)
+INFO:auto_yt.services.job_queue:Completed job id=124
+INFO:auto_yt.services.job_queue:Claimed job id=125 stage=P3 video_id=41
+INFO:__main__:Running job id=125 stage=P3 (prompt 4502 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4502 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2462 chars)
+INFO:auto_yt.services.job_queue:Completed job id=125
+INFO:auto_yt.services.job_queue:Claimed job id=126 stage=P3 video_id=43
+INFO:__main__:Running job id=126 stage=P3 (prompt 4622 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4622 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2774 chars)
+INFO:auto_yt.services.job_queue:Completed job id=126
+INFO:auto_yt.services.job_queue:Claimed job id=127 stage=P4 video_id=40
+INFO:__main__:Running job id=127 stage=P4 (prompt 6065 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6065 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2558 chars)
+INFO:auto_yt.services.job_queue:Completed job id=127
+INFO:auto_yt.services.job_queue:Claimed job id=128 stage=P3 video_id=44
+INFO:__main__:Running job id=128 stage=P3 (prompt 3266 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3266 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2298 chars)
+INFO:auto_yt.services.job_queue:Completed job id=128
+INFO:auto_yt.services.job_queue:Claimed job id=129 stage=P4 video_id=42
+INFO:__main__:Running job id=129 stage=P4 (prompt 7943 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7943 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2931 chars)
+INFO:auto_yt.services.job_queue:Completed job id=129
+INFO:auto_yt.services.job_queue:Claimed job id=130 stage=P4 video_id=41
+INFO:__main__:Running job id=130 stage=P4 (prompt 6809 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6809 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2807 chars)
+INFO:auto_yt.services.job_queue:Completed job id=130
+INFO:auto_yt.services.job_queue:Claimed job id=131 stage=P4 video_id=43
+INFO:__main__:Running job id=131 stage=P4 (prompt 7241 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7241 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2743 chars)
+INFO:auto_yt.services.job_queue:Completed job id=131
+INFO:auto_yt.services.job_queue:Claimed job id=132 stage=P_score video_id=40
+INFO:__main__:Running job id=132 stage=P_score (prompt 8805 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8805 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (408 chars)
+INFO:auto_yt.services.job_queue:Completed job id=132
+INFO:auto_yt.services.job_queue:Claimed job id=133 stage=P4 video_id=44
+INFO:__main__:Running job id=133 stage=P4 (prompt 5409 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5409 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2658 chars)
+INFO:auto_yt.services.job_queue:Completed job id=133
+INFO:__main__:Video #40 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=134 stage=P_score video_id=42
+INFO:__main__:Running job id=134 stage=P_score (prompt 11053 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (11053 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (503 chars)
+INFO:auto_yt.services.job_queue:Completed job id=134
+INFO:auto_yt.services.job_queue:Claimed job id=135 stage=P_score video_id=41
+INFO:__main__:Running job id=135 stage=P_score (prompt 9795 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9795 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (338 chars)
+INFO:auto_yt.services.job_queue:Completed job id=135
+INFO:auto_yt.services.job_queue:Claimed job id=136 stage=P_score video_id=43
+INFO:__main__:Running job id=136 stage=P_score (prompt 10164 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (10164 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (434 chars)
+INFO:auto_yt.services.job_queue:Completed job id=136
+INFO:auto_yt.services.job_queue:Claimed job id=137 stage=P_score video_id=44
+INFO:__main__:Running job id=137 stage=P_score (prompt 8246 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8246 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (544 chars)
+INFO:auto_yt.services.job_queue:Completed job id=137
+INFO:__main__:Video #41 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #42 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #43 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #44 reached 'ready_to_publish' — closing its dedicated tab.
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+INFO:auto_yt.services.job_queue:Claimed job id=138 stage=P1 video_id=None
+INFO:__main__:Running job id=138 stage=P1 (prompt 2340 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2340 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3575 chars)
+INFO:auto_yt.services.job_queue:Completed job id=138
+INFO:auto_yt.services.job_queue:Claimed job id=139 stage=P2 video_id=45
+INFO:__main__:Opening dedicated tab for video #45...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=139 stage=P2 (prompt 1096 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1096 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3618 chars)
+INFO:auto_yt.services.job_queue:Completed job id=139
+INFO:auto_yt.services.job_queue:Claimed job id=140 stage=P2 video_id=46
+INFO:__main__:Opening dedicated tab for video #46...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=140 stage=P2 (prompt 1098 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1098 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3560 chars)
+INFO:auto_yt.services.job_queue:Completed job id=140
+INFO:auto_yt.services.job_queue:Claimed job id=141 stage=P2 video_id=47
+INFO:__main__:Opening dedicated tab for video #47...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=141 stage=P2 (prompt 1103 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1103 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (4063 chars)
+INFO:auto_yt.services.job_queue:Completed job id=141
+INFO:auto_yt.services.job_queue:Claimed job id=142 stage=P2 video_id=48
+INFO:__main__:Opening dedicated tab for video #48...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=142 stage=P2 (prompt 1096 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1096 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3242 chars)
+INFO:auto_yt.services.job_queue:Completed job id=142
+INFO:auto_yt.services.job_queue:Claimed job id=143 stage=P2 video_id=49
+INFO:__main__:Opening dedicated tab for video #49...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+ERROR:__main__:Unexpected error during poll loop: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 337, in run
+    page = await tabs.get_page_for(job)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 204, in get_page_for
+    return await self._get_video_page(video_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 188, in _get_video_page
+    page = await self._new_logged_in_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 146, in _new_logged_in_page
+    result = await ensure_logged_in(page, self.account)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 88, in ensure_logged_in
+    return await restore_session(saved_cookies, page)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/chatgpt_login.py", line 431, in restore_session
+    await page.goto(CHATGPT_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 9045, in goto
+    await self._impl_obj.goto(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+
+INFO:auto_yt.services.job_queue:Claimed job id=144 stage=P3 video_id=45
+INFO:__main__:Running job id=144 stage=P3 (prompt 4309 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4309 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2859 chars)
+INFO:auto_yt.services.job_queue:Completed job id=144
+INFO:auto_yt.services.job_queue:Claimed job id=145 stage=P3 video_id=46
+INFO:__main__:Running job id=145 stage=P3 (prompt 4248 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4248 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2704 chars)
+INFO:auto_yt.services.job_queue:Completed job id=145
+INFO:auto_yt.services.job_queue:Claimed job id=146 stage=P3 video_id=47
+INFO:__main__:Running job id=146 stage=P3 (prompt 4753 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4753 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2464 chars)
+INFO:auto_yt.services.job_queue:Completed job id=146
+INFO:auto_yt.services.job_queue:Claimed job id=147 stage=P3 video_id=48
+INFO:__main__:Running job id=147 stage=P3 (prompt 3932 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3932 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2676 chars)
+INFO:auto_yt.services.job_queue:Completed job id=147
+INFO:auto_yt.services.job_queue:Claimed job id=148 stage=P4 video_id=45
+INFO:__main__:Running job id=148 stage=P4 (prompt 7012 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7012 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2788 chars)
+INFO:auto_yt.services.job_queue:Completed job id=148
+INFO:auto_yt.services.job_queue:Claimed job id=149 stage=P4 video_id=46
+INFO:__main__:Running job id=149 stage=P4 (prompt 6797 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6797 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2926 chars)
+INFO:auto_yt.services.job_queue:Completed job id=149
+INFO:auto_yt.services.job_queue:Claimed job id=150 stage=P4 video_id=47
+INFO:__main__:Running job id=150 stage=P4 (prompt 7062 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7062 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2611 chars)
+INFO:auto_yt.services.job_queue:Completed job id=150
+INFO:auto_yt.services.job_queue:Claimed job id=151 stage=P4 video_id=48
+INFO:__main__:Running job id=151 stage=P4 (prompt 6453 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6453 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3035 chars)
+INFO:auto_yt.services.job_queue:Completed job id=151
+INFO:auto_yt.services.job_queue:Claimed job id=152 stage=P_score video_id=45
+INFO:__main__:Running job id=152 stage=P_score (prompt 9980 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9980 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (575 chars)
+INFO:auto_yt.services.job_queue:Completed job id=152
+INFO:auto_yt.services.job_queue:Claimed job id=153 stage=P_score video_id=46
+INFO:__main__:Running job id=153 stage=P_score (prompt 9905 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9905 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (556 chars)
+INFO:auto_yt.services.job_queue:Completed job id=153
+INFO:auto_yt.services.job_queue:Claimed job id=154 stage=P_score video_id=47
+INFO:__main__:Running job id=154 stage=P_score (prompt 9853 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9853 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (379 chars)
+INFO:auto_yt.services.job_queue:Completed job id=154
+INFO:auto_yt.services.job_queue:Claimed job id=155 stage=P_score video_id=48
+INFO:__main__:Running job id=155 stage=P_score (prompt 9668 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9668 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (622 chars)
+INFO:auto_yt.services.job_queue:Completed job id=155
+INFO:__main__:Video #45 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #46 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #47 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=143 stage=P2 video_id=49
+INFO:__main__:Opening dedicated tab for video #49...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=143 stage=P2 (prompt 1102 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1102 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (4163 chars)
+INFO:auto_yt.services.job_queue:Completed job id=143
+INFO:__main__:Video #48 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=156 stage=P3 video_id=49
+INFO:__main__:Running job id=156 stage=P3 (prompt 4856 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4856 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2569 chars)
+INFO:auto_yt.services.job_queue:Completed job id=156
+INFO:auto_yt.services.job_queue:Claimed job id=157 stage=P4 video_id=49
+INFO:__main__:Running job id=157 stage=P4 (prompt 7269 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7269 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2922 chars)
+INFO:auto_yt.services.job_queue:Completed job id=157
+INFO:auto_yt.services.job_queue:Claimed job id=158 stage=P_score video_id=49
+INFO:__main__:Running job id=158 stage=P_score (prompt 10369 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (10369 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (321 chars)
+INFO:auto_yt.services.job_queue:Completed job id=158
+INFO:__main__:Video #49 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=159 stage=P1 video_id=None
+INFO:__main__:Running job id=159 stage=P1 (prompt 2859 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2859 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3518 chars)
+INFO:auto_yt.services.job_queue:Completed job id=159
+INFO:auto_yt.services.job_queue:Claimed job id=160 stage=P2 video_id=50
+INFO:__main__:Opening dedicated tab for video #50...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=160 stage=P2 (prompt 1089 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1089 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3156 chars)
+INFO:auto_yt.services.job_queue:Completed job id=160
+INFO:auto_yt.services.job_queue:Claimed job id=161 stage=P2 video_id=51
+INFO:__main__:Opening dedicated tab for video #51...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=161 stage=P2 (prompt 1095 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1095 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3204 chars)
+INFO:auto_yt.services.job_queue:Completed job id=161
+INFO:auto_yt.services.job_queue:Claimed job id=162 stage=P2 video_id=52
+INFO:__main__:Opening dedicated tab for video #52...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=162 stage=P2 (prompt 1095 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1095 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3043 chars)
+INFO:auto_yt.services.job_queue:Completed job id=162
+INFO:auto_yt.services.job_queue:Claimed job id=163 stage=P2 video_id=53
+INFO:__main__:Opening dedicated tab for video #53...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=163 stage=P2 (prompt 1094 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1094 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2662 chars)
+INFO:auto_yt.services.job_queue:Completed job id=163
+INFO:auto_yt.services.job_queue:Claimed job id=164 stage=P2 video_id=54
+INFO:__main__:Opening dedicated tab for video #54...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=164 stage=P2 (prompt 1085 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1085 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2750 chars)
+INFO:auto_yt.services.job_queue:Completed job id=164
+INFO:auto_yt.services.job_queue:Claimed job id=165 stage=P2 video_id=55
+INFO:__main__:Opening dedicated tab for video #55...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=165 stage=P2 (prompt 1083 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1083 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3453 chars)
+INFO:auto_yt.services.job_queue:Completed job id=165
+INFO:auto_yt.services.job_queue:Claimed job id=166 stage=P2 video_id=56
+INFO:__main__:Opening dedicated tab for video #56...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+ERROR:__main__:Unexpected error during poll loop: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 337, in run
+    page = await tabs.get_page_for(job)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 204, in get_page_for
+    return await self._get_video_page(video_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 188, in _get_video_page
+    page = await self._new_logged_in_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 146, in _new_logged_in_page
+    result = await ensure_logged_in(page, self.account)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 88, in ensure_logged_in
+    return await restore_session(saved_cookies, page)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/chatgpt_login.py", line 431, in restore_session
+    await page.goto(CHATGPT_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 9045, in goto
+    await self._impl_obj.goto(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+
+INFO:auto_yt.services.job_queue:Claimed job id=167 stage=P2 video_id=57
+INFO:__main__:Opening dedicated tab for video #57...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+ERROR:__main__:Unexpected error during poll loop: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 337, in run
+    page = await tabs.get_page_for(job)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 204, in get_page_for
+    return await self._get_video_page(video_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 188, in _get_video_page
+    page = await self._new_logged_in_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 146, in _new_logged_in_page
+    result = await ensure_logged_in(page, self.account)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 88, in ensure_logged_in
+    return await restore_session(saved_cookies, page)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/chatgpt_login.py", line 431, in restore_session
+    await page.goto(CHATGPT_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 9045, in goto
+    await self._impl_obj.goto(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+
+INFO:auto_yt.services.job_queue:Claimed job id=168 stage=P2 video_id=58
+INFO:__main__:Opening dedicated tab for video #58...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+ERROR:__main__:Unexpected error during poll loop: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 337, in run
+    page = await tabs.get_page_for(job)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 204, in get_page_for
+    return await self._get_video_page(video_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 188, in _get_video_page
+    page = await self._new_logged_in_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 146, in _new_logged_in_page
+    result = await ensure_logged_in(page, self.account)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 88, in ensure_logged_in
+    return await restore_session(saved_cookies, page)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/chatgpt_login.py", line 431, in restore_session
+    await page.goto(CHATGPT_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 9045, in goto
+    await self._impl_obj.goto(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+
+INFO:auto_yt.services.job_queue:Claimed job id=169 stage=P3 video_id=50
+INFO:__main__:Running job id=169 stage=P3 (prompt 3847 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3847 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2238 chars)
+INFO:auto_yt.services.job_queue:Completed job id=169
+INFO:auto_yt.services.job_queue:Claimed job id=170 stage=P3 video_id=51
+INFO:__main__:Running job id=170 stage=P3 (prompt 3897 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3897 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2041 chars)
+INFO:auto_yt.services.job_queue:Completed job id=170
+INFO:auto_yt.services.job_queue:Claimed job id=171 stage=P3 video_id=52
+INFO:__main__:Running job id=171 stage=P3 (prompt 3740 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3740 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2416 chars)
+INFO:auto_yt.services.job_queue:Completed job id=171
+INFO:auto_yt.services.job_queue:Claimed job id=172 stage=P3 video_id=53
+INFO:__main__:Running job id=172 stage=P3 (prompt 3352 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3352 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2673 chars)
+INFO:auto_yt.services.job_queue:Completed job id=172
+INFO:auto_yt.services.job_queue:Claimed job id=173 stage=P3 video_id=54
+INFO:__main__:Running job id=173 stage=P3 (prompt 3438 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3438 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2693 chars)
+INFO:auto_yt.services.job_queue:Completed job id=173
+INFO:auto_yt.services.job_queue:Claimed job id=174 stage=P3 video_id=55
+INFO:__main__:Running job id=174 stage=P3 (prompt 4144 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4144 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2393 chars)
+INFO:auto_yt.services.job_queue:Completed job id=174
+INFO:auto_yt.services.job_queue:Claimed job id=166 stage=P2 video_id=56
+INFO:__main__:Opening dedicated tab for video #56...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+ERROR:__main__:Unexpected error during poll loop: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 337, in run
+    page = await tabs.get_page_for(job)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 204, in get_page_for
+    return await self._get_video_page(video_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 188, in _get_video_page
+    page = await self._new_logged_in_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 146, in _new_logged_in_page
+    result = await ensure_logged_in(page, self.account)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 88, in ensure_logged_in
+    return await restore_session(saved_cookies, page)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/chatgpt_login.py", line 431, in restore_session
+    await page.goto(CHATGPT_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 9045, in goto
+    await self._impl_obj.goto(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://chatgpt.com/", waiting until "domcontentloaded"
+
+INFO:auto_yt.services.job_queue:Claimed job id=175 stage=P4 video_id=50
+INFO:__main__:Running job id=175 stage=P4 (prompt 5973 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5973 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2830 chars)
+INFO:auto_yt.services.job_queue:Completed job id=175
+INFO:auto_yt.services.job_queue:Claimed job id=176 stage=P4 video_id=51
+INFO:__main__:Running job id=176 stage=P4 (prompt 5826 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5826 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3252 chars)
+INFO:auto_yt.services.job_queue:Completed job id=176
+INFO:auto_yt.services.job_queue:Claimed job id=167 stage=P2 video_id=57
+INFO:__main__:Opening dedicated tab for video #57...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=167 stage=P2 (prompt 1085 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1085 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (1644 chars)
+INFO:auto_yt.services.job_queue:Completed job id=167
+INFO:auto_yt.services.job_queue:Claimed job id=168 stage=P2 video_id=58
+INFO:__main__:Opening dedicated tab for video #58...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=168 stage=P2 (prompt 1124 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1124 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3129 chars)
+INFO:auto_yt.services.job_queue:Completed job id=168
+INFO:auto_yt.services.job_queue:Claimed job id=177 stage=P4 video_id=52
+INFO:__main__:Running job id=177 stage=P4 (prompt 6044 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6044 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2806 chars)
+INFO:auto_yt.services.job_queue:Completed job id=177
+INFO:auto_yt.services.job_queue:Claimed job id=178 stage=P4 video_id=53
+INFO:__main__:Running job id=178 stage=P4 (prompt 5913 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (5913 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3030 chars)
+INFO:auto_yt.services.job_queue:Completed job id=178
+INFO:auto_yt.services.job_queue:Claimed job id=179 stage=P4 video_id=54
+INFO:__main__:Running job id=179 stage=P4 (prompt 6019 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6019 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2821 chars)
+INFO:auto_yt.services.job_queue:Completed job id=179
+INFO:auto_yt.services.job_queue:Claimed job id=180 stage=P4 video_id=55
+INFO:__main__:Running job id=180 stage=P4 (prompt 6424 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6424 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3288 chars)
+INFO:auto_yt.services.job_queue:Completed job id=180
+INFO:auto_yt.services.job_queue:Claimed job id=181 stage=P_score video_id=50
+INFO:__main__:Running job id=181 stage=P_score (prompt 8939 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8939 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (581 chars)
+INFO:auto_yt.services.job_queue:Completed job id=181
+INFO:auto_yt.services.job_queue:Claimed job id=182 stage=P_score video_id=51
+INFO:__main__:Running job id=182 stage=P_score (prompt 9212 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9212 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (544 chars)
+INFO:auto_yt.services.job_queue:Completed job id=182
+INFO:__main__:Video #50 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=183 stage=P3 video_id=58
+INFO:__main__:Running job id=183 stage=P3 (prompt 3833 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3833 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2436 chars)
+INFO:auto_yt.services.job_queue:Completed job id=183
+INFO:auto_yt.services.job_queue:Claimed job id=184 stage=P_score video_id=52
+INFO:__main__:Running job id=184 stage=P_score (prompt 8980 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8980 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (490 chars)
+INFO:auto_yt.services.job_queue:Completed job id=184
+INFO:auto_yt.services.job_queue:Claimed job id=185 stage=P3 video_id=57
+INFO:__main__:Running job id=185 stage=P3 (prompt 2335 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2335 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2595 chars)
+INFO:auto_yt.services.job_queue:Completed job id=185
+INFO:__main__:Video #52 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=166 stage=P2 video_id=56
+INFO:__main__:Opening dedicated tab for video #56...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': '', 'name': '', 'plan': ''}
+INFO:__main__:Running job id=166 stage=P2 (prompt 1090 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1090 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3872 chars)
+INFO:auto_yt.services.job_queue:Completed job id=166
+INFO:auto_yt.services.job_queue:Claimed job id=186 stage=P_score video_id=53
+INFO:__main__:Running job id=186 stage=P_score (prompt 9080 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9080 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (498 chars)
+INFO:auto_yt.services.job_queue:Completed job id=186
+INFO:auto_yt.services.job_queue:Claimed job id=187 stage=P_score video_id=54
+INFO:__main__:Running job id=187 stage=P_score (prompt 8979 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (8979 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (384 chars)
+INFO:auto_yt.services.job_queue:Completed job id=187
+INFO:__main__:Video #53 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=188 stage=P_score video_id=55
+INFO:__main__:Running job id=188 stage=P_score (prompt 9849 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9849 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (422 chars)
+INFO:auto_yt.services.job_queue:Completed job id=188
+INFO:auto_yt.services.job_queue:Claimed job id=189 stage=P4 video_id=58
+INFO:__main__:Running job id=189 stage=P4 (prompt 6151 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6151 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2804 chars)
+INFO:auto_yt.services.job_queue:Completed job id=189
+INFO:auto_yt.services.job_queue:Claimed job id=190 stage=P3 video_id=51
+INFO:__main__:Running job id=190 stage=P3 (prompt 3897 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3897 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2880 chars)
+INFO:auto_yt.services.job_queue:Completed job id=190
+INFO:auto_yt.services.job_queue:Claimed job id=191 stage=P4 video_id=57
+INFO:__main__:Running job id=191 stage=P4 (prompt 4818 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4818 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2992 chars)
+INFO:auto_yt.services.job_queue:Completed job id=191
+INFO:__main__:Video #54 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #55 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=192 stage=P3 video_id=56
+INFO:__main__:Running job id=192 stage=P3 (prompt 4562 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (4562 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2754 chars)
+INFO:auto_yt.services.job_queue:Completed job id=192
+INFO:auto_yt.services.job_queue:Claimed job id=193 stage=P_score video_id=58
+INFO:__main__:Running job id=193 stage=P_score (prompt 9084 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (9084 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (347 chars)
+INFO:auto_yt.services.job_queue:Completed job id=193
+INFO:auto_yt.services.job_queue:Claimed job id=194 stage=P4 video_id=51
+INFO:__main__:Running job id=194 stage=P4 (prompt 6665 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (6665 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3315 chars)
+INFO:auto_yt.services.job_queue:Completed job id=194
+INFO:auto_yt.services.job_queue:Claimed job id=195 stage=P_score video_id=57
+INFO:__main__:Running job id=195 stage=P_score (prompt 7946 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7946 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (309 chars)
+INFO:auto_yt.services.job_queue:Completed job id=195
+INFO:__main__:Video #58 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=196 stage=P4 video_id=56
+INFO:__main__:Running job id=196 stage=P4 (prompt 7204 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (7204 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2841 chars)
+INFO:auto_yt.services.job_queue:Completed job id=196
+INFO:__main__:Video #57 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:auto_yt.services.job_queue:Claimed job id=197 stage=P_score video_id=51
+INFO:__main__:Running job id=197 stage=P_score (prompt 10114 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (10114 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (770 chars)
+INFO:auto_yt.services.job_queue:Completed job id=197
+INFO:auto_yt.services.job_queue:Claimed job id=198 stage=P_score video_id=56
+INFO:__main__:Running job id=198 stage=P_score (prompt 10182 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (10182 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (338 chars)
+INFO:auto_yt.services.job_queue:Completed job id=198
+INFO:__main__:Video #51 reached 'ready_to_publish' — closing its dedicated tab.
+INFO:__main__:Video #56 reached 'ready_to_publish' — closing its dedicated tab.
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1102, in __connect_addr
+    await connected
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Unexpected error during poll loop: [Errno 8] nodename nor servname provided, or not known
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 330, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 29, in claim_next_job
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1079, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1455, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 901, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/socket.py", line 976, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+ERROR:__main__:Database error during poll loop: connection was closed in the middle of operation
+INFO:auto_yt.services.job_queue:Claimed job id=199 stage=P1 video_id=None
+WARNING:__main__:Topic-reservoir tab is dead — reopening (e.g. account/profile changed)...
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=199 stage=P1 (prompt 2772 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2772 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3551 chars)
+INFO:auto_yt.services.job_queue:Completed job id=199
+INFO:auto_yt.services.job_queue:Claimed job id=200 stage=P2 video_id=59
+INFO:__main__:Opening dedicated tab for video #59...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=200 stage=P2 (prompt 1092 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1092 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3385 chars)
+INFO:auto_yt.services.job_queue:Completed job id=200
+INFO:auto_yt.services.job_queue:Claimed job id=201 stage=P2 video_id=60
+INFO:__main__:Opening dedicated tab for video #60...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=201 stage=P2 (prompt 1091 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1091 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3981 chars)
+INFO:auto_yt.services.job_queue:Completed job id=201
+INFO:auto_yt.services.job_queue:Claimed job id=202 stage=P2 video_id=61
+INFO:__main__:Opening dedicated tab for video #61...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=202 stage=P2 (prompt 1099 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1099 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3724 chars)
+INFO:auto_yt.services.job_queue:Completed job id=202
+INFO:auto_yt.services.job_queue:Claimed job id=204 stage=P2 video_id=63
+INFO:__main__:Opening dedicated tab for video #63...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=204 stage=P2 (prompt 1100 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1100 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (2888 chars)
+INFO:auto_yt.services.job_queue:Completed job id=204
+INFO:auto_yt.services.job_queue:Claimed job id=206 stage=P2 video_id=65
+INFO:__main__:Opening dedicated tab for video #65...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=206 stage=P2 (prompt 1100 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1100 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (5043 chars)
+INFO:auto_yt.services.job_queue:Completed job id=206
+INFO:auto_yt.services.job_queue:Claimed job id=207 stage=P2 video_id=66
+INFO:__main__:Opening dedicated tab for video #66...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=207 stage=P2 (prompt 1098 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1098 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3060 chars)
+INFO:auto_yt.services.job_queue:Completed job id=207
+INFO:auto_yt.services.job_queue:Claimed job id=208 stage=P2 video_id=67
+INFO:__main__:Opening dedicated tab for video #67...
+INFO:__main__:Trying restore_session with 100 saved cookies...
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'gamynwilmon4@hotmail.com', 'name': 'Long Ngô', 'plan': ''}
+INFO:__main__:Running job id=208 stage=P2 (prompt 1095 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (1095 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+[Watch] 🚀 Started — poll every 60s
+[Watch] Dashboard: https://web2-blue-chi.vercel.app
+[Watch] Tool dir: /Users/sangspm/Desktop/RUN_VEO_V1.1
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 01:38:27
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 01:39:29
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 01:40:31
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] ⚠️  trigger_vercel_cron failed: The read operation timed out
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (worker=PAUSED, tool=PAUSED)
+[Watch] ⏸  Worker paused via dashboard — skipping this cycle
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 12:26:47
+[Watch] 🛑 Tool stopped (PID 80547) — tất cả projects đủ ảnh
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:27:49
+[Watch] 🛑 Tool stopped (PID 83939) — tất cả projects đủ ảnh
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:28:51
+[Watch] 🛑 Tool stopped (PID 87267) — tất cả projects đủ ảnh
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:29:52
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:30:54
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:31:56
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:32:58
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:33:59
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:35:01
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:36:03
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:37:08
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:38:14
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:39:19
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:40:25
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:41:31
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:42:36
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:43:42
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:44:48
+[Watch] ⚙️  Cron: processed=0 ttsRan=True
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:45:58
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:47:00
+[Watch] ⚠️  trigger_vercel_cron failed: The read operation timed out
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:48:32
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:49:33
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:50:35
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:51:37
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:52:39
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:53:40
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:54:42
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:55:44
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:56:46
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:57:48
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:58:50
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 12:59:51
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:00:53
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:01:55
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:02:57
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:03:58
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:05:00
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:06:02
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:07:04
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] 🎬 Video #12 mới — you_sit_beside_a_fire_scraping_bone_into_a_tool_wh
+[Watch] Project 'ah_v12' setup: 85 prompts saved
+[Watch] Mở TOOL VEO PROMAX (background)...
+[Watch] ✅ Job dropped → auto_queue/ah_v12.json
+[Watch] ⏳ ah_v12: 0/85 ảnh, job đang chờ tool
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:09:16
+[Watch] ⚠️  ah_v12: 0/85 ảnh, không active 999999s → re-queue
+[Watch] ♻️  Re-queue ah_v12: 85/85 ảnh còn thiếu
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:10:18
+[Watch] ⏳ ah_v12: đã re-queue 62s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:11:19
+[Watch] ⏳ ah_v12: đã re-queue 124s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:12:21
+[Watch] ⏳ ah_v12: đã re-queue 186s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:13:23
+[Watch] ⏳ ah_v12: đã re-queue 248s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:14:26
+[Watch] ⏳ ah_v12: đã re-queue 310s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:15:28
+[Watch] ⏳ ah_v12: đã re-queue 372s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:16:29
+[Watch] ⏳ ah_v12: đã re-queue 434s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:17:31
+[Watch] ⏳ ah_v12: đã re-queue 496s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:18:33
+[Watch] ⏳ ah_v12: đã re-queue 557s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:19:35
+[Watch] ⏳ ah_v12: đã re-queue 619s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:20:37
+[Watch] ⏳ ah_v12: đã re-queue 681s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:21:39
+[Watch] ⏳ ah_v12: đã re-queue 743s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:22:40
+[Watch] ⏳ ah_v12: đã re-queue 805s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:23:42
+[Watch] ⏳ ah_v12: đã re-queue 866s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:24:44
+[Watch] ⚠️  ah_v12: 0/85 ảnh, không active 999999s → re-queue
+[Watch] ♻️  Re-queue ah_v12: 85/85 ảnh còn thiếu
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 13:25:46
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 18s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:26:48
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 80s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:27:50
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 142s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:28:53
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 205s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:29:55
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 267s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:30:57
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 329s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:32:00
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 392s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:33:02
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 454s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:34:04
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 516s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:35:06
+[Watch] ⏳ ah_v12: 3/85 ảnh, đang generate (ảnh cuối 579s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:36:10
+[Watch] ⏳ ah_v12: 6/85 ảnh, đang generate (ảnh cuối 0s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:37:13
+[Watch] ⏳ ah_v12: 6/85 ảnh, đang generate (ảnh cuối 64s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:38:16
+[Watch] ⏳ ah_v12: 7/85 ảnh, đang generate (ảnh cuối 26s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:39:18
+[Watch] ⏳ ah_v12: 13/85 ảnh, đang generate (ảnh cuối 38s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:40:20
+[Watch] ⏳ ah_v12: 14/85 ảnh, đang generate (ảnh cuối 49s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:41:23
+[Watch] ⏳ ah_v12: 14/85 ảnh, đang generate (ảnh cuối 112s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:42:25
+[Watch] ⏳ ah_v12: 14/85 ảnh, đang generate (ảnh cuối 174s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:43:28
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 40s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:44:30
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 102s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:45:32
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 165s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:46:35
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 227s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:47:37
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 289s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:48:40
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 352s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:49:42
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 414s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:50:44
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 477s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:51:47
+[Watch] ⏳ ah_v12: 15/85 ảnh, đang generate (ảnh cuối 539s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:52:50
+[Watch] ⏳ ah_v12: 16/85 ảnh, đang generate (ảnh cuối 46s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:53:52
+[Watch] ⏳ ah_v12: 21/85 ảnh, đang generate (ảnh cuối 8s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:54:54
+[Watch] ⏳ ah_v12: 24/85 ảnh, đang generate (ảnh cuối 19s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:55:56
+[Watch] ⏳ ah_v12: 27/85 ảnh, đang generate (ảnh cuối 14s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:56:59
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 32s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:58:01
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 94s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 13:59:03
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 157s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:00:06
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 219s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:01:08
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 281s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:02:11
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 344s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:03:13
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 406s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:04:16
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 469s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:05:18
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 531s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:06:20
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 593s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:07:23
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 656s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:08:25
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 718s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:09:27
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 780s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:10:29
+[Watch] ⏳ ah_v12: 32/85 ảnh, đang generate (ảnh cuối 842s trước)
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:11:32
+[Watch] ⚠️  ah_v12: 32/85 ảnh, không active 905s → re-queue
+[Watch] ♻️  Re-queue ah_v12: 57/85 ảnh còn thiếu
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 14:12:33
+[Watch] ⏳ ah_v12: đã re-queue 62s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:13:35
+[Watch] ⏳ ah_v12: đã re-queue 124s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:14:37
+[Watch] ⏳ ah_v12: đã re-queue 186s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:15:39
+[Watch] ⏳ ah_v12: đã re-queue 248s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:16:41
+[Watch] ⏳ ah_v12: đã re-queue 309s trước, chờ TOOL xử lý...
+[Watch] 🔄 TOOL VEO không chạy nhưng còn project chưa xong — restart...
+[Watch] Mở TOOL VEO PROMAX (background)...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:17:48
+[Watch] ⏳ ah_v12: đã re-queue 376s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:18:50
+[Watch] ⏳ ah_v12: đã re-queue 438s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=on)
+[Watch] Không có video ready — 2026-06-17 14:19:52
+[Watch] ⏳ ah_v12: đã re-queue 500s trước, chờ TOOL xử lý...
+[Watch] 💓 Heartbeat sent (tool=off)
+[Watch] Không có video ready — 2026-06-17 14:20:53
+[Watch] ⏳ ah_v12: đã re-queue 562s trước, chờ TOOL xử lý...
+[Watch] 🔄 TOOL VEO không chạy nhưng còn project chưa xong — restart...

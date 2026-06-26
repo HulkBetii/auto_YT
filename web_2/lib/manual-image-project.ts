@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 
-const DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Desktop/RUN_VEO_V1.1";
+const DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1";
 
 export interface ManualImageProjectInfo {
   projectName: string;

@@ -122,7 +122,7 @@ describe("parseS4Variable", () => {
   });
 
   it("throws a clear error (not a silent crash) when a required field is missing", () => {
-    const { title, ...incomplete } = baseVariable;
+    const incomplete = { ...baseVariable, title: undefined };
     expect(() => parseS4Variable(incomplete)).toThrow(/title/);
   });
 

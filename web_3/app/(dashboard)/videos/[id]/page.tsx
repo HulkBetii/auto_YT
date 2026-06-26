@@ -100,14 +100,14 @@ export default async function EpisodeDetailPage({ params }: { params: Promise<{ 
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <OpenFolderButton
-            folderPath={projectInfo.imageOutputDir}
-            label="Image Folder"
-            title="Open image prompt output folder"
+            folderPath={projectInfo.projectDir}
+            label="Project Folder"
+            title="Open local project folder"
           />
           <OpenFolderButton
             folderPath={projectInfo.videoOutputDir}
             label="Video Folder"
-            title="Open loop video folder"
+            title="Open folder for manual intro.mp4 and loop.mp4"
           />
           <RetryVideoButton videoId={episode.id} />
           <DeleteVideoButton videoId={episode.id} />

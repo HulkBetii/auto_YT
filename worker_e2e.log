@@ -1,0 +1,1324 @@
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+INFO:auto_yt.services.job_queue:Claimed ah_job id=20 stage=S3 video_id=5
+INFO:__main__:Opening dedicated tab for video #('ah', 5)...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=20 stage=S3 (prompt 23442 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (23442 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+WARNING:__main__:AH job id=20 transient failure (attempt 3/3) — requeuing: Response still streaming after 360s timeout.
+INFO:auto_yt.services.job_queue:Requeued ah_job id=20 for transient retry (attempt 3)
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 624, in run
+    await record_heartbeat(dsn, "running")
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 477, in record_heartbeat
+    conn = await asyncpg.connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:auto_yt.services.job_queue:Claimed ah_job id=20 stage=S3 video_id=5
+INFO:__main__:Running ah_job id=20 stage=S3 (prompt 23442 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (23442 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+WARNING:auto_yt.services.chat_gpt:No send button found, pressing Enter as fallback
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+INFO:auto_yt.services.job_queue:Claimed ah_job id=20 stage=S3 video_id=5
+INFO:__main__:Opening dedicated tab for video #('ah', 5)...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=20 stage=S3 (prompt 22350 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (22350 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (47005 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=20
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+INFO:auto_yt.services.job_queue:Claimed ah_job id=21 stage=S4 video_id=5
+INFO:__main__:Running ah_job id=21 stage=S4 (prompt 2016 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2016 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (1846 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=21
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+INFO:__main__:Video key=('ah', 5) reached 'ready' — closing its dedicated tab.
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 624, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 477, in record_heartbeat
+    setattr(self, attr, None)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 602, in run
+    try:
+         
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 602, in run
+    try:
+         
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 605, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 602, in run
+    try:
+         
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 614, in run
+    if job is None:
+        ^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 477, in record_heartbeat
+    setattr(self, attr, None)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 609, in run
+    job = await claim_next_job(dsn)
+                  ^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 131, in run_ah_tts_and_whisper
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 602, in run
+    try:
+         
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 614, in run
+    if job is None:
+        ^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 477, in record_heartbeat
+    setattr(self, attr, None)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 605, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 602, in run
+    try:
+         
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 602, in run
+    try:
+         
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 605, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 605, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 605, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:auto_yt.services.job_queue:Claimed ah_job id=22 stage=S1 video_id=6
+INFO:__main__:Opening dedicated 'AH topic reservoir' tab for S1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=22 stage=S1 (prompt 3917 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3917 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3235 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=22
+WARNING:auto_yt.services.job_queue:AH callback failed (non-fatal): All connection attempts failed
+INFO:auto_yt.services.job_queue:Claimed ah_job id=23 stage=S2 video_id=6
+INFO:__main__:Opening dedicated tab for video #('ah', 6)...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=23 stage=S2 (prompt 2997 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2997 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (14706 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=23
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+INFO:auto_yt.services.job_queue:Claimed ah_job id=24 stage=S1 video_id=7
+INFO:__main__:Running ah_job id=24 stage=S1 (prompt 3917 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3917 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3205 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=24
+WARNING:auto_yt.services.job_queue:AH callback failed (non-fatal): 
+INFO:auto_yt.services.job_queue:Claimed ah_job id=25 stage=S2 video_id=7
+INFO:__main__:Opening dedicated tab for video #('ah', 7)...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=25 stage=S2 (prompt 2966 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2966 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (14380 chars)
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 620, in run
+    await tabs.sweep_terminal_tabs(dsn)
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 520, in process_ah_job
+    await fail_ah_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 271, in complete_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 609, in run
+    job = await claim_next_job(dsn)
+                  ^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 131, in run_ah_tts_and_whisper
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:auto_yt.services.job_queue:Claimed ah_job id=25 stage=S2 video_id=7
+INFO:__main__:Running ah_job id=25 stage=S2 (prompt 2966 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2966 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:__main__:Removed stale lock file: /Users/sangspm/Documents/auto_YT/data/chrome_user_data/PROFILE_GPT_1/SingletonLock
+INFO:__main__:Removed stale lock file: /Users/sangspm/Documents/auto_YT/data/chrome_user_data/PROFILE_GPT_1/SingletonCookie
+INFO:__main__:Removed stale lock file: /Users/sangspm/Documents/auto_YT/data/chrome_user_data/PROFILE_GPT_1/SingletonSocket
+INFO:auto_yt.services.chat_gpt:Response received (14277 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=25
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 656, in <module>
+    main()
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 650, in main
+    asyncio.run(run())
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 584, in run
+    ctx = await pw.chromium.launch_persistent_context(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 14840, in launch_persistent_context
+    await self._impl_obj.launch_persistent_context(
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_browser_type.py", line 164, in launch_persistent_context
+    result = await self._channel.send_return_as_dict(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 83, in send_return_as_dict
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: BrowserType.launch_persistent_context: Timeout 180000ms exceeded.
+Call log:
+  - <launching> /Users/sangspm/Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --no-sandbox --disable-blink-features=AutomationControlled --user-data-dir=/Users/sangspm/Documents/auto_YT/data/chrome_user_data/PROFILE_GPT_1 --remote-debugging-pipe about:blank
+  - <launched> pid=32854
+  - [pid=32854][err] [32854:31561271:0615/205458.718915:ERROR:components/segmentation_platform/internal/database/ukm_database_backend.cc:148] Failed to open UKM database: 0 database is locked
+  - [pid=32854][err] [32854:31561272:0615/205458.719316:ERROR:mojo/public/cpp/platform/named_platform_channel_mac.cc:44] bootstrap_check_in com.google.chrome.for.testing.apps.C75058ED56B303D3AB67A769AEDC0E06D81D444EC1A3C54A468E721EC2158F29: Permission denied (1100)
+
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 612, in run
+    await record_heartbeat(dsn, "running")
+                      ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 609, in run
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 71, in claim_next_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+INFO:auto_yt.services.job_queue:Claimed ah_job id=26 stage=S1 video_id=8
+INFO:__main__:Opening dedicated 'AH topic reservoir' tab for S1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=26 stage=S1 (prompt 3917 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (3917 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (3308 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=26
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+INFO:auto_yt.services.job_queue:Claimed ah_job id=27 stage=S2 video_id=8
+INFO:__main__:Opening dedicated tab for video #('ah', 8)...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=27 stage=S2 (prompt 2985 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2985 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (16225 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=27
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 636, in run
+    await record_heartbeat(dsn, "running")
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 483, in record_heartbeat
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=10)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 623, in run
+    job = await claim_next_ah_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 236, in claim_next_ah_job
+    conn = await asyncpg.connect(_sanitize_dsn(dsn), timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 15s. Press Ctrl+C to stop.
+ERROR:__main__:Unexpected error during poll loop: 
+Traceback (most recent call last):
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1050, in _connect_addr
+    return await __connect_addr(params, False, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1103, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/base_events.py", line 1006, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 621, in run
+    job = await claim_next_job(dsn)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 70, in claim_next_job
+    conn = await _connect(dsn)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/services/job_queue.py", line 37, in _connect
+    return await asyncpg.connect(_sanitize_dsn(dsn), statement_cache_size=0, timeout=30)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/asyncpg/connection.py", line 2442, in connect
+    async with compat.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Worker started — polling every 30s. Press Ctrl+C to stop.
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+INFO:auto_yt.services.job_queue:Claimed ah_job id=28 stage=S3 video_id=8
+INFO:__main__:Opening dedicated tab for video #('ah', 8)...
+INFO:__main__:Falling back to full login...
+INFO:auto_yt.services.chatgpt_login:[1] Navigating to https://chatgpt.com
+INFO:auto_yt.services.chatgpt_login:[1] Already logged in as {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:New ChatGPT tab ready. Logged in user: {'email': 'phanbatri2012@gmail.com', 'name': 'Good People', 'plan': ''}
+INFO:__main__:Running ah_job id=28 stage=S3 (prompt 23040 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (23040 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (61000 chars)
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+INFO:auto_yt.services.job_queue:Claimed ah_job id=28 stage=S3 video_id=8
+INFO:__main__:Running ah_job id=28 stage=S3 (prompt 23040 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (23040 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (61176 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=28
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+INFO:auto_yt.services.job_queue:Claimed ah_job id=29 stage=S4 video_id=8
+INFO:__main__:Running ah_job id=29 stage=S4 (prompt 2018 chars)
+INFO:auto_yt.services.chat_gpt:Typing prompt (2018 chars)
+INFO:auto_yt.services.chat_gpt:Clicking send
+INFO:auto_yt.services.chat_gpt:Waiting for assistant response...
+INFO:auto_yt.services.chat_gpt:Response received (1997 chars)
+INFO:auto_yt.services.job_queue:Completed ah_job id=29
+INFO:httpx:HTTP Request: GET https://web2-blue-chi.vercel.app/api/cron/process-jobs "HTTP/1.1 200 OK"
+INFO:auto_yt.services.job_queue:AH callback triggered (https://web2-blue-chi.vercel.app/api/cron/process-jobs)
+INFO:__main__:Video key=('ah', 8) reached 'ready' — closing its dedicated tab.
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:Heartbeat failed (non-fatal): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+INFO:auto_yt.services.job_queue:Claimed job id=406 stage=P1 video_id=None
+WARNING:__main__:Topic-reservoir tab is dead — reopening (e.g. account/profile changed)...
+INFO:__main__:Opening dedicated 'topic reservoir' tab for P1...
+ERROR:__main__:Unexpected error during poll loop: BrowserContext.new_page: Target page, context or browser has been closed
+Traceback (most recent call last):
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 634, in run
+    page = await tabs.get_page_for(job)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 428, in get_page_for
+    return await self._get_topic_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 380, in _get_topic_page
+    self.topic_page = await self._new_logged_in_page()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/Documents/auto_YT/src/auto_yt/worker.py", line 350, in _new_logged_in_page
+    page = await self.ctx.new_page()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 12880, in new_page
+    return mapping.from_impl(await self._impl_obj.new_page())
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_browser_context.py", line 331, in new_page
+    return from_channel(await self._channel.send("newPage", None))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sangspm/.pyenv/versions/3.12.6/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TargetClosedError: BrowserContext.new_page: Target page, context or browser has been closed
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): [Errno 54] Connection reset by peer
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 
+WARNING:__main__:DB connection hiccup (non-fatal, retrying): 

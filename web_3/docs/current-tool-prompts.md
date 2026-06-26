@@ -49,7 +49,7 @@ D0 scene-gen → D1 visual+ambient → D2A(1-5) → D2B(6-15) → D2C(16-20) →
   - File names for the local assembler: `dr_e{id}_t{NN}_{clipIdx}_{ddmmyyyy}_{hhmmss}.mp3`.
 - **D4 is mostly code-assembled:** D4 returns only creative copy. Code builds the final description, the **soundscape block (from the real ambient map)**, the fixed music/specs blocks, the **hashtags**, and the **chapters** — one per track using its **primary clip**, with timestamps that **subtract crossfade overlap** (`crossfade_sec`) so they match the assembled audio. Code: `lib/pipeline/descriptionBuilder.ts` (`parseD4Variable`, `flattenClips`, `buildChaptersFromAudio(audio, crossfadeSec)`, `buildDescription`), `lib/config/channel.ts`.
 - **Audio assembler (v3, deferred-local):** `scripts/assemble_audio.py` (Python + ffmpeg) reads the episode from Neon, crossfades the primary clips (`acrossfade`), loops the ambient bed underneath (`amix`, ~−18 dB), and `loudnorm`s the result. Spec: `docs/assemble_audio.md`.
-- **Thumbnail / image / Veo loop are NOT auto-generated** — D1/D3 only emit prompts. Rendering + video muxing is the deferred local pipeline. Code stub: `lib/manual-image-project.ts` (`dr_e{id}` project folders).
+- **Thumbnail / intro / loop video are NOT auto-generated** — D1/D3 only emit prompts. Manual assets live outside the automated job chain. Code stub: `lib/manual-image-project.ts` (`dr_e{id}` project folders).
 - **Failure handling:** a handler/worker failure marks the episode `needs_attention` and alerts Telegram (`🌃 [Drifter 2077]`). Retry from the dashboard re-enqueues the failed job or resumes from the visual stage. Code: `chain.ts`, `app/api/videos/[id]/retry/route.ts`, `app/api/jobs/[id]/retry/route.ts`.
 
 ## 3. Worker wiring (`src/auto_yt/`)
@@ -343,4 +343,4 @@ d0_pending → d1_pending → d2a_pending → d2b_pending → d2c_pending → su
                                                                                                           any → needs_attention
 ```
 
-`ready` = all automated stages done; the rest (image render, Veo loop, ffmpeg assembly, publish) is the **deferred local pipeline**.
+`ready` = all automated stages done; manual `intro.mp4` / `loop.mp4`, ffmpeg assembly, and publish happen outside the automated job chain.

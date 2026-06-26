@@ -21,7 +21,7 @@ import {
 } from "@/lib/db/schema";
 import { extractJson } from "@/lib/utils/json";
 import { notify } from "@/lib/notifications";
-import { getManualEpisodeProjectInfo } from "@/lib/manual-image-project";
+import { ensureManualEpisodeProjectDirs } from "@/lib/manual-image-project";
 import {
   buildChaptersFromAudio,
   buildDescription,
@@ -30,6 +30,7 @@ import {
 } from "./descriptionBuilder";
 import { formatHarmonicPalette, parseHarmonicPalette } from "./format";
 import { enqueueDrStage } from "./createJob";
+import { runLocalAssemblyWatcher, type LocalAssemblyResult } from "./localAssembly";
 
 const DEFAULT_CROSSFADE_SEC = 3;
 import { describePendingSunoWait, runSunoForPendingEpisode } from "./suno";
@@ -39,6 +40,7 @@ export interface DrChainCycleResult {
   results: Array<{ jobId: number; stage: string; ok: boolean; error?: string }>;
   sunoRan: boolean;
   sunoWaiting: string | null;
+  localAssembly: LocalAssemblyResult;
   staleReset: number;
 }
 
@@ -311,13 +313,14 @@ async function handleD4Done(job: DoneJob) {
   });
   await updateDrEpisodeStatus(episodeId, "ready");
 
-  const project = getManualEpisodeProjectInfo({ id: episodeId, trackCount: audio.length });
+  const project = await ensureManualEpisodeProjectDirs({ id: episodeId, trackCount: audio.length });
   await notify(
     [
       `✅ Episode #${episodeId} ready for local assembly`,
       `Title: ${variable.best_title}`,
       `Project: <code>${project.projectName}</code>`,
-      `Image prompt + Veo loop + ${audio.length} tracks → ${project.finalVideoPath}`,
+      `Place your manual <code>intro.mp4</code> and <code>loop.mp4</code> in <code>${project.videoOutputDir}</code>`,
+      `${audio.length} tracks → ${project.finalVideoPath}`,
     ].join("\n"),
   );
 }
@@ -337,7 +340,8 @@ export async function runDrChainCycle(): Promise<DrChainCycleResult> {
 
   const paused = await getDrConfigValue(DR_CONFIG_KEYS.pipelinePaused).catch(() => null);
   if (paused === "true") {
-    return { processed: 0, results: [], sunoRan: false, sunoWaiting: null, staleReset: 0 };
+    const localAssembly = await runLocalAssemblyWatcher();
+    return { processed: 0, results: [], sunoRan: false, sunoWaiting: null, localAssembly, staleReset: 0 };
   }
 
   const staleReset = await resetStaleRunningDrJobs(15);
@@ -393,12 +397,14 @@ export async function runDrChainCycle(): Promise<DrChainCycleResult> {
 
   const sunoRan = await runSunoForPendingEpisode();
   const sunoWaiting = sunoRan ? null : await describePendingSunoWait();
+  const localAssembly = await runLocalAssemblyWatcher();
 
   return {
     processed: doneJobs.length,
     results,
     sunoRan,
     sunoWaiting,
+    localAssembly,
     staleReset,
   };
 }

@@ -14,7 +14,7 @@ const { db } = await import("../lib/db/index.js");
 const { videos } = await import("../lib/db/schema/index.js");
 const { eq } = await import("drizzle-orm");
 const { getLatestVideoContent } = await import("../lib/db/repo/video-content.js");
-const { updateVideoAudioUrl, setVideoTtsTaskId, clearVideoTtsTaskId } = await import("../lib/db/repo/videos.js");
+const { updateVideoAudioUrl, setVideoTtsTaskId } = await import("../lib/db/repo/videos.js");
 const { parseP3ForTTS, getVoiceId, submitTTS, pollTTSTask } = await import("../lib/pipeline/tts.js");
 
 const all = await db.select().from(videos).where(eq(videos.status, "ready_to_publish")).orderBy(videos.id as never);

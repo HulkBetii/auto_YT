@@ -31,7 +31,6 @@ export function AudioCard({
         {caption && (
           <p className="mt-1 text-[13px] text-[#6E6E73]">{caption}</p>
         )}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <audio controls src={src} preload="metadata" className="mt-3 w-full" />
       </CardContent>
     </Card>

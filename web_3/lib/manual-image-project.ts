@@ -1,14 +1,14 @@
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 
 // Local assembly project layout for the deferred DRIFTER pipeline:
-//   one episode -> one pixel-art loop image + one Veo loop + the Suno tracks,
+//   one episode -> manual intro/loop videos + the Suno tracks,
 //   assembled locally on the Mac into the final long-form video.
 const DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1";
 
 export interface ManualEpisodeProjectInfo {
   projectName: string;
   projectDir: string;
-  imageOutputDir: string;
   videoOutputDir: string;
   audioOutputDir: string;
   finalVideoPath: string;
@@ -36,10 +36,24 @@ export function getManualEpisodeProjectInfo(episode: ManualEpisodeProject): Manu
   return {
     projectName,
     projectDir,
-    imageOutputDir: path.join(downloadDir, "image"),
     videoOutputDir: path.join(downloadDir, "video"),
     audioOutputDir: path.join(downloadDir, "audio"),
     finalVideoPath: path.join(downloadDir, "final_video.mp4"),
     trackCount: episode.trackCount ?? 0,
   };
+}
+
+export function canWriteManualEpisodeProjectDirs(): boolean {
+  return process.env.VERCEL !== "1";
+}
+
+export async function ensureManualEpisodeProjectDirs(episode: ManualEpisodeProject): Promise<ManualEpisodeProjectInfo> {
+  const project = getManualEpisodeProjectInfo(episode);
+  if (!canWriteManualEpisodeProjectDirs()) return project;
+  await Promise.all([
+    mkdir(project.projectDir, { recursive: true }),
+    mkdir(project.videoOutputDir, { recursive: true }),
+    mkdir(project.audioOutputDir, { recursive: true }),
+  ]);
+  return project;
 }

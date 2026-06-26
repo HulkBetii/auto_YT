@@ -75,7 +75,7 @@ def load_test_account() -> Optional[Dict[str, str]]:
     return None  # no credentials found
 
 
-async def test_login(account: Dict[str, str]) -> bool:
+async def run_login_e2e(account: Dict[str, str]) -> bool:
     """Launch browser and attempt to log in."""
     logger.info("Testing with email: %s", account["email"])
     if account.get("totp_secret"):
@@ -156,7 +156,7 @@ async def test_login(account: Dict[str, str]) -> bool:
             await playwright.stop()
 
 
-async def test_dry_run() -> bool:
+async def run_dry_run() -> bool:
     """Navigate to chatgpt.com and verify page load (no login)."""
     logger.info("=== DRY‑RUN (page load check) ===")
 
@@ -218,13 +218,13 @@ def main() -> None:
         print("This will launch a real browser and attempt login to ChatGPT.")
         response = input("Continue? (yes/no): ").strip().lower()
         if response in ("yes", "y"):
-            success = asyncio.run(test_login(account))
+            success = asyncio.run(run_login_e2e(account))
         else:
             print("Switching to dry‑run.")
-            success = asyncio.run(test_dry_run())
+            success = asyncio.run(run_dry_run())
     else:
         print("No valid test credentials found. Running dry‑run.")
-        success = asyncio.run(test_dry_run())
+        success = asyncio.run(run_dry_run())
 
     if success:
         logger.info("🏁 Test completed successfully")

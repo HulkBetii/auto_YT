@@ -152,6 +152,15 @@ export async function listNeedsAttentionDrEpisodes() {
     .orderBy(desc(drEpisodes.updatedAt));
 }
 
+export async function listReadyDrEpisodes(limit = 10) {
+  return db
+    .select()
+    .from(drEpisodes)
+    .where(eq(drEpisodes.status, "ready"))
+    .orderBy(desc(drEpisodes.updatedAt))
+    .limit(limit);
+}
+
 export async function deleteDrEpisode(episodeId: number) {
   await db.execute(sql`DELETE FROM dr_jobs WHERE episode_id = ${episodeId}`);
   const [deleted] = await db
