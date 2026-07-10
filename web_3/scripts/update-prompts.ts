@@ -218,7 +218,7 @@ Return ONLY the JSON object. No markdown fences, no commentary.`;
 async function main() {
   const { db } = await import("../lib/db");
   const { drPromptVersions } = await import("../lib/db/schema");
-  const { getLatestDrVersionNumber } = await import("../lib/db/repo/prompt-versions");
+  const { getActiveDrPromptVersion, getLatestDrVersionNumber } = await import("../lib/db/repo/prompt-versions");
   const { eq } = await import("drizzle-orm");
 
   const versions = [
@@ -233,7 +233,8 @@ async function main() {
 
   let seeded = 0;
   for (const { key, template, reason, seed } of versions) {
-    if (!seed) continue;
+    const active = await getActiveDrPromptVersion(key);
+    if (!seed && active) continue;
     
     await db
       .update(drPromptVersions)

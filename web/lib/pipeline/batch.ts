@@ -12,7 +12,10 @@ const IN_FLIGHT_VIDEO_STATUSES = ["topic", "outline", "scripted", "seo_done", "s
 function formatRecentVideos(rows: Awaited<ReturnType<typeof listRecentVideos>>): string {
   if (rows.length === 0) return "(まだ公開済みの動画はありません)";
   return rows
-    .map((v) => `- ${v.title}（人物: ${v.featuredPerson ?? "?"} / Pain: ${v.painType ?? "?"} / 状態: ${v.status}）`)
+    .map(
+      (v) =>
+        `- ${v.title}（人物: ${v.featuredPerson ?? "?"} / Pain: ${v.painType ?? "?"} / Archetype: ${v.contentArchetype ?? "?"} / Hook: ${v.hookType ?? "?"} / List: ${v.listCount ?? "?"} / Promise: ${v.corePromise ?? "?"} / 状態: ${v.status}）`,
+    )
     .join("\n");
 }
 

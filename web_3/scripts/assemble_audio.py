@@ -11,7 +11,7 @@ no dependency on the web app being up. Output goes into the RUN_VEO-style projec
 folder `dr_e{id}/Download/audio/` to be muxed with the pixel loop video later.
 
 Usage:
-    python3 scripts/assemble_audio.py <episode_id> [--out DIR] [--crossfade SEC] [--bed-gain-db DB]
+    python scripts/assemble_audio.py <episode_id> [--out DIR] [--crossfade SEC] [--bed-gain-db DB]
 
 Requires: ffmpeg on PATH, `pip install asyncpg`.
 """
@@ -29,6 +29,12 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+try:
     import asyncpg
 except ImportError:
     sys.exit("Missing dependency: pip install asyncpg")
@@ -37,7 +43,7 @@ except ImportError:
 DEFAULT_CROSSFADE_SEC = 3.0
 DEFAULT_BED_GAIN_DB = -18.0
 LOUDNORM = "loudnorm=I=-14:TP=-1:LRA=11"
-DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1"
+DEFAULT_RUN_VEO_ROOT = r"D:\VibeCoding\RUN_VEO_V1.1"
 _ASYNCPG_UNSUPPORTED = {"channel_binding", "options"}
 
 
@@ -47,16 +53,24 @@ def _sanitize_dsn(dsn: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(params)))
 
 
+def _load_env_local() -> None:
+    env_local = Path(__file__).resolve().parent.parent / ".env.local"
+    if not env_local.exists():
+        return
+    for line in env_local.read_text(encoding="utf-8").splitlines():
+        m = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"?([^"\n]*)"?\s*$', line)
+        if not m:
+            continue
+        key, value = m.group(1), m.group(2).strip()
+        if key in {"DATABASE_URL", "RUN_VEO_ROOT", "RUN_VEO_WORKFLOWS_DIR"} and not os.getenv(key):
+            os.environ[key] = value
+
+
 def _load_database_url() -> str:
+    _load_env_local()
     url = os.getenv("DATABASE_URL", "").strip()
     if url:
         return url
-    env_local = Path(__file__).resolve().parent.parent / ".env.local"
-    if env_local.exists():
-        for line in env_local.read_text(encoding="utf-8").splitlines():
-            m = re.match(r'^\s*DATABASE_URL\s*=\s*"?([^"\n]+)"?', line)
-            if m:
-                return m.group(1).strip()
     sys.exit("DATABASE_URL not set (env or web_3/.env.local).")
 
 

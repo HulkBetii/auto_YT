@@ -22,6 +22,10 @@ export async function setAhConfigValue(key: string, value: string): Promise<void
     });
 }
 
+export async function deleteAhConfigValue(key: string): Promise<void> {
+  await db.delete(ahChannelConfig).where(eq(ahChannelConfig.key, key));
+}
+
 export async function getAllAhConfig(): Promise<Record<string, string>> {
   const rows = await db.select().from(ahChannelConfig);
   return Object.fromEntries(rows.map((r) => [r.key, r.value ?? ""]));

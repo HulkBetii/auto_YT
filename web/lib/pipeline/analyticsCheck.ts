@@ -13,6 +13,7 @@ import { listVideosByStatus } from "@/lib/db/repo/videos";
 import { promptVersions, videos } from "@/lib/db/schema";
 import { enqueueStage } from "@/lib/pipeline/createJob";
 import { formatBatchTable, type BatchRow } from "@/lib/pipeline/chain";
+import { FIXED_PERSONA_NAME } from "@/lib/pipeline/fixedPersona";
 import { fetchVideoStatistics } from "@/lib/youtube/client";
 
 const ANALYTICS_REFRESH_HOURS = 24;
@@ -73,7 +74,13 @@ export async function refreshAnalyticsAndTriggerP5(): Promise<number[]> {
         PATTERN_USED: video.titlePattern ?? "",
         TEMP: String(video.temperature ?? ""),
         PAIN_TYPE: video.painType ?? "",
-        PERSON: video.featuredPerson ?? "",
+        PERSON: FIXED_PERSONA_NAME,
+        ARCHETYPE: video.contentArchetype ?? "",
+        HOOK_TYPE: video.hookType ?? "",
+        COMMENT_MODE: video.commentMode ?? "",
+        PERSONA_MODE: video.personaMode ?? "",
+        LIST_COUNT: video.listCount != null ? String(video.listCount) : "",
+        CORE_PROMISE: video.corePromise ?? "",
         LENGTH: "",
         CTR: (analytics.ctrBasisPoints / 100).toFixed(2),
         AVD: (analytics.averageViewDurationSeconds / 60).toFixed(0),
@@ -124,7 +131,13 @@ export async function triggerP6IfBatchReady(): Promise<number[] | null> {
       pattern: video.titlePattern ?? "",
       pain: video.painType ?? "",
       temp: String(video.temperature ?? ""),
-      person: video.featuredPerson ?? "",
+      person: FIXED_PERSONA_NAME,
+      archetype: video.contentArchetype ?? "",
+      hookType: video.hookType ?? "",
+      commentMode: video.commentMode ?? "",
+      personaMode: video.personaMode ?? "",
+      listCount: video.listCount != null ? String(video.listCount) : "",
+      corePromise: video.corePromise ?? "",
       lengthMin: "",
       ctrPct:
         analytics?.ctrBasisPoints != null ? (analytics.ctrBasisPoints / 100).toFixed(2) : "",

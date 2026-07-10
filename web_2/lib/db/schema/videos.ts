@@ -2,6 +2,7 @@ import { integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg
 
 export const ahVideos = pgTable("ah_videos", {
   id: serial("id").primaryKey(),
+  promptSetVersion: text("prompt_set_version").notNull().default("current"),
   status: text("status").notNull().default("s1_pending"),
   voiceId: text("voice_id"),
   topicCandidates: jsonb("topic_candidates"),
@@ -12,11 +13,17 @@ export const ahVideos = pgTable("ah_videos", {
   whisperTranscript: text("whisper_transcript"),
   imagePrompts: text("image_prompts"),
   ytTitle: text("yt_title"),
+  ytUrlSlug: text("yt_url_slug"),
   ytDescription: text("yt_description"),
   ytTags: text("yt_tags"),
   ytChapters: jsonb("yt_chapters"),
   ytThumbnail: jsonb("yt_thumbnail"),
-  // Assembly tracking (updated by local Mac worker via /api/videos/[id]/progress)
+  bgmStatus: text("bgm_status").notNull().default("not_started"),
+  bgmPlan: jsonb("bgm_plan"),
+  bgmTracks: jsonb("bgm_tracks"),
+  bgmVideoPath: text("bgm_video_path"),
+  bgmError: text("bgm_error"),
+  // Assembly tracking (updated by local worker via /api/videos/[id]/progress)
   imageCountExpected: integer("image_count_expected").default(0),
   imageCount: integer("image_count").default(0),
   videoPath: text("video_path"),
@@ -45,6 +52,18 @@ export const AH_STATUSES = [
 ] as const;
 
 export type AhVideoStatus = (typeof AH_STATUSES)[number];
+
+export const BGM_STATUSES = [
+  "not_started",
+  "submitting",
+  "generating",
+  "ready",
+  "mixed",
+  "failed",
+  "fallback",
+] as const;
+
+export type BgmStatus = (typeof BGM_STATUSES)[number];
 
 // Steps: S1(0) S2(1) TTS(2) S3(3) S4(4) IMG/manual images(5) ASSEMBLE(6) — total 7
 // doneCount = how many steps are fully green
@@ -93,8 +112,8 @@ export function slugify(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/-+/g, "_")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
     .slice(0, 60);
 }
 

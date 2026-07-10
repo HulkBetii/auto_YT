@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "../index";
-import { ahVideos, type AhVideoStatus, IN_PIPELINE_STATUSES } from "../schema";
+import { ahVideos, type AhVideoStatus, type BgmStatus, IN_PIPELINE_STATUSES } from "../schema";
 
 export interface RecentAhTopicSummary {
   id: number;
@@ -147,6 +147,9 @@ export async function updateVideoProgress(
     imageCount?: number;
     imageCountExpected?: number;
     videoPath?: string;
+    bgmVideoPath?: string;
+    bgmStatus?: BgmStatus;
+    bgmError?: string | null;
   },
 ) {
   const current = await getAhVideo(videoId);
@@ -155,6 +158,9 @@ export async function updateVideoProgress(
   const nextImageCount = update.imageCount ?? current.imageCount;
   const nextImageCountExpected = update.imageCountExpected ?? current.imageCountExpected;
   const nextVideoPath = update.videoPath ?? current.videoPath;
+  const nextBgmVideoPath = update.bgmVideoPath ?? current.bgmVideoPath;
+  const nextBgmStatus = update.bgmStatus ?? current.bgmStatus;
+  const nextBgmError = update.bgmError === undefined ? current.bgmError : update.bgmError;
   const imageCountIncreased =
     update.imageCount !== undefined && update.imageCount > (current.imageCount ?? 0);
 
@@ -175,7 +181,10 @@ export async function updateVideoProgress(
     statusChanged ||
     nextImageCount !== current.imageCount ||
     nextImageCountExpected !== current.imageCountExpected ||
-    nextVideoPath !== current.videoPath;
+    nextVideoPath !== current.videoPath ||
+    nextBgmVideoPath !== current.bgmVideoPath ||
+    nextBgmStatus !== current.bgmStatus ||
+    nextBgmError !== current.bgmError;
 
   if (!hasMeaningfulChange) return;
 
@@ -188,6 +197,9 @@ export async function updateVideoProgress(
       ...(update.imageCount !== undefined && { imageCount: update.imageCount }),
       ...(update.imageCountExpected !== undefined && { imageCountExpected: update.imageCountExpected }),
       ...(update.videoPath !== undefined && { videoPath: update.videoPath }),
+      ...(update.bgmVideoPath !== undefined && { bgmVideoPath: update.bgmVideoPath }),
+      ...(update.bgmStatus !== undefined && { bgmStatus: update.bgmStatus }),
+      ...(update.bgmError !== undefined && { bgmError: update.bgmError }),
       updatedAt: new Date(),
     })
     .where(eq(ahVideos.id, videoId));

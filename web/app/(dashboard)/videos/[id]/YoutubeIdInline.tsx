@@ -1,12 +1,9 @@
 "use client";
-
 import { Pencil, X, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 export function YoutubeIdInline({
   videoId,
   currentValue,
@@ -19,7 +16,6 @@ export function YoutubeIdInline({
   const [value, setValue] = useState(currentValue ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
   function onSave() {
     setError(null);
     startTransition(async () => {
@@ -37,7 +33,6 @@ export function YoutubeIdInline({
       router.refresh();
     });
   }
-
   if (editing) {
     return (
       <div className="flex flex-col gap-1.5">
@@ -56,7 +51,7 @@ export function YoutubeIdInline({
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 shrink-0 text-[#34C759] hover:text-[#34C759]"
+            className="h-8 w-8 shrink-0 text-[var(--success)] hover:text-[var(--success)]"
             disabled={!value || isPending}
             onClick={onSave}
           >
@@ -71,20 +66,19 @@ export function YoutubeIdInline({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
+        {error && <p className="text-[12px] text-[var(--danger)]">{error}</p>}
       </div>
     );
   }
-
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[15px] text-[#1C1C1E] dark:text-white">
+      <span className="text-[15px] text-[var(--text-primary)] ">
         {currentValue ?? "—"}
       </span>
       <Button
         size="icon"
         variant="ghost"
-        className="ml-auto h-7 w-7 shrink-0 text-[#AEAEB2] hover:text-[#1C1C1E] dark:hover:text-white"
+        className="ml-auto h-7 w-7 shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] "
         onClick={() => setEditing(true)}
         title="Chỉnh sửa YouTube ID"
       >

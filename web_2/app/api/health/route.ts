@@ -1,5 +1,7 @@
-import { neon } from "@neondatabase/serverless";
+import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
+
+import { db } from "@/lib/db";
 
 export async function GET() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -11,9 +13,8 @@ export async function GET() {
   }
 
   try {
-    const sql = neon(databaseUrl);
-    const rows = await sql`SELECT 1 AS ok`;
-    return NextResponse.json({ ok: true, db: rows[0] });
+    const rows = await db.execute(sql`SELECT 1 AS ok`);
+    return NextResponse.json({ ok: true, db: rows.rows[0] });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : String(error) },

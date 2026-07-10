@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "design:lint": "npx @google/design.md lint ../DESIGN.md",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "drizzle-kit migrate",
+    "local:dev": "next dev --port 3000"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -17,6 +22,7 @@
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
     "openai": "^6.42.0",
+    "pg": "^8.22.0",
     "pgvector": "^0.3.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -28,6 +34,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",

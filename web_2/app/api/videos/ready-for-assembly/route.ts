@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
         id: v.id,
         scriptSlug: v.scriptSlug,
         audioUrl: v.audioUrl,
+        bgmStatus: v.bgmStatus,
+        bgmPlan: v.bgmPlan,
+        bgmTracks: v.bgmTracks,
         imagePromptsLength: v.imagePrompts?.length ?? 0,
         ...manualProject,
       };

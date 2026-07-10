@@ -213,11 +213,12 @@ AH_SUPPORTED_STAGES = ("S1", "S2", "S3", "S4")
 
 async def _hit_url(url: str, secret: str) -> None:
     """Fire-and-forget GET with Bearer auth. Non-fatal on any error."""
-    if not url or not secret:
+    if not url:
         return
     try:
+        headers = {"Authorization": f"Bearer {secret}"} if secret else {}
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url, headers={"Authorization": f"Bearer {secret}"})
+            r = await client.get(url, headers=headers)
         if r.status_code == 200:
             logger.info("AH callback triggered (%s)", url)
         else:

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
@@ -18,7 +18,7 @@ LOGIN_BUTTON_TIMEOUT_MS = 10_000
 INPUT_TIMEOUT_MS = 10_000
 POST_LOGIN_TIMEOUT_MS = 45_000
 
-# Selectors – stable attributes only, no react-aria-* IDs
+# Selectors â€“ stable attributes only, no react-aria-* IDs
 SEL_LOGIN_BUTTON = (
     'button:has-text("Log in"), '
     'a:has-text("Log in"), '
@@ -147,6 +147,22 @@ async def _raise_if_cloudflare_or_captcha(page) -> None:
 
 async def _get_visible_error_text(page) -> str | None:
     """Return a visible auth error text from common OpenAI/Auth0 locations."""
+    known_error_fragments = (
+        "incorrect email address or password",
+        "incorrect password",
+        "invalid code",
+        "incorrect code",
+        "code expired",
+        "try again",
+        "verify your email",
+        "verify your identity",
+        "device verification",
+        "new device",
+        "verify you are human",
+        "checking if the site connection is secure",
+        "cloudflare",
+        "captcha",
+    )
     error_selectors = (
         '[role="alert"]',
         '[data-testid*="error"]',
@@ -161,7 +177,7 @@ async def _get_visible_error_text(page) -> str | None:
             locator = page.locator(selector).first
             if await locator.is_visible(timeout=800):
                 text = (await locator.inner_text(timeout=1_000)).strip()
-                if text:
+                if text and any(fragment in text.lower() for fragment in known_error_fragments):
                     return text
         except Exception:
             continue
@@ -190,13 +206,41 @@ async def _raise_known_auth_error(page, stage: str) -> None:
 
 
 async def _fill_and_submit(page, selector: str, value: str, timeout_ms: int = INPUT_TIMEOUT_MS) -> None:
-    """Wait for a visible input, fill it, then click the submit button."""
+    """Wait for a visible input, fill it, then submit the active form."""
     field = page.locator(selector).first
     await field.wait_for(state="visible", timeout=timeout_ms)
     await field.fill(value)
     await asyncio.sleep(0.3)
-    submit = page.locator(SEL_SUBMIT_BUTTON).first
-    await submit.click()
+    try:
+        await field.press("Enter")
+    except Exception:
+        submit = page.locator(SEL_SUBMIT_BUTTON).first
+        await submit.click(force=True)
+async def _wait_for_auth_redirect_or_email_form(page, timeout_ms: int = 8_000) -> None:
+    """Continue as soon as either auth redirect or inline email form is ready."""
+    auth_task = asyncio.create_task(page.wait_for_url(f"**/{AUTH_DOMAIN}/**", timeout=timeout_ms))
+    email_task = asyncio.create_task(
+        page.locator(SEL_EMAIL_INPUT).first.wait_for(state="visible", timeout=timeout_ms)
+    )
+    done, pending = await asyncio.wait(
+        {auth_task, email_task},
+        timeout=timeout_ms / 1000,
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    for task in pending:
+        task.cancel()
+    if done:
+        for task in done:
+            try:
+                await task
+                return
+            except Exception:
+                continue
+    title = await page.title()
+    raise ChatGPTLoginVerifyError(
+        f"Login button clicked but neither auth redirect nor email form appeared. "
+        f"URL: {page.url}; title: {title}"
+    )
 
 
 async def _get_bootstrap_data(page) -> dict | None:
@@ -266,15 +310,15 @@ async def login_gpt_auto(account: dict, page) -> dict:
     Returns
     -------
     dict  {"success": True, "cookies": list[dict], "user": dict}
-        cookies — full context cookie jar (all domains)
-        user    — {"email": str, "name": str, "plan": str}
+        cookies â€” full context cookie jar (all domains)
+        user    â€” {"email": str, "name": str, "plan": str}
 
     Raises
     ------
-    ChatGPTLoginCredentialError  — wrong email or password
-    ChatGPTLoginMFAError         — MFA issue
-    ChatGPTLoginVerifyError      — Cloudflare / captcha / anti-bot wall
-    ChatGPTLoginError            — any other login failure
+    ChatGPTLoginCredentialError  â€” wrong email or password
+    ChatGPTLoginMFAError         â€” MFA issue
+    ChatGPTLoginVerifyError      â€” Cloudflare / captcha / anti-bot wall
+    ChatGPTLoginError            â€” any other login failure
     """
     email       = str(account.get("email", "")).strip()
     password    = str(account.get("password", ""))
@@ -300,7 +344,7 @@ async def login_gpt_auto(account: dict, page) -> dict:
     # --- Step 2: Click "Log in" ------------------------------------------
     logger.info("[2] Clicking Log in")
     await _dismiss_cookie_banner(page)
-    # Close sidebar if open — it overlaps the login button
+    # Close sidebar if open â€” it overlaps the login button
     try:
         close_sidebar = page.locator('[data-testid="close-sidebar-button"]').first
         if await close_sidebar.is_visible(timeout=1_000):
@@ -329,20 +373,11 @@ async def login_gpt_auto(account: dict, page) -> dict:
                     f"Login button not visible and email form did not appear. "
                     f"URL: {page.url}; title: {title}"
                 ) from exc
-    try:
-        await page.wait_for_url(f"**/{AUTH_DOMAIN}/**", timeout=8_000)
-    except Exception:
-        # Current ChatGPT UI can open an inline login modal on chatgpt.com
-        # instead of redirecting immediately to auth.openai.com.
-        try:
-            await page.locator(SEL_EMAIL_INPUT).first.wait_for(state="visible", timeout=LOGIN_BUTTON_TIMEOUT_MS)
-        except Exception as exc:
-            title = await page.title()
-            raise ChatGPTLoginVerifyError(
-                f"Login button clicked but neither auth redirect nor email form appeared. "
-                f"URL: {page.url}; title: {title}"
-            ) from exc
-    await asyncio.sleep(1)
+    # Current ChatGPT UI can either redirect to auth.openai.com or open an
+    # inline email form on chatgpt.com. Wait for both in parallel so the inline
+    # flow does not pay the full redirect timeout.
+    await _wait_for_auth_redirect_or_email_form(page)
+    await asyncio.sleep(0.2)
 
     # --- Step 3: Email ---------------------------------------------------
     logger.info("[3] Entering email")
@@ -370,7 +405,7 @@ async def login_gpt_auto(account: dict, page) -> dict:
         # MFA prompt appeared
         if not totp_secret:
             raise ChatGPTLoginMFAError("MFA form appeared but no totp_secret in account dict.")
-        import pyotp  # lazy — only needed when MFA is active
+        import pyotp  # lazy â€” only needed when MFA is active
         totp_code = pyotp.TOTP(totp_secret).now()
         logger.info("[5] Submitting TOTP code")
         await mfa_input.fill(totp_code)
@@ -381,7 +416,7 @@ async def login_gpt_auto(account: dict, page) -> dict:
     except (ChatGPTLoginMFAError, ChatGPTLoginError, ChatGPTLoginDeviceVerificationError):
         raise
     except Exception:
-        # No MFA form — normal flow
+        # No MFA form â€” normal flow
         pass
 
     # --- Step 6: Wait for redirect to chatgpt.com ------------------------
@@ -401,7 +436,7 @@ async def login_gpt_auto(account: dict, page) -> dict:
     logger.info("[7] Verifying login")
     verify = await _verify_logged_in(page)
     if not verify["logged_in"]:
-        # NextAuth hydration can lag — one reload retry
+        # NextAuth hydration can lag â€” one reload retry
         await page.reload(wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
         await asyncio.sleep(3)
         verify = await _verify_logged_in(page)
@@ -414,7 +449,7 @@ async def login_gpt_auto(account: dict, page) -> dict:
 
     # --- Step 8: Collect cookies -----------------------------------------
     cookies = await context.cookies()
-    logger.info("[8] Done — captured %d cookies for %s", len(cookies), email)
+    logger.info("[8] Done â€” captured %d cookies for %s", len(cookies), email)
 
     return {"success": True, "cookies": cookies, "user": verify["user"]}
 
@@ -434,9 +469,12 @@ async def restore_session(cookies: list[dict], page) -> dict:
 
     verify = await _verify_logged_in(page)
     if not verify["logged_in"]:
-        raise ChatGPTLoginError("Session restore failed — cookies expired or invalid.")
+        raise ChatGPTLoginError("Session restore failed â€” cookies expired or invalid.")
 
     return {"success": True, "cookies": await context.cookies(), "user": verify["user"]}
 
 
-# TODO: Cấu trúc thư mục lưu trữ local (vd chrome_user_data/PROFILE_X) — paths.py đã có gpt_profile_dir()
+# TODO: Cáº¥u trÃºc thÆ° má»¥c lÆ°u trá»¯ local (vd chrome_user_data/PROFILE_X) â€” paths.py Ä‘Ã£ cÃ³ gpt_profile_dir()
+
+
+

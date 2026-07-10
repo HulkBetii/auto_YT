@@ -1,4 +1,4 @@
-import {
+﻿import {
   hasOpenAhJobForVideoStage,
   listUnconsumedDoneAhJobs,
   listUnconsumedFailedAhJobs,
@@ -21,13 +21,22 @@ import {
   buildDescription,
   computeChapterTimestamps,
   fmtChapterTime,
+  normalizeUrlSlug,
+  normalizeVideoSpecificTags,
   parseS4Variable,
   parseWhisperSegments,
 } from "./descriptionBuilder";
 import { enqueueAhStage } from "./createJob";
 import { rankTopics, type AhTopic } from "./rank";
 import { describePendingTtsWait, runTTSAndWhisperForPendingVideo, smartBucketTranscript } from "./tts";
+import { formatImagePrompts, formatThumbnailConcept } from "./visualStyle";
+import { runBgmForPendingVideos } from "./bgm";
 import { getAhConfigValue, setAhConfigValue } from "@/lib/db/repo/channel-config";
+
+interface YouTubeChapter {
+  time: string;
+  title: string;
+}
 
 export interface AhChainCycleResult {
   processed: number;
@@ -84,51 +93,6 @@ async function handleS2Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
   // TTS+Whisper runs server-side via runTTSAndWhisperForPendingVideo() in the same cycle
 }
 
-const DOODLE_STYLE_PREFIX =
-  "Hand-drawn 2D doodle cartoon animation, flat solid colors, bold black hand-drawn outlines, slightly wobbly imperfect marker lines,";
-
-const DOODLE_STYLE_LOCK =
-  "no visible text, no captions, no labels, no numbers, no timestamp overlays, no written words, no hashtags, no hex color codes, no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, wide horizontal composition, simple educational YouTube explainer doodle style.";
-const LEGACY_DOODLE_STYLE_LOCK =
-  "no gradients, no drop shadows, no photographic textures, no photorealism, no 3D render, no realistic faces, no anime, wide horizontal composition, simple educational YouTube explainer doodle style.";
-
-const TIMESTAMP_TOKEN_RE = /\[\d{1,2}:\d{2}(?::\d{2})?\]/g;
-const HASH_TOKEN_RE = /#[\p{L}\p{N}_-]+/gu;
-const QUOTED_TEXT_RE =
-  /\b(?:bold\s+)?(?:red|black|white|blue|orange|green|yellow|cream|gray|grey)?\s*(?:hand[- ]lettered\s+)?text\s+[“"][^”"]+[”"]/giu;
-const LABEL_TEXT_RE = /\b(?:label(?:ed|led)?|caption(?:ed)?)\s+[“"][^”"]+[”"]/giu;
-
-interface YouTubeChapter {
-  time: string;
-  title: string;
-}
-
-function sanitizeImagePromptDescription(text: string): string {
-  return text
-    .replaceAll(DOODLE_STYLE_PREFIX, "")
-    .replaceAll(DOODLE_STYLE_LOCK, "")
-    .replaceAll(LEGACY_DOODLE_STYLE_LOCK, "")
-    .replace(TIMESTAMP_TOKEN_RE, "")
-    .replace(HASH_TOKEN_RE, "")
-    .replace(QUOTED_TEXT_RE, "simple symbolic doodle concept")
-    .replace(LABEL_TEXT_RE, "marked with a simple icon")
-    .replace(/\s{2,}/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/^[,.;:\s]+/, "")
-    .replace(/[.,]?\s*$/, "")
-    .trim();
-}
-
-export function formatImagePrompts(raw: string): string {
-  return raw
-    .split("\n")
-    .filter((l) => l.trim())
-    .map((line) => {
-      const desc = sanitizeImagePromptDescription(line);
-      return `${DOODLE_STYLE_PREFIX} ${desc}, ${DOODLE_STYLE_LOCK}`;
-    })
-    .join("\n");
-}
 
 async function handleS3Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
   const videoId = job.videoId!;
@@ -172,13 +136,20 @@ async function handleS4Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
     title: variable.chapter_titles[i],
   }));
   const description = buildDescription(variable, chapterTimes, channelConfig);
+  const urlSlug = normalizeUrlSlug(variable.url_slug, variable.title);
+  const videoSpecificTags = normalizeVideoSpecificTags(variable.tags);
+  const thumbnail = {
+    ...variable.thumbnail,
+    concept: formatThumbnailConcept(variable.thumbnail.concept),
+  };
 
   await updateAhVideoFields(videoId, {
     ytTitle: variable.title,
+    ytUrlSlug: urlSlug,
     ytDescription: description,
-    ytTags: variable.tags,
+    ytTags: videoSpecificTags,
     ytChapters: chapters as unknown as Record<string, unknown>[],
-    ytThumbnail: variable.thumbnail as unknown as Record<string, unknown>,
+    ytThumbnail: thumbnail as unknown as Record<string, unknown>,
   });
   await updateAhVideoStatus(videoId, "ready");
 
@@ -188,7 +159,7 @@ async function handleS4Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
   });
   await notify(
     [
-      `✅ Video #${videoId} ready for manual images`,
+      `âœ… Video #${videoId} ready for manual images`,
       `Project: <code>${manualProject.projectName}</code>`,
       `Folder: <code>${manualProject.imageOutputDir}</code>`,
       `Prompts: ${manualProject.promptCount}`,
@@ -236,7 +207,7 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   // Record cron heartbeat
   await setAhConfigValue("cron_last_run_at", new Date().toISOString()).catch(() => {});
 
-  // Pause guard — toggled from the dashboard
+  // Pause guard â€” toggled from the dashboard
   const paused = await getAhConfigValue("pipeline_paused").catch(() => null);
   if (paused === "true") {
     return { processed: 0, results: [], ttsRan: false, ttsWaiting: null, staleReset: 0 };
@@ -279,7 +250,7 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
         await updateAhVideoStatus(job.videoId, "needs_attention").catch(() => {});
       }
       await notify(
-        `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${error}`,
+        `ðŸ”´ Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${error}`,
       ).catch(() => {});
       results.push({ jobId: job.id, stage: job.stage, ok: false, error });
     }
@@ -294,7 +265,7 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
       continue;
     }
     await notify(
-      `🔴 Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${job.errorMessage ?? "unknown error"}`,
+      `ðŸ”´ Job #${job.id} (<b>${job.stage}</b>)${job.videoId ? ` video #${job.videoId}` : ""} failed: ${job.errorMessage ?? "unknown error"}`,
     );
     await markAhJobConsumed(job.id);
     if (job.videoId) {
@@ -305,6 +276,9 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
   // Run TTS+Whisper server-side for any tts_pending video
   const ttsRan = await runTTSAndWhisperForPendingVideo();
   const ttsWaiting = ttsRan ? null : await describePendingTtsWait();
+  await runBgmForPendingVideos().catch((err) => {
+    console.warn("[bgm] cycle failed without blocking video pipeline:", err);
+  });
 
   return {
     processed: doneJobs.length,
@@ -314,3 +288,7 @@ export async function runAhChainCycle(): Promise<AhChainCycleResult> {
     staleReset,
   };
 }
+
+
+
+

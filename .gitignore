@@ -1,16 +1,72 @@
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .pytest_cache/
 
-# Local secrets & sessions
+# Dependencies and virtual environments
+.venv/
+venv/
+env/
+node_modules/
+**/node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build and cache artifacts
+.next/
+**/.next/
+out/
+dist/
+build/
+coverage/
+.turbo/
+.cache/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+*.pem
+*.key
+*.p12
+
+# Local sessions, browser profiles, and generated worker state
 data/db_config.json
 data/account.json
-data/session_chatgpt.json
+data/session*.json
 data/chrome_user_data/
+**/db_config.json
+**/account.json
+**/session*.json
+**/last_response.json
+**/chrome_user_data/
+**/.e2e-*.json
+**/.tmp-*
 
-# Legacy root files (removed after refactor)
+# Logs and local process files
+*.log
+*.err.log
+*.out.log
+*.pid
+.worker*.log
+.control-server*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+
+# Legacy root files
 test_config.json
 session_chatgpt.json
-.DS_Store
-data/last_response.json
-.DS_Store

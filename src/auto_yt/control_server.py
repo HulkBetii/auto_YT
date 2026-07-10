@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Local HTTP control server for the Playwright worker.
 
@@ -20,7 +20,7 @@ import signal
 import subprocess
 import sys
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
 
@@ -82,7 +82,7 @@ def _clear_singleton_locks() -> None:
             except OSError as e:
                 log.warning("Could not remove %s: %s", lock, e)
 
-    # 2. Delete stale session files — each crashed tab generates one dialog.
+    # 2. Delete stale session files â€” each crashed tab generates one dialog.
     #    The worker creates fresh tabs on every start, so restoring old sessions
     #    is not needed and only causes "Something went wrong" spam.
     import shutil as _shutil
@@ -180,8 +180,8 @@ def stop_worker() -> dict:
         pid = _proc.pid
         log.info("Stopping worker pid=%s", pid)
         try:
-            # SIGINT triggers KeyboardInterrupt in Python → worker runs
-            # its finally block → ctx.close() → Chrome shuts down cleanly
+            # SIGINT triggers KeyboardInterrupt in Python â†’ worker runs
+            # its finally block â†’ ctx.close() â†’ Chrome shuts down cleanly
             # (SIGTERM skips the finally block and force-kills Chrome)
             _proc.send_signal(signal.SIGINT)
             _proc.wait(timeout=20)
@@ -305,13 +305,14 @@ class Handler(BaseHTTPRequestHandler):
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    server = HTTPServer(("127.0.0.1", PORT), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     log.info("Control server listening on http://localhost:%s", PORT)
     log.info("Press Ctrl+C to stop")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        log.info("Shutting down…")
+        log.info("Shutting downâ€¦")
         stop_worker()
         stop_app()
         server.server_close()
+

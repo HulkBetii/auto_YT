@@ -16,17 +16,14 @@ config({ path: resolve(__dirname, "../.env.local") });
 const { setConfigValue } = await import("../lib/db/repo/channel-config.js");
 
 const voiceMap = {
-  "Tenpu Nakamura": "clone_2572202",
-  "Kazuo Inamori": "clone_2574216",
-  "Konosuke Matsushita": "clone_1624283",
-  "Kakuei Tanaka": "clone_2093524",
+  "美輪明宏": "clone_2222532",
   "Miwa Akihiro": "clone_2222532",
 };
 
 await setConfigValue("tts_voice_map", JSON.stringify(voiceMap));
 console.log("✓ tts_voice_map saved:", JSON.stringify(voiceMap));
 
-await setConfigValue("tts_default_voice", "clone_2572202");
-console.log("✓ tts_default_voice saved: clone_2572202");
+await setConfigValue("tts_default_voice", "clone_2222532");
+console.log("✓ tts_default_voice saved: clone_2222532");
 
 process.exit(0);

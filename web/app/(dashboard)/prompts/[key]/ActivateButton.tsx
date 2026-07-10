@@ -1,13 +1,16 @@
 "use client";
-
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-
-export function ActivateButton({ promptKey, versionId }: { promptKey: string; versionId: number }) {
+export function ActivateButton({
+  promptKey,
+  versionId,
+}: {
+  promptKey: string;
+  versionId: number;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
   function onClick() {
     setError(null);
     startTransition(async () => {
@@ -24,17 +27,16 @@ export function ActivateButton({ promptKey, versionId }: { promptKey: string; ve
       router.refresh();
     });
   }
-
   return (
     <span className="inline-flex flex-col items-end gap-1">
       <button
         onClick={onClick}
         disabled={isPending}
-        className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        className="rounded bg-[var(--accent-cyan)] px-3 py-1 text-xs font-medium text-[var(--dashboard-bg)] hover:bg-[var(--accent-cyan-hover)] disabled:opacity-50 "
       >
         {isPending ? "Đang kích hoạt…" : "Kích hoạt phiên bản này"}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
     </span>
   );
 }

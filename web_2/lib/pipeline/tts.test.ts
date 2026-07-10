@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { smartBucketTranscript } from "./tts";
+import { sanitizeTtsNarrationText, smartBucketTranscript } from "./tts";
 
 const MIN_DURATION = 4;
 const MAX_DURATION = 12;
@@ -16,6 +16,21 @@ function parseOutput(output: string): { t: number; text: string }[] {
     return { t: parseInt(m[1]) * 60 + parseInt(m[2]), text: m[3] };
   });
 }
+
+describe("sanitizeTtsNarrationText", () => {
+  it("rewrites known problematic proper nouns before TTS", () => {
+    const output = sanitizeTtsNarrationText("The Ju/'hoansi people knew the desert.");
+
+    expect(output).toBe("The Joo-twansi people knew the desert.");
+  });
+
+  it("removes raw slash characters inside words", () => {
+    const output = sanitizeTtsNarrationText("A hunter/tracker follows bone/tools through dust.");
+
+    expect(output).toBe("A hunter tracker follows bone tools through dust.");
+    expect(output).not.toContain("/");
+  });
+});
 
 describe("smartBucketTranscript", () => {
   it("returns empty transcript unchanged", () => {

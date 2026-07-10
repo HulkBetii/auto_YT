@@ -1,8 +1,6 @@
 "use client";
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-
 export function SettingField({
   fieldKey,
   label,
@@ -20,7 +18,6 @@ export function SettingField({
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   async function onSave() {
     setIsSaving(true);
     setSaved(false);
@@ -44,13 +41,16 @@ export function SettingField({
       setIsSaving(false);
     }
   }
-
   return (
-    <div className="rounded-xl border border-black/[.08] bg-white p-4 dark:border-white/[.10] dark:bg-[#1C1C1E]">
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-4 ">
       <label className="block">
-        <span className="text-[13px] font-medium text-[#1C1C1E] dark:text-white">{label}</span>
+        <span className="text-[13px] font-medium text-[var(--text-primary)] ">
+          {label}
+        </span>
         {description && (
-          <span className="ml-2 text-[12px] text-[#AEAEB2]">{description}</span>
+          <span className="ml-2 text-[12px] text-[var(--text-secondary)]">
+            {description}
+          </span>
         )}
         <div className="mt-2 flex gap-2">
           <input
@@ -58,19 +58,21 @@ export function SettingField({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
-            className="flex-1 rounded-lg border border-black/[.08] bg-[#F2F2F7] px-3 py-1.5 text-[14px] text-[#1C1C1E] outline-none focus:ring-2 focus:ring-[#007AFF]/30 dark:border-white/[.10] dark:bg-[#2C2C2E] dark:text-white"
+            className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--dashboard-bg)] px-3 py-1.5 text-[14px] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 "
           />
           <Button
             onClick={onSave}
             disabled={isSaving}
             size="sm"
-            className="bg-[#007AFF] text-white hover:bg-[#0062CC] disabled:opacity-50"
+            className="bg-[var(--accent-cyan)] text-[var(--dashboard-bg)] hover:bg-[var(--accent-cyan-hover)] disabled:opacity-50"
           >
             {isSaving ? "Saving…" : saved ? "Saved ✓" : "Save"}
           </Button>
         </div>
       </label>
-      {error && <p className="mt-1 text-[12px] text-[#FF3B30]">{error}</p>}
+      {error && (
+        <p className="mt-1 text-[12px] text-[var(--danger)]">{error}</p>
+      )}
     </div>
   );
 }

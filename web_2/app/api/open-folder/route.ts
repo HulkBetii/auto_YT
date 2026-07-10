@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+﻿import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -35,6 +35,20 @@ function getCorsHeaders(request: NextRequest): Record<string, string> {
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
+}
+
+function openFolderCommand(targetPath: string, revealFile = false): { command: string; args: string[] } {
+  if (process.platform === "win32") {
+    return revealFile
+      ? { command: "explorer.exe", args: [`/select,${targetPath}`] }
+      : { command: "explorer.exe", args: [targetPath] };
+  }
+  if (process.platform === "darwin") {
+    return revealFile
+      ? { command: "open", args: ["-R", targetPath] }
+      : { command: "open", args: [targetPath] };
+  }
+  return { command: "xdg-open", args: [revealFile ? path.dirname(targetPath) : targetPath] };
 }
 
 function json(request: NextRequest, body: unknown, init?: ResponseInit) {
@@ -80,14 +94,6 @@ export async function POST(request: NextRequest) {
     return json(request, { ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  if (process.platform !== "darwin") {
-    return json(
-      request,
-      { ok: false, error: "Open in folder is only available on a local macOS server." },
-      { status: 501 },
-    );
-  }
-
   const body = BodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
     return json(request, { ok: false, error: "Invalid body" }, { status: 400 });
@@ -100,11 +106,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const targetStat = await stat(targetPath);
-    if (targetStat.isDirectory()) {
-      await execFileAsync("open", [targetPath]);
-    } else {
-      await execFileAsync("open", ["-R", targetPath]);
-    }
+    const opener = openFolderCommand(targetPath, !targetStat.isDirectory());
+    await execFileAsync(opener.command, opener.args);
     return json(request, { ok: true });
   } catch {
     const parentPath = path.dirname(targetPath);
@@ -112,10 +115,12 @@ export async function POST(request: NextRequest) {
     try {
       const parentStat = await stat(parentPath);
       if (!parentStat.isDirectory()) throw new Error("Parent path is not a directory.");
-      await execFileAsync("open", [parentPath]);
+      const opener = openFolderCommand(parentPath);
+      await execFileAsync(opener.command, opener.args);
       return json(request, { ok: true });
     } catch {
       return json(request, { ok: false, error: "Folder not found" }, { status: 404 });
     }
   }
 }
+

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { updateVideoProgress } from "@/lib/db/repo/videos";
+import { BGM_STATUSES } from "@/lib/db/schema";
 
 const ASSEMBLY_STATUSES = ["image_gen_pending", "assembly_pending", "assembly_done", "needs_attention"] as const;
 
@@ -9,6 +10,9 @@ const BodySchema = z.object({
   imageCount: z.number().int().min(0).optional(),
   imageCountExpected: z.number().int().min(0).optional(),
   videoPath: z.string().optional(),
+  bgmVideoPath: z.string().optional(),
+  bgmStatus: z.enum(BGM_STATUSES).optional(),
+  bgmError: z.string().nullable().optional(),
 });
 
 function assertAuth(request: NextRequest): boolean {
@@ -44,6 +48,9 @@ export async function POST(
     imageCount: body.imageCount,
     imageCountExpected: body.imageCountExpected,
     videoPath: body.videoPath,
+    bgmVideoPath: body.bgmVideoPath,
+    bgmStatus: body.bgmStatus,
+    bgmError: body.bgmError,
   });
 
   return NextResponse.json({ ok: true, videoId, status: body.status });

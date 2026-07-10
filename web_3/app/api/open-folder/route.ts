@@ -36,6 +36,12 @@ function getCorsHeaders(request: NextRequest): Record<string, string> {
   };
 }
 
+function openFolderCommand(targetPath: string): { command: string; args: string[] } {
+  if (process.platform === "win32") return { command: "explorer.exe", args: [targetPath] };
+  if (process.platform === "darwin") return { command: "open", args: [targetPath] };
+  return { command: "xdg-open", args: [targetPath] };
+}
+
 function json(request: NextRequest, body: unknown, init?: ResponseInit) {
   return NextResponse.json(body, {
     ...init,
@@ -79,14 +85,6 @@ export async function POST(request: NextRequest) {
     return json(request, { ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  if (process.platform !== "darwin") {
-    return json(
-      request,
-      { ok: false, error: "Open in folder is only available on a local macOS server." },
-      { status: 501 },
-    );
-  }
-
   const body = BodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
     return json(request, { ok: false, error: "Invalid body" }, { status: 400 });
@@ -100,7 +98,8 @@ export async function POST(request: NextRequest) {
       return json(request, { ok: false, error: "Path exists but is not a directory" }, { status: 400 });
     }
 
-    await execFileAsync("open", [targetPath]);
+    const opener = openFolderCommand(targetPath);
+    await execFileAsync(opener.command, opener.args);
     return json(request, { ok: true });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

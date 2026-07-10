@@ -22,6 +22,41 @@
       "when": 1781675539351,
       "tag": "0002_add_open_job_unique_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781675539352,
+      "tag": "0003_add_youtube_metadata_json",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781675539353,
+      "tag": "0004_add_published_marker",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782912834042,
+      "tag": "0005_add_yt_url_slug",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783728000000,
+      "tag": "0006_add_prompt_set_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783728060000,
+      "tag": "0007_add_bgm_metadata",
+      "breakpoints": true
     }
   ]
 }

@@ -310,12 +310,12 @@ Cookie middleware: `dashboard_auth` cookie phải match `DASHBOARD_SECRET` env v
 ```bash
 # web/.env.local
 DATABASE_URL=postgresql://...@neon...  # Neon Postgres
-OPENAI_API_KEY=sk-...                  # OpenAI Embeddings
-TELEGRAM_BOT_TOKEN=...                 # Telegram notifications
-TELEGRAM_CHAT_ID=...
-VIVOO_API_KEY=sk_8075b49el90qhu5jqsjsfgbyczg23xmqm2sk4fyp050jh82q   # AI33.PRO TTS
-YOUTUBE_API_KEY=AIzaSyAAzeIUSmcDZM4OtrRlBfDheQQDzjVnOe4
-DASHBOARD_SECRET=1234f09ce079762c5ed48f927cbb03133222b654116f4fdb
+OPENAI_API_KEY=<openai-api-key>
+TELEGRAM_BOT_TOKEN=<telegram-bot-token> # Telegram notifications
+TELEGRAM_CHAT_ID=<telegram-chat-id>
+VIVOO_API_KEY=<ai33-api-key>             # AI33.PRO TTS
+YOUTUBE_API_KEY=<youtube-api-key>
+DASHBOARD_SECRET=<dashboard-secret>
 ```
 
 **KHÔNG commit secrets vào git.**

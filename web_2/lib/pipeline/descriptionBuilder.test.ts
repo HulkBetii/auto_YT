@@ -4,6 +4,8 @@ import {
   buildDescription,
   computeChapterTimestamps,
   fmtChapterTime,
+  normalizeUrlSlug,
+  normalizeVideoSpecificTags,
   parseS4Variable,
   parseWhisperSegments,
   type S4Variable,
@@ -12,10 +14,11 @@ import { channelConfig } from "@/lib/config/channel";
 
 const baseVariable: S4Variable = {
   title: "Why Your Brain Still Fears Snakes",
+  url_slug: "why-your-brain-fears-snakes",
   hook_paragraph: "Why your brain still fears snakes traces back to ancient survival pressure.",
   discover_bullets: ["Daily-life angle.", "Evidence angle.", "Modern-mirror angle."],
   chapter_titles: ["The Freeze", "The Reframe", "The Evidence", "A Day Reconstructed", "What It Means Today"],
-  tags: "ancient humans, human evolution, prehistoric life",
+  tags: "snake fear in prehistory, ancient snake predators, stone age danger signals, human fear response, prehistoric survival instincts",
   thumbnail: { concept: "Doodle concept.", text: "LOOK NOW", emotion: "shock", accent_color: "red" },
 };
 
@@ -71,11 +74,13 @@ describe("buildDescription", () => {
     baseVariable.chapter_titles.length,
   );
 
-  it("ends with exactly 3 hashtags", () => {
+  it("ends with exactly 3 safe hashtags", () => {
     const out = buildDescription(baseVariable, chapterTimes);
     const lastLine = out.trim().split("\n").pop()!;
     const tags = lastLine.split(/\s+/).filter((t) => t.startsWith("#"));
     expect(tags).toHaveLength(3);
+    expect(lastLine.length).toBeLessThanOrEqual(60);
+    expect(lastLine).not.toMatch(/#viral|#fyp|#trending/i);
   });
 
   it("includes the subscribe URL and upload schedule verbatim", () => {
@@ -109,12 +114,27 @@ describe("buildDescription", () => {
     expect(chapterLines[0].startsWith("0:00")).toBe(true);
   });
 
-  it("places the hook (with the keyword-bearing first sentence) within the first 2 lines", () => {
+  it("starts with the hook and keeps the primary keyword inside the first 125 characters", () => {
     const out = buildDescription(baseVariable, chapterTimes);
-    const firstTwoLines = out.split("\n").slice(0, 2).join(" ");
-    expect(firstTwoLines).toContain("Why your brain still fears snakes");
+    expect(out.startsWith(baseVariable.hook_paragraph)).toBe(true);
+    expect(out.toLowerCase().indexOf("why your brain still fears snakes")).toBeGreaterThanOrEqual(0);
+    expect(out.toLowerCase().indexOf("why your brain still fears snakes")).toBeLessThan(125);
+    expect(out.length).toBeLessThanOrEqual(5000);
   });
 });
+
+
+  it("normalizes URL slugs to lowercase hyphenated SEO text", () => {
+    expect(normalizeUrlSlug("What Ancient Humans Ate?!", "Fallback Title")).toBe("what-ancient-humans-ate");
+    expect(normalizeUrlSlug("", "Why Your Body Still Fears Snakes")).toBe("why-your-body-still-fears-snakes");
+  });
+
+  it("keeps S4 tags video-specific by removing fixed channel tags and duplicates", () => {
+    const tags = normalizeVideoSpecificTags(
+      "ancient humans, snake fear in prehistory, human evolution, snake fear in prehistory, prehistoric survival instincts",
+    );
+    expect(tags).toBe("snake fear in prehistory, prehistoric survival instincts");
+  });
 
 describe("parseS4Variable", () => {
   it("accepts a valid JSON object without error", () => {
@@ -133,7 +153,7 @@ describe("parseS4Variable", () => {
 });
 
 describe("end-to-end: S4 JSON + real transcript -> assembled description", () => {
-  it("produces the 7 sections in order: hook, discover, chapters, (more-like-this), (ftc), subscribe, hashtags", () => {
+  it("produces sections in SOP order: hook, discover, chapters, related, subscribe, disclaimer, hashtags", () => {
     const transcript = Array.from({ length: 100 }, (_, i) => `[${String(Math.floor((i * 8) / 60)).padStart(2, "0")}:${String((i * 8) % 60).padStart(2, "0")}] Segment ${i} of the narration.`).join("\n");
     const segments = parseWhisperSegments(transcript);
     const chapterTimes = computeChapterTimestamps(segments, baseVariable.chapter_titles.length);
@@ -149,8 +169,8 @@ describe("end-to-end: S4 JSON + real transcript -> assembled description", () =>
     const hashtagIdx = out.indexOf(cfg.hashtags[0]);
 
     expect(hookIdx).toBeGreaterThanOrEqual(0);
-    expect([hookIdx, discoverIdx, chaptersIdx, moreIdx, ftcIdx, subscribeIdx, hashtagIdx]).toEqual(
-      [hookIdx, discoverIdx, chaptersIdx, moreIdx, ftcIdx, subscribeIdx, hashtagIdx].slice().sort((a, b) => a - b),
+    expect([hookIdx, discoverIdx, chaptersIdx, moreIdx, subscribeIdx, ftcIdx, hashtagIdx]).toEqual(
+      [hookIdx, discoverIdx, chaptersIdx, moreIdx, subscribeIdx, ftcIdx, hashtagIdx].slice().sort((a, b) => a - b),
     );
   });
 });

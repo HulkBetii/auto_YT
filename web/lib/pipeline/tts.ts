@@ -10,6 +10,8 @@ import { notify } from "@/lib/notifications";
 const TTS_BASE_URL = "https://api.ai33.pro";
 // Stale threshold — if a task has been "doing" for longer than this, cancel and retry
 const MAX_TTS_AGE_MS = 15 * 60 * 1000; // 15 minutes (~3 cron cycles)
+const ALLOWED_PAUSE_TAGS = new Set(["<#1.0#>", "<#1.2#>", "<#1.5#>", "<#2.0#>"]);
+const MAX_PAUSE_TAGS = 15;
 
 // ---------------------------------------------------------------------------
 // P3 parsing
@@ -47,6 +49,15 @@ const PREAMBLE_PATTERNS: RegExp[] = [
   /承知しました[^\n]*/,          // "承知しました..."
 ];
 
+function normalizePauseTags(text: string): string {
+  let kept = 0;
+  return text.replace(/<#[^>]+#>/g, (tag) => {
+    if (!ALLOWED_PAUSE_TAGS.has(tag)) return "";
+    kept += 1;
+    return kept <= MAX_PAUSE_TAGS ? tag : "";
+  });
+}
+
 export function parseP3ForTTS(raw: string): string {
   let text = raw;
 
@@ -72,7 +83,11 @@ export function parseP3ForTTS(raw: string): string {
   //    Keep the text between them; only remove the markers themselves.
   text = text.replace(/\{\/?\w+\}/g, "");
 
-  // 4. <#N.N#> pause markers are kept as-is (no replacement needed)
+  // 4. Remove HTML noise and enforce the Vivoo-supported pause tag contract.
+  text = text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<(?!#[\d.]+#>)[^>]+>/g, "");
+  text = normalizePauseTags(text);
 
   // 4b. Strip lines that contain ONLY pause tag(s) and nothing else — these
   //     are ChatGPT hallucinating the example list from the prompt verbatim.

@@ -50,7 +50,12 @@ export async function runLocalAssemblyWatcher(): Promise<LocalAssemblyResult> {
     await updateDrEpisodeStatus(episode.id, "assembly_pending");
     await mkdir(path.dirname(logPath(episode.id)), { recursive: true });
     const logFile = openSync(logPath(episode.id), "a");
-    const child = spawn("python3", [scriptPath(), String(episode.id)], {
+    const defaultWindowsPython = path.join(process.cwd(), "..", ".venv", "Scripts", "python.exe");
+    const configuredPython = process.env.ASSEMBLE_PYTHON?.trim();
+    const pythonCommand = configuredPython
+      || (process.platform === "win32" && existsSync(defaultWindowsPython) ? defaultWindowsPython : "python3");
+    const pythonArgs = [scriptPath(), String(episode.id)];
+    const child = spawn(pythonCommand, pythonArgs, {
       cwd: process.cwd(),
       detached: true,
       stdio: ["ignore", logFile, logFile],

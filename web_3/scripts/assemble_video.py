@@ -9,7 +9,7 @@ Combines:
   4. Prepend video/intro.mp4 once at the very beginning. Music starts after intro.
 
 Usage:
-    python3 scripts/assemble_video.py <episode_id> [--target-hours 8] [--bed-gain-db -18] [--video-bitrate 18M]
+    python scripts/assemble_video.py <episode_id> [--target-hours 8] [--bed-gain-db -18] [--video-bitrate 18M]
 
 Requires: ffmpeg on PATH, `pip install asyncpg`.
 """
@@ -28,6 +28,12 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+try:
     import asyncpg
 except ImportError:
     sys.exit("Missing dependency: pip install asyncpg")
@@ -36,7 +42,7 @@ DEFAULT_CROSSFADE_SEC = 3.0
 DEFAULT_BED_GAIN_DB = -18.0
 DEFAULT_VIDEO_BITRATE = "18M"
 LOUDNORM = "loudnorm=I=-14:TP=-1:LRA=11"
-DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1"
+DEFAULT_RUN_VEO_ROOT = r"D:\VibeCoding\RUN_VEO_V1.1"
 DEFAULT_TARGET_HOURS = 8
 _ASYNCPG_UNSUPPORTED = {"channel_binding", "options"}
 
@@ -47,16 +53,24 @@ def _sanitize_dsn(dsn: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(params)))
 
 
+def _load_env_local() -> None:
+    env_local = Path(__file__).resolve().parent.parent / ".env.local"
+    if not env_local.exists():
+        return
+    for line in env_local.read_text(encoding="utf-8").splitlines():
+        m = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"?([^"\n]*)"?\s*$', line)
+        if not m:
+            continue
+        key, value = m.group(1), m.group(2).strip()
+        if key in {"DATABASE_URL", "RUN_VEO_ROOT", "RUN_VEO_WORKFLOWS_DIR"} and not os.getenv(key):
+            os.environ[key] = value
+
+
 def _load_database_url() -> str:
+    _load_env_local()
     url = os.getenv("DATABASE_URL", "").strip()
     if url:
         return url
-    env_local = Path(__file__).resolve().parent.parent / ".env.local"
-    if env_local.exists():
-        for line in env_local.read_text(encoding="utf-8").splitlines():
-            m = re.match(r'^\s*DATABASE_URL\s*=\s*"?([^"\n]+)"?', line)
-            if m:
-                return m.group(1).strip()
     sys.exit("DATABASE_URL not set (env or web_3/.env.local).")
 
 
@@ -212,6 +226,29 @@ def _find_intro_video(download_dir: Path) -> Path | None:
     return path if path.exists() else None
 
 
+def _ffmpeg_has_encoder(encoder: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            check=False,
+        )
+        return encoder in (result.stdout or "")
+    except Exception:
+        return False
+
+
+def _video_encoder_args(video_bitrate: str) -> list[str]:
+    if _ffmpeg_has_encoder("h264_nvenc"):
+        return ["-c:v", "h264_nvenc", "-preset", "p5", "-cq", "19", "-b:v", "0", "-pix_fmt", "yuv420p"]
+    if sys.platform == "darwin":
+        return ["-c:v", "h264_videotoolbox", "-b:v", video_bitrate]
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"]
+
+
 def _build_mux_cmd(
     loop_video: Path,
     audio_file: Path,
@@ -227,8 +264,7 @@ def _build_mux_cmd(
         "-i", str(audio_file),
         "-t", str(audio_duration),
         "-map", "0:v", "-map", "1:a",
-        "-c:v", "h264_videotoolbox",
-        "-b:v", video_bitrate,
+        *_video_encoder_args(video_bitrate),
         "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-ac", "2",
         "-shortest",
         "-movflags", "+faststart",
@@ -276,7 +312,7 @@ def main() -> None:
     ap.add_argument("--crossfade", type=float, default=None, help="override crossfade seconds")
     ap.add_argument("--bed-gain-db", type=float, default=DEFAULT_BED_GAIN_DB)
     ap.add_argument("--video-bitrate", default=DEFAULT_VIDEO_BITRATE,
-                    help=f"video bitrate for h264_videotoolbox (default: {DEFAULT_VIDEO_BITRATE})")
+                    help=f"video bitrate for hardware encoder on macOS (default: {DEFAULT_VIDEO_BITRATE})")
     ap.add_argument("--target-hours", type=float, default=DEFAULT_TARGET_HOURS,
                     help="target video length in hours (default: 8)")
     ap.add_argument("--duration-sec", type=float, default=None,

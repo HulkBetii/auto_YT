@@ -1,5 +1,5 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 
 import * as schema from "./schema";
 
@@ -8,6 +8,6 @@ if (!databaseUrl) {
   throw new Error("Missing DATABASE_URL environment variable.");
 }
 
-const sql = neon(databaseUrl);
+const pool = new Pool({ connectionString: databaseUrl });
 
-export const db = drizzle(sql, { schema });
+export const db = drizzle(pool, { schema });

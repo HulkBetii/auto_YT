@@ -20,6 +20,37 @@ const SMART_BUCKET_SENTENCE_END = /[.!?]["')]?\s*$/;
 type WhisperSeg = { t: number; text: string };
 type SmartBucket = { t: number; text: string; dur: number; segs: number };
 
+const TTS_PRONUNCIATION_ALIASES: Array<[RegExp, string]> = [
+  [/\bJu\s*\/\s*'?hoansi\b/giu, "Joo-twansi"],
+  [/\bJu\s*\/\s*'?hoansi people\b/giu, "Joo-twansi people"],
+];
+
+const TTS_SLASH_INSIDE_WORD = /(?<=\p{L})\s*\/\s*(?=\p{L})/gu;
+
+export function sanitizeTtsNarrationText(text: string): string {
+  let sanitized = text;
+
+  for (const [pattern, replacement] of TTS_PRONUNCIATION_ALIASES) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+
+  sanitized = sanitized
+    .replace(TTS_SLASH_INSIDE_WORD, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
+  return sanitized;
+}
+
+function sanitizeTtsNarrationForSubmit(videoId: number, text: string): string {
+  const sanitized = sanitizeTtsNarrationText(text);
+  if (sanitized !== text) {
+    console.warn(`[tts] Sanitized narration text before TTS submit for video #${videoId}`);
+  }
+  return sanitized;
+}
+
 /**
  * Greedily merges short Whisper timestamp lines into scenes of roughly
  * MIN_DURATION-MAX_DURATION seconds of screen time (gap to the next segment's
@@ -438,26 +469,28 @@ async function submitTtsForMode(
   videoVoiceId: string | null,
   mode: TtsProviderMode,
 ): Promise<void> {
+  const ttsScript = sanitizeTtsNarrationForSubmit(videoId, script);
+
   if (mode === TTS_PROVIDER_MODE_AI33_BACKUP) {
-    await submitBackupTTSTask(videoId, script);
+    await submitBackupTTSTask(videoId, ttsScript);
     return;
   }
 
   if (mode === TTS_PROVIDER_MODE_GENMAX) {
     const gxVoiceId = await getAhVoiceIdGx(videoVoiceId);
-    await submitAndSaveGenmax(videoId, script, gxVoiceId);
+    await submitAndSaveGenmax(videoId, ttsScript, gxVoiceId);
     return;
   }
 
   const voiceId = await getAhVoiceId(videoVoiceId);
   try {
-    await submitAndSaveTTSTask(videoId, script, voiceId);
+    await submitAndSaveTTSTask(videoId, ttsScript, voiceId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[tts] AI33.PRO primary submit failed — trying backup voice: ${msg}`);
     await updateAhVideoFields(videoId, { audioUrl: null });
     try {
-      const submittedBackup = await trySubmitBackupTTSTask(videoId, script, voiceId);
+      const submittedBackup = await trySubmitBackupTTSTask(videoId, ttsScript, voiceId);
       if (submittedBackup) return;
       throw new Error("No backup voice configured.");
     } catch (backupErr) {
@@ -466,7 +499,7 @@ async function submitTtsForMode(
       await updateAhVideoFields(videoId, { audioUrl: null });
       try {
         const gxVoiceId = await getAhVoiceIdGx(videoVoiceId);
-        await submitAndSaveGenmax(videoId, script, gxVoiceId);
+        await submitAndSaveGenmax(videoId, ttsScript, gxVoiceId);
       } catch (gxErr) {
         const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
         await updateAhVideoFields(videoId, { audioUrl: null });
@@ -485,6 +518,7 @@ async function failoverFromAI33Task(
   mode: TtsProviderMode,
 ): Promise<void> {
   await updateAhVideoFields(videoId, { audioUrl: null });
+  const ttsScript = sanitizeTtsNarrationForSubmit(videoId, script);
 
   if (mode === TTS_PROVIDER_MODE_AI33_BACKUP) {
     throw new Error(`AI33 backup TTS failed (${cause}). Switch TTS Provider Mode to Genmax if AI33 is overloaded.`);
@@ -492,14 +526,14 @@ async function failoverFromAI33Task(
 
   if (mode === TTS_PROVIDER_MODE_GENMAX) {
     const gxVoiceId = await getAhVoiceIdGx(videoVoiceId);
-    await submitAndSaveGenmax(videoId, script, gxVoiceId);
+    await submitAndSaveGenmax(videoId, ttsScript, gxVoiceId);
     return;
   }
 
   const currentVoiceId = attemptedVoiceId ?? await getAhVoiceId(videoVoiceId);
 
   try {
-    const submittedBackup = await trySubmitBackupTTSTask(videoId, script, currentVoiceId);
+    const submittedBackup = await trySubmitBackupTTSTask(videoId, ttsScript, currentVoiceId);
     if (submittedBackup) return;
   } catch (backupErr) {
     const backupMsg = backupErr instanceof Error ? backupErr.message : String(backupErr);
@@ -508,7 +542,7 @@ async function failoverFromAI33Task(
 
   try {
     const gxVoiceId = await getAhVoiceIdGx(videoVoiceId);
-    await submitAndSaveGenmax(videoId, script, gxVoiceId);
+    await submitAndSaveGenmax(videoId, ttsScript, gxVoiceId);
   } catch (gxErr) {
     const gxMsg = gxErr instanceof Error ? gxErr.message : String(gxErr);
     await updateAhVideoFields(videoId, { audioUrl: null });

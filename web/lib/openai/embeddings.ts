@@ -14,11 +14,11 @@ function getClient(): OpenAI {
   return client;
 }
 
-/** Embeds `topic + title` synchronously inside the P1 handler — see chain.ts selectTopics. */
-export async function embedTopic(topic: string, title: string): Promise<number[]> {
+/** Embeds topic/title/promise synchronously inside the P1 handler for semantic deduplication. */
+export async function embedTopic(topic: string, title: string, corePromise?: string): Promise<number[]> {
   const response = await getClient().embeddings.create({
     model: EMBEDDING_MODEL,
-    input: `${topic}\n${title}`,
+    input: [topic, title, corePromise].filter(Boolean).join("\n"),
     dimensions: EMBEDDING_DIMENSIONS,
   });
   return response.data[0].embedding;

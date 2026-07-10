@@ -2,51 +2,54 @@
 
 const STATUS_COLORS: Record<string, string> = {
   // Video statuses
-  ready_to_publish: "bg-[#D1F2D1] text-[#1A7A1A] border-0",
-  published:        "bg-[#D1E8FF] text-[#0A52A8] border-0",
-  needs_attention:  "bg-[#FFE8D1] text-[#A84F0A] border-0",
-  needs_retry:      "bg-[#FFE8D1] text-[#A84F0A] border-0",
-  scoring:          "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  topic:            "bg-[#F2F2F7] text-[#6E6E73] border-0",
-  outline:          "bg-[#F2F2F7] text-[#6E6E73] border-0",
-  scripted:         "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  seo_done:         "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  analyzed:         "bg-[#E5E5EA] text-[#3C3C43] border-0",
+  ready_to_publish: "bg-[var(--success-soft)] text-[var(--success)] border-0",
+  published: "bg-[var(--accent-cyan-soft)] text-[var(--accent-cyan)] border-0",
+  needs_attention: "bg-[var(--danger-soft)] text-[var(--danger)] border-0",
+  needs_retry: "bg-[var(--danger-soft)] text-[var(--danger)] border-0",
+  scoring: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
+  topic: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
+  outline: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
+  scripted: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
+  seo_done: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
+  analyzed: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
   // Job statuses
-  pending: "bg-[#E5E5EA] text-[#3C3C43] border-0",
-  running: "bg-[#FFF3D1] text-[#FF9F0A] border-0",
-  done:    "bg-[#D1F2D1] text-[#1A7A1A] border-0",
-  failed:  "bg-[#FFE5E5] text-[#FF3B30] border-0",
+  pending: "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0",
+  running: "bg-[var(--warning-soft)] text-[var(--warning)] border-0",
+  done: "bg-[var(--success-soft)] text-[var(--success)] border-0",
+  failed: "bg-[var(--danger-soft)] text-[var(--danger)] border-0",
 };
 
 export const STATUS_LABELS: Record<string, string> = {
   ready_to_publish: "Ready",
-  published:        "Published",
-  needs_attention:  "Needs review",
-  needs_retry:      "Retry",
-  scoring:          "Scoring",
-  topic:            "Topic",
-  outline:          "Outline",
-  scripted:         "Scripted",
-  seo_done:         "SEO done",
-  analyzed:         "Analyzed",
-  pending:          "Pending",
-  running:          "Running",
-  done:             "Done",
-  failed:           "Failed",
+  published: "Published",
+  needs_attention: "Needs review",
+  needs_retry: "Retry",
+  scoring: "Scoring",
+  topic: "Topic",
+  outline: "Outline",
+  scripted: "Scripted",
+  seo_done: "SEO done",
+  analyzed: "Analyzed",
+  pending: "Pending",
+  running: "Running",
+  done: "Done",
+  failed: "Failed",
 };
 
 export function statusBadgeClass(status: string): string {
-  return STATUS_COLORS[status] ?? "bg-[#E5E5EA] text-[#3C3C43] border-0";
+  return (
+    STATUS_COLORS[status] ??
+    "bg-[var(--surface-muted)] text-[var(--text-secondary)] border-0"
+  );
 }
 
 // ── Score color ───────────────────────────────────────────────────────────────
 
 export function scoreColorClass(score: number | null | undefined): string {
-  if (score == null) return "text-[#AEAEB2]";
-  if (score >= 85) return "text-[#34C759]";
-  if (score >= 70) return "text-[#FF9F0A]";
-  return "text-[#FF3B30]";
+  if (score == null) return "text-[var(--text-secondary)]";
+  if (score >= 85) return "text-[var(--success)]";
+  if (score >= 70) return "text-[var(--warning)]";
+  return "text-[var(--danger)]";
 }
 
 // ── Date / time ───────────────────────────────────────────────────────────────

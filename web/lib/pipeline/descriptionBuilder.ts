@@ -105,20 +105,28 @@ function parseTags(p4: string): string {
 }
 
 /**
- * Extract comment question: last question sentence from P3 narration.
- * Japanese questions end with ？ or the pattern〜か。/〜か？
- * Falls back to first content paragraph of コメント返信テンプレート from P4.
+ * Extract the closing comment prompt. New prompt modes may end with a question,
+ * an identity declaration, a gratitude ritual, or a small commitment.
  */
-function parseCommentQuestion(p3: string, p4: string): string {
+function parseCommentPrompt(p3: string, p4: string): string {
   if (p3) {
-    // Match sentences ending with ？/? or ending with か。(Japanese rhetorical question)
-    const sentences = p3
+    const cleanLines = p3
       .split("\n")
       .map((s) => s.replace(/<#[\d.]+#>/g, "").trim())
-      .filter((s) => s.endsWith("？") || s.endsWith("?") || /か。$/.test(s));
-    if (sentences.length > 0) {
-      return sentences[sentences.length - 1];
-    }
+      .filter(Boolean);
+    const commentLines = cleanLines.filter(
+      (s) =>
+        s.includes("コメント") ||
+        s.includes("書いて") ||
+        s.includes("残して") ||
+        s.includes("教えて") ||
+        s.includes("聞かせて") ||
+        /「[^」]{1,24}」/.test(s),
+    );
+    if (commentLines.length > 0) return commentLines[commentLines.length - 1];
+
+    const questionLines = cleanLines.filter((s) => s.endsWith("？") || s.endsWith("?") || /か。$/.test(s));
+    if (questionLines.length > 0) return questionLines[questionLines.length - 1];
   }
 
   const block = extractSection(p4, "コメント返信テンプレート", "固定コメント案");
@@ -129,7 +137,20 @@ function parseCommentQuestion(p3: string, p4: string): string {
     if (contentLine) return contentLine;
   }
 
-  return "[コメント用の問いかけ]";
+  return "[コメント用の呼びかけ]";
+}
+
+function commentCallToAction(commentMode: string | null): string {
+  switch (commentMode) {
+    case "IDENTITY_DECLARATION":
+      return "コメント欄で、あなたの言葉として残してくれ。";
+    case "GRATITUDE_RITUAL":
+      return "コメント欄に、その一言をそっと残してくれ。";
+    case "COMMITMENT":
+      return "コメント欄で、小さな一歩を宣言してくれ。";
+    default:
+      return "コメント欄で、聞かせてくれ。";
+  }
 }
 
 /** Extract チャプター設計 from P4 output (chapters moved to P4 as of v3). */
@@ -185,7 +206,8 @@ export async function buildVideoDescription(videoId: number): Promise<string> {
   const { hook1, hook2, content } = parseOverview(p4);
   const chapters = parseChapters(p4);
   const tags = parseTags(p4);
-  const commentQuestion = parseCommentQuestion(p3, p4);
+  const commentPrompt = parseCommentPrompt(p3, p4);
+  const commentCta = commentCallToAction(video.commentMode);
   const relatedVideos = await getRelatedVideos(
     videoId,
     video.featuredPerson,
@@ -235,10 +257,10 @@ ${relatedSection}
 ${amazonLine}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 あなたへの問いかけ
+💬 コメント
 ━━━━━━━━━━━━━━━━━━━━━━━━
-${commentQuestion}
-コメント欄で、教えてくれ。
+${commentPrompt}
+${commentCta}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🔔 チャンネル登録のお願い

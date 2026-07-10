@@ -91,3 +91,11 @@ Use Puppeteer to search Official Docs or StackOverflow ONLY when:
 
 ---
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 9. Project Runtime Context
+- `web`, `web_2`, and `web_3` have all been moved to local-first runtime on this machine.
+- Daily dashboard usage should use local Next.js apps plus local Postgres via Docker, not Vercel/Neon.
+- Local ports: `web` app `3000` + DB `5434`, `web_2` app `3001` + DB `5435`, `web_3` app `3002` + DB `5433`.
+- Start an app from its folder with `pnpm db:up`, `pnpm db:migrate`, then `pnpm local:dev`.
+- `DASHBOARD_SECRET` is intentionally blank in local `.env.local` files so local dashboards open without password.
+- Neon/Vercel are fallback/reference only; old Neon data can be recovered later only when Neon quota allows backup/export.

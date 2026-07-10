@@ -57,6 +57,13 @@
       "when": 1781584716304,
       "tag": "0007_lonely_nick_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783650533865,
+      "tag": "0008_open_guardsmen",
+      "breakpoints": true
     }
   ]
 }

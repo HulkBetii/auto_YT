@@ -1,4 +1,8 @@
-import { getActiveAhPromptVersion } from "@/lib/db/repo/prompt-versions";
+import { getAhVideo } from "@/lib/db/repo/videos";
+import {
+  getActiveAhPromptVersion,
+  normalizePromptSetVersion,
+} from "@/lib/db/repo/prompt-versions";
 import { createAhJob, findAhJobByCause } from "@/lib/db/repo/jobs";
 import { interpolate } from "@/lib/utils/template";
 
@@ -9,6 +13,7 @@ export async function enqueueAhStage(input: {
   stage: string;
   vars: Record<string, string>;
   videoId?: number;
+  promptSetVersion?: string;
   causedByJobId?: number;
   metadata?: Record<string, unknown>;
 }) {
@@ -23,15 +28,25 @@ export async function enqueueAhStage(input: {
     }
   }
 
-  const promptVersion = await getActiveAhPromptVersion(input.promptKey);
+  let promptSetVersion = normalizePromptSetVersion(input.promptSetVersion);
+  if (!input.promptSetVersion && input.videoId != null) {
+    const video = await getAhVideo(input.videoId);
+    promptSetVersion = normalizePromptSetVersion(video?.promptSetVersion);
+  }
+
+  const promptVersion = await getActiveAhPromptVersion(input.promptKey, promptSetVersion);
   if (!promptVersion) {
-    throw new Error(`[createJob] No active prompt version for key "${input.promptKey}"`);
+    throw new Error(
+      `[createJob] No active prompt version for key "${input.promptKey}" in set "${promptSetVersion}"`,
+    );
   }
 
   const promptText = interpolate(promptVersion.template, input.vars);
 
   const metadata: Record<string, unknown> = {
     ...input.metadata,
+    prompt_set_version: promptSetVersion,
+    prompt_version_id: promptVersion.id,
     web_callback_url: `${WEB2_URL}/api/cron/process-jobs`,
   };
   if (input.causedByJobId != null) {
@@ -45,6 +60,8 @@ export async function enqueueAhStage(input: {
     metadata,
   });
 
-  console.log(`[createJob] Enqueued stage=${input.stage} videoId=${input.videoId} job#${job.id}`);
+  console.log(
+    `[createJob] Enqueued stage=${input.stage} promptSet=${promptSetVersion} videoId=${input.videoId} job#${job.id}`,
+  );
   return job;
 }

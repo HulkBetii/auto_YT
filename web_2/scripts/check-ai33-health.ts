@@ -1,5 +1,6 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-require("dotenv").config({ path: ".env.local" });
+﻿import * as dotenv from "dotenv";
+
+dotenv.config({ path: ".env.local" });
 
 async function main() {
   const apiKey = process.env.VIVOO_API_KEY;
@@ -13,9 +14,9 @@ async function main() {
 
   const elevenlabs = json?.data?.elevenlabs;
   if (elevenlabs === "good") {
-    console.log("\n✓ AI33 elevenlabs provider is healthy again — safe to use as primary TTS.");
+    console.log("\nâœ“ AI33 elevenlabs provider is healthy again â€” safe to use as primary TTS.");
   } else {
-    console.log(`\n✗ AI33 elevenlabs provider is still "${elevenlabs}" — keep relying on Genmax fallback.`);
+    console.log(`\nâœ— AI33 elevenlabs provider is still "${elevenlabs}" â€” keep relying on Genmax fallback.`);
   }
 }
 

@@ -18,7 +18,21 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const config = await getAllDrConfig();
+  let config: Record<string, string>;
+  try {
+    config = await getAllDrConfig();
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("[api/status] database unavailable", error);
+    return NextResponse.json({
+      ok: true,
+      degraded: true,
+      error: "Database temporarily unavailable.",
+      worker: { online: false, paused: false, lastSeen: null, ageMs: null },
+      cron: { active: false, lastRun: null, ageMs: null },
+      pipeline: { paused: true },
+    });
+  }
 
   const workerLastSeen = config["worker_last_seen"] ?? null;
   const cronLastRunAt = config["cron_last_run_at"] ?? null;

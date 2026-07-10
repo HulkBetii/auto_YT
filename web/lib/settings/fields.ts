@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  FIXED_PERSONA_NAME,
+  FIXED_PERSONA_VOICE_ID,
+} from "@/lib/pipeline/fixedPersona";
 
 const intString = (min: number, max: number) =>
   z.string().regex(/^\d+$/, "Phải là một số nguyên").refine((v) => {
@@ -61,15 +65,9 @@ export const SETTINGS_FIELDS = [
     schema: intString(1, 100),
   },
   {
-    key: "anti_dup_person_lookback",
-    label: "Chống lặp: lookback người (video)",
-    description: "Số video gần nhất để kiểm tra xem featured_person có bị lặp không. Mặc định: 3.",
-    schema: intString(1, 20),
-  },
-  {
-    key: "anti_dup_pain_lookback",
-    label: "Chống lặp: lookback người+pain (video)",
-    description: "Số video gần nhất để kiểm tra combo người × pain type. Mặc định: 6.",
+    key: "anti_dup_fatigue_lookback",
+    label: "Chống lặp: cửa sổ fatigue (video)",
+    description: "Số video gần nhất để kiểm tra title skeleton, archetype overload, list_count, core_promise và fear trigger. Mặc định: 12.",
     schema: intString(1, 50),
   },
   {
@@ -86,8 +84,8 @@ export const SETTINGS_FIELDS = [
   },
   {
     key: "tts_voice_map",
-    label: "Bản đồ giọng TTS (JSON)",
-    description: 'Ánh xạ tên nhân vật (tiếng Anh) sang clone voice ID của AI33.PRO. Ví dụ: {"Kazuo Inamori":"clone_2574216","Tenpu Nakamura":"clone_2572202"}. Khớp không phân biệt hoa thường và cho phép khớp một phần.',
+    label: "Giọng TTS cố định (JSON)",
+    description: `Mapping clone voice cho fixed persona ${FIXED_PERSONA_NAME}. Ví dụ: {"${FIXED_PERSONA_NAME}":"${FIXED_PERSONA_VOICE_ID}","Miwa Akihiro":"${FIXED_PERSONA_VOICE_ID}"}. Khớp không phân biệt hoa thường và cho phép khớp một phần.`,
     schema: z.string().trim().refine((v) => {
       try { JSON.parse(v); return true; } catch { return false; }
     }, "Phải là JSON hợp lệ"),
@@ -95,7 +93,7 @@ export const SETTINGS_FIELDS = [
   {
     key: "tts_default_voice",
     label: "Giọng TTS mặc định (clone voice ID)",
-    description: "Clone voice ID dùng khi tên nhân vật không có trong bản đồ giọng. Mặc định: clone_2572202 (Tenpu Nakamura).",
+    description: `Giữ cho operator/manual use. Pipeline không tự fallback khi thiếu mapping; TTS sẽ skip cho tới khi ${FIXED_PERSONA_NAME} có mapping. Giá trị gợi ý: ${FIXED_PERSONA_VOICE_ID}.`,
     schema: z.string().trim().min(1).max(100),
   },
 ] as const;

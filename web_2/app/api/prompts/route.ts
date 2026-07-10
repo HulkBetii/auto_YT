@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getActiveAhPromptVersion, insertAhPromptVersion } from "@/lib/db/repo/prompt-versions";
+import {
+  DEFAULT_PROMPT_SET_VERSION,
+  getActiveAhPromptVersion,
+  insertAhPromptVersion,
+  normalizePromptSetVersion,
+} from "@/lib/db/repo/prompt-versions";
 
 const PROMPT_KEYS = ["S1", "S2", "S3", "S4"];
 
@@ -18,7 +23,7 @@ export async function GET() {
 
   const prompts = await Promise.all(
     PROMPT_KEYS.map(async (key) => {
-      const row = await getActiveAhPromptVersion(key);
+      const row = await getActiveAhPromptVersion(key, DEFAULT_PROMPT_SET_VERSION);
       return { key, row };
     }),
   );
@@ -31,7 +36,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json() as { promptKey?: string; template?: string; changeReason?: string };
+  const body = await request.json() as {
+    promptKey?: string;
+    promptSetVersion?: string;
+    template?: string;
+    changeReason?: string;
+  };
 
   if (!body.promptKey || !PROMPT_KEYS.includes(body.promptKey)) {
     return NextResponse.json({ ok: false, error: "Invalid promptKey" }, { status: 400 });
@@ -42,6 +52,7 @@ export async function POST(request: Request) {
 
   const created = await insertAhPromptVersion({
     promptKey: body.promptKey,
+    promptSetVersion: normalizePromptSetVersion(body.promptSetVersion),
     template: body.template.trim(),
     createdBy: "dashboard",
     changeReason: body.changeReason?.trim() || undefined,

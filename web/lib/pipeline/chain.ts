@@ -10,6 +10,11 @@ import { notify } from "../notifications";
 import { isDuplicateTopic } from "./antiDuplication";
 import { enqueueStage } from "./createJob";
 import { generateAndSaveDescription } from "./descriptionBuilder";
+import {
+  FIXED_PERSONA_NAME,
+  normalizeFixedPersonaTopic,
+  validateFixedPersonaP1Template,
+} from "./fixedPersona";
 import { extractJson } from "./json";
 
 type Job = typeof jobs.$inferSelect;
@@ -25,6 +30,12 @@ interface P1Topic {
   reference_book: string;
   viewer_inner_voice: string;
   competition: string;
+  content_archetype?: string;
+  persona_mode?: string;
+  hook_type?: string;
+  comment_mode?: string;
+  list_count?: string | number;
+  core_promise?: string;
 }
 
 async function configInt(key: string, fallback: number): Promise<number> {
@@ -33,11 +44,33 @@ async function configInt(key: string, fallback: number): Promise<number> {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function adaptiveVars(video: NonNullable<Awaited<ReturnType<typeof getVideo>>>) {
+  return {
+    ARCHETYPE: video.contentArchetype ?? "",
+    PERSONA_MODE: video.personaMode ?? "",
+    HOOK_TYPE: video.hookType ?? "",
+    COMMENT_MODE: video.commentMode ?? "",
+    LIST_COUNT: video.listCount != null ? String(video.listCount) : "",
+    CORE_PROMISE: video.corePromise ?? "",
+  };
+}
+
+function topicAdaptiveVars(topic: P1Topic) {
+  return {
+    ARCHETYPE: topic.content_archetype ?? "",
+    PERSONA_MODE: topic.persona_mode ?? "",
+    HOOK_TYPE: topic.hook_type ?? "",
+    COMMENT_MODE: topic.comment_mode ?? "",
+    LIST_COUNT: topic.list_count != null ? String(topic.list_count) : "",
+    CORE_PROMISE: topic.core_promise ?? "",
+  };
+}
+
 /**
  * Walks P1's candidate topics in order, embedding each one and running it
- * through the 2-layer anti-duplication gate (lib/pipeline/antiDuplication.ts):
- * rule check (featured_person repetition) + semantic similarity (pgvector
- * cosine, scoped to last 90 days). Accepted topics are persisted as `videos`
+ * through the anti-duplication gate (lib/pipeline/antiDuplication.ts):
+ * semantic similarity plus fatigue checks for subject/title/promise/archetype.
+ * Accepted topics are persisted as `videos`
  * immediately — which is what makes the rule check also catch duplicates
  * *within* the same batch, with no extra bookkeeping.
  *
@@ -52,7 +85,7 @@ async function handleP1Done(job: Job) {
     await notify(`⚠️ P1 Job #${job.id}: output parse ra 0 topics. Cần retry thủ công.`);
     return;
   }
-  const batchSize = await configInt("p1_topics_per_batch", 5);
+  const batchSize = await configInt("p1_topics_per_batch", 12);
 
   // Crash-dup tripwire: if videos created since this job started already meet or exceed the
   // batch budget, a previous run of this handler likely succeeded before markJobConsumed
@@ -68,36 +101,49 @@ async function handleP1Done(job: Job) {
   const skipReasons: string[] = [];
   for (const topic of candidates) {
     if (accepted >= batchSize) break;
+    const normalizedTopic = normalizeFixedPersonaTopic(topic);
 
     // Fail-closed: if OpenAI Embeddings API is unavailable, skip this topic
     // rather than bypassing the semantic check entirely.
     let embedding: number[];
     try {
-      embedding = await embedTopic(topic.topic, topic.title);
+      embedding = await embedTopic(normalizedTopic.topic, normalizedTopic.title, normalizedTopic.core_promise);
     } catch (err) {
-      console.warn(`[anti-dup] embedding failed for "${topic.title}", skipping topic: ${err}`);
-      skipReasons.push(`"${topic.title}" — embedding failed: ${err}`);
+      console.warn(`[anti-dup] embedding failed for "${normalizedTopic.title}", skipping topic: ${err}`);
+      skipReasons.push(`"${normalizedTopic.title}" — embedding failed: ${err}`);
       continue;
     }
 
     const verdict = await isDuplicateTopic({
-      featuredPerson: topic.featured_person,
-      painType: topic.pain_type,
+      featuredPerson: normalizedTopic.featured_person,
+      painType: normalizedTopic.pain_type,
+      topic: normalizedTopic.topic,
+      title: normalizedTopic.title,
+      contentArchetype: normalizedTopic.content_archetype ?? "",
+      listCount: Number.parseInt(String(normalizedTopic.list_count ?? ""), 10) || null,
+      corePromise: normalizedTopic.core_promise ?? "",
+      hookType: normalizedTopic.hook_type ?? "",
       embedding,
     });
     if (verdict.duplicate) {
-      console.log(`[anti-dup] skipping "${topic.title}" — ${verdict.reason}`);
-      skipReasons.push(`"${topic.title}" — ${verdict.reason}`);
+      console.log(`[anti-dup] skipping "${normalizedTopic.title}" — ${verdict.reason}`);
+      skipReasons.push(`"${normalizedTopic.title}" — ${verdict.reason}`);
       continue;
     }
 
     const video = await createVideo({
-      title: topic.title,
-      titlePattern: topic.title_pattern,
-      painType: topic.pain_type,
-      temperature: Number.parseInt(String(topic.temperature), 10) || null,
-      featuredPerson: topic.featured_person,
-      referenceBook: topic.reference_book,
+      title: normalizedTopic.title,
+      titlePattern: normalizedTopic.title_pattern,
+      painType: normalizedTopic.pain_type,
+      temperature: Number.parseInt(String(normalizedTopic.temperature), 10) || null,
+      featuredPerson: normalizedTopic.featured_person,
+      referenceBook: normalizedTopic.reference_book,
+      contentArchetype: normalizedTopic.content_archetype,
+      personaMode: normalizedTopic.persona_mode,
+      hookType: normalizedTopic.hook_type,
+      commentMode: normalizedTopic.comment_mode,
+      listCount: Number.parseInt(String(normalizedTopic.list_count ?? ""), 10) || null,
+      corePromise: normalizedTopic.core_promise,
       status: "topic",
       topicEmbedding: embedding,
     });
@@ -109,14 +155,15 @@ async function handleP1Done(job: Job) {
       stage: "P2",
       videoId: video.id,
       vars: {
-        TITLE: topic.title,
-        TOPIC: topic.topic,
-        PAIN_TYPE: topic.pain_type,
-        TEMP: String(topic.temperature),
-        INNER_VOICE: topic.viewer_inner_voice,
-        REFERENCE_BOOK: topic.reference_book,
-        PERSON: topic.featured_person,
-        SELF_ADDRESS: topic.self_address,
+        TITLE: normalizedTopic.title,
+        TOPIC: normalizedTopic.topic,
+        PAIN_TYPE: normalizedTopic.pain_type,
+        TEMP: String(normalizedTopic.temperature),
+        INNER_VOICE: normalizedTopic.viewer_inner_voice,
+        REFERENCE_BOOK: normalizedTopic.reference_book,
+        PERSON: FIXED_PERSONA_NAME,
+        SELF_ADDRESS: normalizedTopic.self_address,
+        ...topicAdaptiveVars(normalizedTopic),
       },
     });
   }
@@ -154,7 +201,8 @@ async function handleP2Done(job: Job) {
       DANYI: job.result ?? "",
       TEMP: String(video.temperature ?? ""),
       REFERENCE_BOOK: video.referenceBook ?? "",
-      PERSON: video.featuredPerson ?? "",
+      PERSON: FIXED_PERSONA_NAME,
+      ...adaptiveVars(video),
     },
   });
 }
@@ -187,6 +235,8 @@ async function handleP3Done(job: Job) {
       PAIN_TYPE: video.painType ?? "",
       REFERENCE_BOOK: video.referenceBook ?? "",
       COMMENT_QUESTION: p2Content?.output ?? "",
+      PERSON: FIXED_PERSONA_NAME,
+      ...adaptiveVars(video),
     },
   });
 }
@@ -210,6 +260,17 @@ async function handleP4Done(job: Job) {
     getLatestVideoContent(video.id, "P4"),
   ]);
   const combinedContent = [
+    "【メタデータ】",
+    [
+      `Archetype: ${video.contentArchetype ?? ""}`,
+      `Persona Mode: ${video.personaMode ?? ""}`,
+      `Hook Type: ${video.hookType ?? ""}`,
+      `Comment Mode: ${video.commentMode ?? ""}`,
+      `List Count: ${video.listCount ?? ""}`,
+      `Core Promise: ${video.corePromise ?? ""}`,
+      `Pain Type: ${video.painType ?? ""}`,
+      `Person: ${FIXED_PERSONA_NAME}`,
+    ].join("\n"),
     "【構成】", p2?.output ?? "",
     "【台本】", p3?.output ?? "",
     "【SEOパッケージ】", p4?.output ?? "",
@@ -278,7 +339,8 @@ async function handlePScoreDone(job: Job) {
         DANYI: danyi?.output ?? "",
         TEMP: String(video.temperature ?? ""),
         REFERENCE_BOOK: video.referenceBook ?? "",
-        PERSON: video.featuredPerson ?? "",
+        PERSON: FIXED_PERSONA_NAME,
+        ...adaptiveVars(video),
       },
     });
     return;
@@ -308,6 +370,12 @@ export interface BatchRow {
   pain: string;
   temp: string;
   person: string;
+  archetype: string;
+  hookType: string;
+  commentMode: string;
+  personaMode: string;
+  listCount: string;
+  corePromise: string;
   lengthMin: string;
   ctrPct: string;
   avdPct: string;
@@ -317,10 +385,10 @@ export interface BatchRow {
 
 export function formatBatchTable(rows: BatchRow[]): string {
   const header =
-    "No. | タイトル | Pattern | Pain | 温度° | 人物 | 長さ(分) | CTR% | AVD% | コメント率% | いいね率%";
+    "No. | タイトル | Pattern | Pain | 温度° | 人物 | Archetype | Hook | Comment | PersonaMode | ListCount | CorePromise | 長さ(分) | CTR% | AVD% | コメント率% | いいね率%";
   const lines = rows.map(
     (r) =>
-      `${r.no} | ${r.title} | ${r.pattern} | ${r.pain} | ${r.temp} | ${r.person} | ${r.lengthMin} | ${r.ctrPct} | ${r.avdPct} | ${r.commentPct} | ${r.likePct}`,
+      `${r.no} | ${r.title} | ${r.pattern} | ${r.pain} | ${r.temp} | ${r.person} | ${r.archetype} | ${r.hookType} | ${r.commentMode} | ${r.personaMode} | ${r.listCount} | ${r.corePromise} | ${r.lengthMin} | ${r.ctrPct} | ${r.avdPct} | ${r.commentPct} | ${r.likePct}`,
   );
   return [header, ...lines].join("\n");
 }
@@ -338,7 +406,7 @@ interface P6Output {
  * template body can be extracted cleanly without asking the model for JSON
  * (which would fight with a multi-thousand-character Japanese prompt body).
  */
-function parseP6Output(text: string): P6Output {
+export function parseP6Output(text: string): P6Output {
   const marker = text.search(/あなたはYouTubeチャンネルのコンテンツストラテジストです/);
   if (marker === -1) {
     throw new Error("P6 output does not contain a recognizable rewritten P1 template.");
@@ -351,6 +419,10 @@ function parseP6Output(text: string): P6Output {
 
 async function handleP6Done(job: Job) {
   const { report, newP1Template } = parseP6Output(job.result ?? "");
+  const fixedPersonaValidation = validateFixedPersonaP1Template(newP1Template);
+  if (!fixedPersonaValidation.ok) {
+    throw new Error(`P6 rewritten P1 failed fixed persona validation: ${fixedPersonaValidation.reason}`);
+  }
   const metadata = (job.metadata ?? {}) as { batchVideoIds?: number[] };
   const anchorVideoId = metadata.batchVideoIds?.[0];
 

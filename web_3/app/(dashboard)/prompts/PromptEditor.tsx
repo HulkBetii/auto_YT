@@ -1,15 +1,12 @@
 "use client";
-
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-
 const STAGE_LABELS: Record<string, string> = {
   S1: "Topics — generate 5 candidate topics",
   S2: "Script — write full narration",
   S3: "Image Prompts — one prompt per segment",
   S4: "YouTube Metadata — title, description, tags",
 };
-
 interface PromptRow {
   key: string;
   row: {
@@ -20,7 +17,6 @@ interface PromptRow {
     createdAt: Date | string;
   } | null;
 }
-
 export function PromptEditor({ prompts }: { prompts: PromptRow[] }) {
   return (
     <div className="space-y-8">
@@ -30,16 +26,19 @@ export function PromptEditor({ prompts }: { prompts: PromptRow[] }) {
     </div>
   );
 }
-
-function SinglePrompt({ promptKey, row }: { promptKey: string; row: PromptRow["row"] }) {
+function SinglePrompt({
+  promptKey,
+  row,
+}: {
+  promptKey: string;
+  row: PromptRow["row"];
+}) {
   const [template, setTemplate] = useState(row?.template ?? "");
   const [changeReason, setChangeReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-
   const isDirty = template !== (row?.template ?? "");
-
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -59,31 +58,34 @@ function SinglePrompt({ promptKey, row }: { promptKey: string; row: PromptRow["r
       setSaving(false);
     }
   }
-
   const currentVersion = savedVersion ?? row?.version ?? 0;
-
   return (
     <section>
       <div className="flex items-baseline justify-between mb-2">
         <div>
-          <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#AEAEB2]">
+          <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
             {promptKey}
           </span>
-          <span className="ml-2 text-[11px] text-[#6E6E73]">— {STAGE_LABELS[promptKey]}</span>
+          <span className="ml-2 text-[11px] text-[var(--text-muted)]">
+            — {STAGE_LABELS[promptKey]}
+          </span>
         </div>
-        <span className="text-[11px] font-mono text-[#AEAEB2]">v{currentVersion}</span>
+        <span className="text-[11px] font-mono text-[var(--text-secondary)]">
+          v{currentVersion}
+        </span>
       </div>
-
-      <Card className="border-black/[.08] shadow-none rounded-xl dark:border-white/[.10] dark:bg-[#1C1C1E]">
+      <Card className="border-[var(--border-subtle)] shadow-none rounded-xl">
         <CardContent className="p-4 space-y-3">
           <textarea
             value={template}
-            onChange={(e) => { setTemplate(e.target.value); setSavedVersion(null); }}
+            onChange={(e) => {
+              setTemplate(e.target.value);
+              setSavedVersion(null);
+            }}
             rows={12}
             spellCheck={false}
-            className="w-full resize-y rounded-lg border border-black/[.08] bg-[#F2F2F7] px-3 py-2 font-mono text-[12px] leading-relaxed text-[#1C1C1E] outline-none focus:border-[#007AFF] dark:border-white/[.10] dark:bg-black dark:text-white"
+            className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
           />
-
           {isDirty && (
             <div className="flex items-center gap-3">
               <input
@@ -91,22 +93,23 @@ function SinglePrompt({ promptKey, row }: { promptKey: string; row: PromptRow["r
                 value={changeReason}
                 onChange={(e) => setChangeReason(e.target.value)}
                 placeholder="Change reason (optional)"
-                className="flex-1 rounded-lg border border-black/[.08] bg-[#F2F2F7] px-3 py-1.5 text-[13px] text-[#1C1C1E] outline-none focus:border-[#007AFF] dark:border-white/[.10] dark:bg-black dark:text-white"
+                className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-1.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
               />
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-lg bg-[#007AFF] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#0062CC] disabled:opacity-50 transition-colors"
+                className="rounded-lg bg-[var(--accent-cyan)] px-4 py-1.5 text-[13px] font-medium text-[var(--dashboard-bg)] hover:bg-[var(--accent-cyan-hover)] disabled:opacity-50 transition-colors"
               >
                 {saving ? "Saving…" : "Save"}
               </button>
             </div>
           )}
-
           {savedVersion !== null && !isDirty && (
-            <p className="text-[12px] text-[#34C759]">Saved as v{savedVersion}</p>
+            <p className="text-[12px] text-[var(--success)]">
+              Saved as v{savedVersion}
+            </p>
           )}
-          {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
+          {error && <p className="text-[12px] text-[var(--danger)]">{error}</p>}
         </CardContent>
       </Card>
     </section>

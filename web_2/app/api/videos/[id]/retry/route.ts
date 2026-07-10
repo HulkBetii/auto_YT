@@ -12,6 +12,7 @@ import {
 import type { AhVideoStatus } from "@/lib/db/schema";
 import { enqueueAhStage } from "@/lib/pipeline/createJob";
 import { smartBucketTranscript } from "@/lib/pipeline/tts";
+import { deleteAhConfigValue } from "@/lib/db/repo/channel-config";
 
 const STAGE_TO_VIDEO_STATUS: Record<string, AhVideoStatus> = {
   S1: "s1_pending",
@@ -57,6 +58,10 @@ function getTopic(value: unknown): {
 
 function isTtsTask(value: string | null): boolean {
   return !!value && (value.startsWith("tts_task:") || value.startsWith("tts_task_gx:") || value === "tts_submitting");
+}
+
+async function resetAhConversation(videoId: number): Promise<void> {
+  await deleteAhConfigValue(`ah_conversation_url:${videoId}`);
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -124,16 +129,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   if (!video.whisperTranscript || isTtsTask(video.audioUrl) || !video.audioUrl) {
+    await resetAhConversation(videoId);
     await updateAhVideoFields(videoId, {
       status: "tts_pending",
       audioUrl: isTtsTask(video.audioUrl) ? null : video.audioUrl,
       whisperTranscript: null,
       imagePrompts: null,
       ytTitle: null,
+      ytUrlSlug: null,
       ytDescription: null,
       ytTags: null,
       ytChapters: null,
       ytThumbnail: null,
+      bgmStatus: "not_started",
+      bgmPlan: null,
+      bgmTracks: null,
+      bgmVideoPath: null,
+      bgmError: null,
       imageCount: 0,
       imageCountExpected: 0,
       videoPath: null,
@@ -142,6 +154,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   if (!video.imagePrompts) {
+    await resetAhConversation(videoId);
     await updateAhVideoStatus(videoId, "s3_pending");
     await enqueueAhStage({
       promptKey: "S3",
@@ -156,7 +169,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, mode: "video", status: "s3_pending" });
   }
 
-  if (!video.ytTitle || !video.ytDescription || !video.ytTags || !video.ytChapters || !video.ytThumbnail) {
+  if (!video.ytTitle || !video.ytUrlSlug || !video.ytDescription || !video.ytTags || !video.ytChapters || !video.ytThumbnail) {
+    await resetAhConversation(videoId);
     await updateAhVideoStatus(videoId, "s4_pending");
     await enqueueAhStage({
       promptKey: "S4",

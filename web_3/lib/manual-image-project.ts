@@ -3,8 +3,8 @@ import { mkdir } from "node:fs/promises";
 
 // Local assembly project layout for the deferred DRIFTER pipeline:
 //   one episode -> manual intro/loop videos + the Suno tracks,
-//   assembled locally on the Mac into the final long-form video.
-const DEFAULT_RUN_VEO_ROOT = "/Users/sangspm/Downloads/VibeCoding/RUN_VEO_V1.1";
+//   assembled locally on the Windows workstation into the final long-form video.
+const DEFAULT_RUN_VEO_ROOT = "D:\\VibeCoding\\RUN_VEO_V1.1";
 
 export interface ManualEpisodeProjectInfo {
   projectName: string;

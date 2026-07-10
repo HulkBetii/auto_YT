@@ -1,11 +1,41 @@
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 
+import { db } from "@/lib/db";
+import { channelConfig } from "@/lib/db/schema";
 import { maybeStartNewBatch } from "@/lib/pipeline/batch";
 import { runChainCycle } from "@/lib/pipeline/chain";
 import { refreshAnalyticsAndTriggerP5, triggerP6IfBatchReady } from "@/lib/pipeline/analyticsCheck";
 import { runTTSForReadyVideos } from "@/lib/pipeline/tts";
 
 export const maxDuration = 300;
+const WORKER_HEARTBEAT_STALE_MS = 2 * 60 * 1000;
+
+async function getWorkerHeartbeatSnapshot() {
+  const [row] = await db
+    .select({
+      workerLastSeenAt: channelConfig.workerLastSeenAt,
+      workerLastStatus: channelConfig.workerLastStatus,
+    })
+    .from(channelConfig)
+    .where(eq(channelConfig.key, "worker_heartbeat"))
+    .limit(1);
+
+  const lastSeenAt = row?.workerLastSeenAt ?? null;
+  const ageMs = lastSeenAt ? Date.now() - lastSeenAt.getTime() : null;
+  const healthy =
+    row?.workerLastStatus === "running" &&
+    ageMs !== null &&
+    ageMs >= 0 &&
+    ageMs <= WORKER_HEARTBEAT_STALE_MS;
+
+  return {
+    healthy,
+    status: row?.workerLastStatus ?? null,
+    lastSeenAt: lastSeenAt?.toISOString() ?? null,
+    ageSeconds: ageMs === null ? null : Math.max(0, Math.round(ageMs / 1000)),
+  };
+}
 
 /**
  * Manual "Chạy pipeline ngay" trigger for the dashboard (see RunPipelineButton
@@ -43,6 +73,7 @@ export async function POST() {
   const tts = await runTTSForReadyVideos();
   const p5Triggered = await refreshAnalyticsAndTriggerP5();
   const p6Batch = await triggerP6IfBatchReady();
+  const worker = await getWorkerHeartbeatSnapshot();
 
-  return NextResponse.json({ ok: true, processed, results, failedNotified, newBatch, tts, p5Triggered, p6Batch });
+  return NextResponse.json({ ok: true, processed, results, failedNotified, newBatch, tts, p5Triggered, p6Batch, worker });
 }

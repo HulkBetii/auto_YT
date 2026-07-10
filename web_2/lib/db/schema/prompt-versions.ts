@@ -3,6 +3,7 @@ import { boolean, integer, pgTable, serial, text, timestamp } from "drizzle-orm/
 export const ahPromptVersions = pgTable("ah_prompt_versions", {
   id: serial("id").primaryKey(),
   promptKey: text("prompt_key").notNull(),
+  promptSetVersion: text("prompt_set_version").notNull().default("current"),
   version: integer("version").notNull(),
   template: text("template").notNull(),
   isActive: boolean("is_active").notNull().default(false),

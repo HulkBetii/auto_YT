@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: web-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: web
+      POSTGRES_USER: web
+      POSTGRES_PASSWORD: web_local_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - web_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/001-enable-vector.sql:/docker-entrypoint-initdb.d/001-enable-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U web -d web"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  web_postgres_data:

@@ -5,6 +5,12 @@ import {
   formatRecentAhTopicsForPrompt,
   listRecentAhTopicSummaries,
 } from "@/lib/db/repo/videos";
+import {
+  DEFAULT_PROMPT_SET_VERSION,
+  listAvailableAhPromptSets,
+  normalizePromptSetVersion,
+} from "@/lib/db/repo/prompt-versions";
+import { getPromptSetVoiceId } from "@/lib/config/prompt-set-voices";
 import { enqueueAhStage } from "@/lib/pipeline/createJob";
 
 export async function POST(request: Request) {
@@ -19,12 +25,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const video = await createAhVideo({ status: "s1_pending" });
+    const body = await request.json().catch(() => null) as { promptSetVersion?: string } | null;
+    const promptSetVersion = normalizePromptSetVersion(
+      body?.promptSetVersion ?? DEFAULT_PROMPT_SET_VERSION,
+    );
+    const availablePromptSets = await listAvailableAhPromptSets();
+    if (!availablePromptSets.includes(promptSetVersion)) {
+      return NextResponse.json(
+        { ok: false, error: `Prompt set "${promptSetVersion}" is not available.` },
+        { status: 400 },
+      );
+    }
+
+    const voiceId = await getPromptSetVoiceId(promptSetVersion);
+    const video = await createAhVideo({ status: "s1_pending", promptSetVersion, voiceId });
     const recentTopics = await listRecentAhTopicSummaries(30, video.id);
 
     await enqueueAhStage({
       promptKey: "S1",
       stage: "S1",
+      promptSetVersion,
       vars: {
         RECENT_TOPICS: formatRecentAhTopicsForPrompt(recentTopics),
       },

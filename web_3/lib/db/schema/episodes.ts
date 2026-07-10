@@ -35,7 +35,7 @@ export const drEpisodes = pgTable("dr_episodes", {
   ytChapters: jsonb("yt_chapters"),
   ytPinnedComment: text("yt_pinned_comment"),
   ytPlaylists: jsonb("yt_playlists"),
-  // Local pipeline tracking (filled by the Mac worker; left empty for now).
+  // Local pipeline tracking (filled by the local worker; left empty for now).
   imagePath: text("image_path"),
   loopVideoPath: text("loop_video_path"),
   finalVideoPath: text("final_video_path"),

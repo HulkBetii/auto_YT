@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Thin Playwright worker — polls the `jobs` table (Postgres), runs each job's
+﻿#!/usr/bin/env python3
+"""Thin Playwright worker â€” polls the `jobs` table (Postgres), runs each job's
 prompt through ChatGPT, and writes the result back. All orchestration
 (which stage comes next, prompt interpolation, retries, scoring, anti-dup,
 prompt versioning) lives in the Next.js app (web/); this process only knows
@@ -41,14 +41,23 @@ POLL_INTERVAL_S = 30
 PROMPT_TIMEOUT_S = 360
 WEB2_CHAIN_TICK_INTERVAL_S = 5 * 60
 
-# How many times a *transient* ChatGPT failure (timeout, no-response, etc. —
+# How many times a *transient* ChatGPT failure (timeout, no-response, etc. â€”
 # ChatGPTResponseError) gets automatically retried in-place before the job is
 # hard-failed (terminal `failed` status + Telegram alert + manual /retry
 # needed). Caught live during e2e testing 2026-06-08: this constant existed
-# but was never actually consulted — every transient hiccup (e.g. "No new
+# but was never actually consulted â€” every transient hiccup (e.g. "No new
 # assistant message appeared within 240s", which happens routinely under
 # normal ChatGPT load) went straight to a hard failure. See process_job.
 MAX_TRANSIENT_RETRIES = 3
+
+
+async def claim_optional_queue(label: str, claim_fn, dsn: str) -> dict | None:
+    """Claim from a queue if that table exists in this database."""
+    try:
+        return await claim_fn(dsn)
+    except asyncpg.UndefinedTableError:
+        logger.debug("Skipping %s queue because its table does not exist in this database.", label)
+        return None
 
 
 def load_database_url() -> str:
@@ -71,7 +80,7 @@ def load_chain_config() -> tuple[str, str]:
 
     Reads from env vars first, then falls back to db_config.json under the
     keys PIPELINE_WEB_URL / DASHBOARD_SECRET. Returns ("", "") if neither is
-    available — trigger_chain_cycle will silently skip in that case.
+    available â€” trigger_chain_cycle will silently skip in that case.
     """
     web_url = os.getenv("PIPELINE_WEB_URL", "").strip()
     secret = os.getenv("DASHBOARD_SECRET", "").strip()
@@ -86,7 +95,7 @@ def load_chain_config() -> tuple[str, str]:
             pass
     if not web_url or not secret:
         logger.warning(
-            "PIPELINE_WEB_URL / DASHBOARD_SECRET not set — "
+            "PIPELINE_WEB_URL / DASHBOARD_SECRET not set â€” "
             "chain cycle will not be auto-triggered after each job. "
             "Add both to data/db_config.json or env to fix."
         )
@@ -97,7 +106,7 @@ def load_web3_config() -> tuple[str, str]:
     """Return (web3_url, web3_dashboard_secret) for firing dr_job callbacks.
 
     Reads WEB3_URL / WEB3_DASHBOARD_SECRET from env, then db_config.json.
-    Returns ("", "") if not configured — _hit_url silently skips in that case.
+    Returns ("", "") if not configured â€” _hit_url silently skips in that case.
     """
     url = os.getenv("WEB3_URL", "").strip()
     secret = os.getenv("WEB3_DASHBOARD_SECRET", "").strip()
@@ -112,7 +121,7 @@ def load_web3_config() -> tuple[str, str]:
             pass
     if not url or not secret:
         logger.warning(
-            "WEB3_URL / WEB3_DASHBOARD_SECRET not set — "
+            "WEB3_URL / WEB3_DASHBOARD_SECRET not set â€” "
             "dr_jobs callbacks will not fire. Add both to data/db_config.json or env."
         )
     return url, secret
@@ -122,7 +131,7 @@ def load_web2_config() -> tuple[str, str]:
     """Return (web2_url, web2_dashboard_secret) for firing ah_job callbacks.
 
     Reads WEB2_URL / WEB2_DASHBOARD_SECRET from env, then db_config.json.
-    Returns ("", "") if not configured — _hit_url silently skips in that case.
+    Returns ("", "") if not configured â€” _hit_url silently skips in that case.
     """
     url = os.getenv("WEB2_URL", "").strip()
     secret = os.getenv("WEB2_DASHBOARD_SECRET", "").strip()
@@ -137,7 +146,7 @@ def load_web2_config() -> tuple[str, str]:
             pass
     if not url or not secret:
         logger.warning(
-            "WEB2_URL / WEB2_DASHBOARD_SECRET not set — "
+            "WEB2_URL / WEB2_DASHBOARD_SECRET not set â€” "
             "ah_jobs callbacks will not fire. Add both to data/db_config.json or env."
         )
     return url, secret
@@ -239,7 +248,7 @@ async def run_ah_tts_and_whisper(dsn: str, web2_url: str, web2_secret: str) -> b
             if len(whisper_transcript) > MAX_TRANSCRIPT_CHARS:
                 sampled = lines[::2]
                 whisper_transcript = "\n".join(sampled)
-                logger.info("AH TTS video #%d transcript sampled: %d→%d chars", video_id, len("\n".join(lines)), len(whisper_transcript))
+                logger.info("AH TTS video #%d transcript sampled: %dâ†’%d chars", video_id, len("\n".join(lines)), len(whisper_transcript))
         else:
             whisper_transcript = raw.get("text", "")
 
@@ -265,7 +274,7 @@ async def run_ah_tts_and_whisper(dsn: str, web2_url: str, web2_secret: str) -> b
                 video_id, prompt_text,
                 _json.dumps({"web_callback_url": callback_url}) if callback_url else "{}",
             )
-            logger.info("AH TTS video #%d → S3 job enqueued", video_id)
+            logger.info("AH TTS video #%d â†’ S3 job enqueued", video_id)
         finally:
             await conn2.close()
 
@@ -289,7 +298,7 @@ async def run_ah_tts_and_whisper(dsn: str, web2_url: str, web2_secret: str) -> b
 
 
 async def _page_alive(page) -> bool:
-    """Cheap liveness probe — `page.is_closed()` alone misses the case where
+    """Cheap liveness probe â€” `page.is_closed()` alone misses the case where
     the underlying frame/context died (crash, manual close, navigation wipe)
     but the Page wrapper object hasn't flipped its closed flag yet. A trivial
     `evaluate` round-trips through the real target and raises TargetClosedError
@@ -316,10 +325,10 @@ async def ensure_logged_in(page, account: dict) -> dict:
 
 
 # Video statuses at which a per-video ChatGPT tab is no longer needed and gets
-# closed to free resources. `needs_retry` is intentionally excluded — the video
+# closed to free resources. `needs_retry` is intentionally excluded â€” the video
 # isn't done, and reusing the same conversation for the retry lets ChatGPT see
 # why its previous attempt scored low. P5/P6 (which only happen much later,
-# once analytics roll in) get a *fresh* tab when their time comes — simpler
+# once analytics roll in) get a *fresh* tab when their time comes â€” simpler
 # than keeping hundreds of idle tabs alive for weeks.
 TERMINAL_VIDEO_STATUSES = ("ready_to_publish", "needs_attention")   # web/ pipeline
 AH_TERMINAL_VIDEO_STATUSES = ("ready", "needs_attention")           # ah pipeline
@@ -438,19 +447,19 @@ class TabManager:
       - P1 (topic generation) always runs in a single dedicated, long-lived
         "topic reservoir" tab/conversation. Reusing the same thread across
         every P1 run means ChatGPT can see every topic it has ever proposed
-        and naturally avoid repeating itself — a second line of defense on
+        and naturally avoid repeating itself â€” a second line of defense on
         top of the embedding-based anti-dup check in the orchestrator.
         ("Pinning" a tab is a Chrome tab-strip UI affordance with no
-        Playwright/CDP automation hook — see _try_pin below; what actually
+        Playwright/CDP automation hook â€” see _try_pin below; what actually
         matters for correctness is that *this exact Page object* is reused,
         which is what we guarantee here regardless of its visual pin state.)
 
       - P2..P_score (and later P5/P6) each get their own tab/conversation,
         keyed by video_id, lazily opened on first use and reused across that
-        video's remaining stages — so e.g. a P3 retry can "see" the P2
+        video's remaining stages â€” so e.g. a P3 retry can "see" the P2
         outline it's continuing from, without any cross-video noise.
 
-    Dead tabs (crashed, closed, torn-down frame — the TargetClosedError class
+    Dead tabs (crashed, closed, torn-down frame â€” the TargetClosedError class
     of failure that used to wedge the whole worker, see git history) are
     detected via `_page_alive` and transparently replaced on next use.
     """
@@ -472,12 +481,12 @@ class TabManager:
         return page
 
     async def _try_pin(self, page) -> None:
-        """Best-effort cosmetic pin — Chrome's tab-strip pin state isn't part
+        """Best-effort cosmetic pin â€” Chrome's tab-strip pin state isn't part
         of the page/target model CDP exposes, so there is nothing reliable to
         call here. We deliberately don't fake it with fragile UI clicking on
         browser chrome (which Playwright can't even address). If you want the
         topic tab visually pinned for your own monitoring, right-click it in
-        the visible browser window — it has zero effect on automation either
+        the visible browser window â€” it has zero effect on automation either
         way, since what matters is that we keep reusing the same Page object."""
         return
 
@@ -489,7 +498,7 @@ class TabManager:
     async def _get_topic_page(self):
         if self.topic_page is None or not await _page_alive(self.topic_page):
             if self.topic_page is not None:
-                logger.warning("Topic-reservoir tab is dead — reopening (e.g. account/profile changed)...")
+                logger.warning("Topic-reservoir tab is dead â€” reopening (e.g. account/profile changed)...")
                 try:
                     await self.topic_page.close()
                 except Exception:
@@ -503,7 +512,7 @@ class TabManager:
         page = self.video_pages.get(video_id)
         if page is None or not await _page_alive(page):
             if page is not None:
-                logger.warning("Tab for video #%s is dead — reopening...", video_id)
+                logger.warning("Tab for video #%s is dead â€” reopening...", video_id)
                 try:
                     await page.close()
                 except Exception:
@@ -518,7 +527,7 @@ class TabManager:
         page = self.video_pages.get(key)
         if page is None or not await _page_alive(page):
             if page is not None:
-                logger.warning("AH tab for video #%s is dead — reopening...", video_id)
+                logger.warning("AH tab for video #%s is dead â€” reopening...", video_id)
                 try:
                     await page.close()
                 except Exception:
@@ -535,7 +544,7 @@ class TabManager:
                     logger.info("Restored AH video #%s ChatGPT conversation: %s", video_id, saved_url)
                 except Exception as exc:
                     logger.warning(
-                        "Could not restore AH video #%s conversation %s — using fresh chat: %s",
+                        "Could not restore AH video #%s conversation %s â€” using fresh chat: %s",
                         video_id,
                         saved_url,
                         exc,
@@ -551,7 +560,7 @@ class TabManager:
     async def _get_ah_topic_page(self):
         if self.ah_topic_page is None or not await _page_alive(self.ah_topic_page):
             if self.ah_topic_page is not None:
-                logger.warning("AH topic-reservoir tab is dead — reopening...")
+                logger.warning("AH topic-reservoir tab is dead â€” reopening...")
                 try:
                     await self.ah_topic_page.close()
                 except Exception:
@@ -563,7 +572,7 @@ class TabManager:
     async def _get_dr_topic_page(self):
         if self.dr_topic_page is None or not await _page_alive(self.dr_topic_page):
             if self.dr_topic_page is not None:
-                logger.warning("DR topic-reservoir tab is dead — reopening...")
+                logger.warning("DR topic-reservoir tab is dead â€” reopening...")
                 try:
                     await self.dr_topic_page.close()
                 except Exception:
@@ -580,7 +589,7 @@ class TabManager:
         page = self.video_pages.get(key)
         if page is None or not await _page_alive(page):
             if page is not None:
-                logger.warning("DR tab for episode #%s is dead — reopening...", episode_id)
+                logger.warning("DR tab for episode #%s is dead â€” reopening...", episode_id)
                 try:
                     await page.close()
                 except Exception:
@@ -600,7 +609,7 @@ class TabManager:
                     logger.info("Restored DR episode #%s conversation: %s", episode_id, saved_url)
                 except Exception as exc:
                     logger.warning(
-                        "Could not restore DR episode #%s conversation %s — using fresh chat: %s",
+                        "Could not restore DR episode #%s conversation %s â€” using fresh chat: %s",
                         episode_id, saved_url, exc,
                     )
             self.video_pages[key] = page
@@ -609,8 +618,8 @@ class TabManager:
     async def get_page_for(self, job: dict, dsn: str):
         """Routes a claimed job to the right conversation tab.
 
-        web/ pipeline: P1 → shared topic_page; P2..P6 → per-video_id page.
-        ah pipeline:   S1 → shared ah_topic_page; S2..S4 → per-("ah",video_id) page.
+        web/ pipeline: P1 â†’ shared topic_page; P2..P6 â†’ per-video_id page.
+        ah pipeline:   S1 â†’ shared ah_topic_page; S2..S4 â†’ per-("ah",video_id) page.
         """
         table = job.get("_table")
 
@@ -619,7 +628,7 @@ class TabManager:
                 return await self._get_dr_topic_page()
             episode_id = job.get("video_id")
             if episode_id is None:
-                logger.warning("DR job id=%s stage=%s has no episode_id — using scratch tab", job["id"], job["stage"])
+                logger.warning("DR job id=%s stage=%s has no episode_id â€” using scratch tab", job["id"], job["stage"])
                 return await self._new_logged_in_page()
             return await self._get_dr_episode_page(dsn, episode_id)
 
@@ -628,7 +637,7 @@ class TabManager:
                 return await self._get_ah_topic_page()
             video_id = job.get("video_id")
             if video_id is None:
-                logger.warning("AH job id=%s stage=%s has no video_id — using scratch tab", job["id"], job["stage"])
+                logger.warning("AH job id=%s stage=%s has no video_id â€” using scratch tab", job["id"], job["stage"])
                 return await self._new_logged_in_page()
             return await self._get_ah_video_page(dsn, video_id)
 
@@ -636,7 +645,7 @@ class TabManager:
             return await self._get_topic_page()
         video_id = job.get("video_id")
         if video_id is None:
-            logger.warning("Job id=%s stage=%s has no video_id — using a scratch tab", job["id"], job["stage"])
+            logger.warning("Job id=%s stage=%s has no video_id â€” using a scratch tab", job["id"], job["stage"])
             return await self._new_logged_in_page()
         return await self._get_video_page(video_id)
 
@@ -646,8 +655,8 @@ class TabManager:
         still mid-pipeline (including needs_retry loops).
 
         Keys in video_pages can be:
-          int        → web/ pipeline video (queries `videos` table)
-          ("ah", id) → ah pipeline video   (queries `ah_videos` table)
+          int        â†’ web/ pipeline video (queries `videos` table)
+          ("ah", id) â†’ ah pipeline video   (queries `ah_videos` table)
         """
         for key, page in list(self.video_pages.items()):
             try:
@@ -665,7 +674,7 @@ class TabManager:
             if status in terminal:
                 removed = self.video_pages.pop(key, None)
                 if removed is not None:
-                    logger.info("Video key=%s reached '%s' — closing its dedicated tab.", key, status)
+                    logger.info("Video key=%s reached '%s' â€” closing its dedicated tab.", key, status)
                     try:
                         await removed.close()
                     except Exception:
@@ -690,7 +699,7 @@ class TabManager:
 
 async def record_heartbeat(dsn: str, status: str) -> None:
     """Write heartbeat to both web/ channel_config and web_2/ ah_channel_config.
-    Failures are silently swallowed — a heartbeat miss must never crash the poll loop.
+    Failures are silently swallowed â€” a heartbeat miss must never crash the poll loop.
     """
     from auto_yt.services.job_queue import _sanitize_dsn
     try:
@@ -742,12 +751,12 @@ async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") ->
         next_retry = retry_count + 1
         if next_retry <= MAX_TRANSIENT_RETRIES:
             logger.warning(
-                "AH job id=%s transient failure (attempt %d/%d) — requeuing: %s",
+                "AH job id=%s transient failure (attempt %d/%d) â€” requeuing: %s",
                 job_id, next_retry, MAX_TRANSIENT_RETRIES, exc,
             )
             await retry_transient_ah_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
         else:
-            logger.warning("AH job id=%s exhausted retries — hard-failing: %s", job_id, exc)
+            logger.warning("AH job id=%s exhausted retries â€” hard-failing: %s", job_id, exc)
             await fail_ah_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
         return
     except Exception as exc:  # noqa: BLE001
@@ -776,12 +785,12 @@ async def process_dr_job(page, dsn: str, job: dict, *, web3_secret: str = "") ->
         next_retry = retry_count + 1
         if next_retry <= MAX_TRANSIENT_RETRIES:
             logger.warning(
-                "DR job id=%s transient failure (attempt %d/%d) — requeuing: %s",
+                "DR job id=%s transient failure (attempt %d/%d) â€” requeuing: %s",
                 job_id, next_retry, MAX_TRANSIENT_RETRIES, exc,
             )
             await retry_transient_dr_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
         else:
-            logger.warning("DR job id=%s exhausted retries — hard-failing: %s", job_id, exc)
+            logger.warning("DR job id=%s exhausted retries â€” hard-failing: %s", job_id, exc)
             await fail_dr_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
         return
     except Exception as exc:  # noqa: BLE001
@@ -791,7 +800,7 @@ async def process_dr_job(page, dsn: str, job: dict, *, web3_secret: str = "") ->
 
     await complete_dr_job(dsn, job_id, result=response, web3_secret=web3_secret)
     # Persist the conversation so the next stage (D2..D4) continues the same chat.
-    # Skip D0: it runs in the SHARED scene-reservoir tab, not the per-episode chat —
+    # Skip D0: it runs in the SHARED scene-reservoir tab, not the per-episode chat â€”
     # saving its URL here would make D1 restore the scene-gen conversation.
     episode_id = job.get("video_id")
     if isinstance(episode_id, int) and stage != "D0":
@@ -811,13 +820,13 @@ async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard
         next_retry = retry_count + 1
         if next_retry <= MAX_TRANSIENT_RETRIES:
             logger.warning(
-                "Job id=%s transient failure (attempt %d/%d) — requeuing for retry: %s",
+                "Job id=%s transient failure (attempt %d/%d) â€” requeuing for retry: %s",
                 job_id, next_retry, MAX_TRANSIENT_RETRIES, exc,
             )
             await retry_transient_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
         else:
             logger.warning(
-                "Job id=%s exhausted %d transient retries — hard-failing: %s",
+                "Job id=%s exhausted %d transient retries â€” hard-failing: %s",
                 job_id, MAX_TRANSIENT_RETRIES, exc,
             )
             await fail_job(dsn, job_id, error_message=str(exc), retry_count=next_retry)
@@ -829,7 +838,7 @@ async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard
 
     await complete_job(dsn, job_id, result=response)
     # Immediately kick the Next.js chain cycle so it consumes this job and
-    # creates the next stage — avoids waiting for a manual "Chạy pipeline" press.
+    # creates the next stage â€” avoids waiting for a manual "Cháº¡y pipeline" press.
     await trigger_chain_cycle(web_url, dashboard_secret)
 
 
@@ -837,7 +846,7 @@ async def _launch_chromium_context(pw):
     """(Re)launch the persistent Chromium context used for every ChatGPT tab.
 
     Factored out of `run()` so a dead BrowserContext (the whole browser
-    crashed/closed, not just one tab — TargetClosedError surfacing from
+    crashed/closed, not just one tab â€” TargetClosedError surfacing from
     `ctx.new_page()` itself) can be replaced in place, instead of wedging
     every subsequent job in 'running' forever (see git history / e2e test
     that caught this: a crashed context left job stuck with no recovery)."""
@@ -860,10 +869,10 @@ async def _launch_chromium_context(pw):
         viewport={"width": 1280, "height": 800},
     )
 
-    # Close whatever blank tab the persistent profile opens by default — every
-    # conversation we use from here on is opened (and logged in) on demand by
-    # TabManager, keyed by what the job actually is (P1 reservoir vs. per-video).
-    for stray in list(ctx.pages):
+    # Keep at least one tab alive in the persistent context. On Windows with
+    # Playwright 1.61, closing the final default tab can make the next
+    # ctx.new_page() fail with Target.createTarget: Failed to open a new tab.
+    for stray in list(ctx.pages)[1:]:
         try:
             await stray.close()
         except Exception:
@@ -889,17 +898,17 @@ async def run() -> None:
         await record_heartbeat(dsn, "running")
         last_web2_chain_tick = 0.0
 
-        logger.info("Worker started — polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL_S)
+        logger.info("Worker started â€” polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL_S)
         while True:
             job = None
             try:
-                job = await claim_next_job(dsn)
+                job = await claim_optional_queue("web", claim_next_job, dsn)
                 if job is None:
                     # Also poll the Ancient Humans pipeline after the main queue is empty
-                    job = await claim_next_ah_job(dsn)
+                    job = await claim_optional_queue("ah", claim_next_ah_job, dsn)
                 if job is None:
                     # Then the Drifter 2077 pipeline
-                    job = await claim_next_dr_job(dsn)
+                    job = await claim_optional_queue("dr", claim_next_dr_job, dsn)
 
                 if job is None:
                     now = asyncio.get_running_loop().time()
@@ -928,19 +937,19 @@ async def run() -> None:
                 await asyncio.sleep(POLL_INTERVAL_S)
             except (TimeoutError, asyncio.TimeoutError, ConnectionRefusedError, OSError) as exc:
                 # Transient network/connection hiccup (common when Playwright event loop
-                # is busy). Non-fatal — pipeline still advances via Vercel cron.
+                # is busy). Non-fatal â€” pipeline still advances via Vercel cron.
                 logger.warning("DB connection hiccup (non-fatal, retrying): %s", exc)
                 await asyncio.sleep(POLL_INTERVAL_S)
             except PlaywrightError as exc:
-                # The whole BrowserContext died (not just one tab — _page_alive's
+                # The whole BrowserContext died (not just one tab â€” _page_alive's
                 # per-tab recovery can't help here since ctx.new_page() itself is
                 # what's throwing). Without this branch the claimed job was left
                 # stuck in 'running' forever (claim_next_job only selects
                 # 'pending' rows) while every future job kept hitting the same
-                # dead ctx — an e2e test caught this stalling the pipeline with
+                # dead ctx â€” an e2e test caught this stalling the pipeline with
                 # no alert. Requeue the job for a fresh attempt and relaunch
                 # Chromium so the next iteration gets a live context.
-                logger.exception("Browser context died during poll loop — relaunching Chromium")
+                logger.exception("Browser context died during poll loop â€” relaunching Chromium")
                 if job is not None:
                     _table = job.get("_table")
                     requeue_fn = (
@@ -1001,3 +1010,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
