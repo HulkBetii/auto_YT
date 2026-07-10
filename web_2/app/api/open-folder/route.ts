@@ -1,16 +1,12 @@
-﻿import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
-
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const execFileAsync = promisify(execFile);
 
 const BodySchema = z.object({
   path: z.string().min(1),
@@ -49,6 +45,14 @@ function openFolderCommand(targetPath: string, revealFile = false): { command: s
       : { command: "open", args: [targetPath] };
   }
   return { command: "xdg-open", args: [revealFile ? path.dirname(targetPath) : targetPath] };
+}
+
+function launchFolderCommand(opener: { command: string; args: string[] }) {
+  const child = spawn(opener.command, opener.args, {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
 }
 
 function json(request: NextRequest, body: unknown, init?: ResponseInit) {
@@ -104,23 +108,29 @@ export async function POST(request: NextRequest) {
     return json(request, { ok: false, error: "Invalid path" }, { status: 400 });
   }
 
+  let openPath = targetPath;
+  let revealFile = false;
+
   try {
     const targetStat = await stat(targetPath);
-    const opener = openFolderCommand(targetPath, !targetStat.isDirectory());
-    await execFileAsync(opener.command, opener.args);
-    return json(request, { ok: true });
+    revealFile = !targetStat.isDirectory();
   } catch {
     const parentPath = path.dirname(targetPath);
 
     try {
       const parentStat = await stat(parentPath);
       if (!parentStat.isDirectory()) throw new Error("Parent path is not a directory.");
-      const opener = openFolderCommand(parentPath);
-      await execFileAsync(opener.command, opener.args);
-      return json(request, { ok: true });
+      openPath = parentPath;
     } catch {
       return json(request, { ok: false, error: "Folder not found" }, { status: 404 });
     }
+  }
+
+  try {
+    launchFolderCommand(openFolderCommand(openPath, revealFile));
+    return json(request, { ok: true });
+  } catch {
+    return json(request, { ok: false, error: "Failed to open folder" }, { status: 500 });
   }
 }
 
