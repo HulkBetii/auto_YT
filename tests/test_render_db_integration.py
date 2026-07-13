@@ -2,11 +2,14 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from auto_yt.services.job_queue import _connect
 from auto_yt.services.render_db import (
     claim_specific_render,
     mark_render_failed,
     owns_render_lease,
+    save_render_done,
 )
 
 
@@ -48,6 +51,7 @@ async def _insert_video(dsn: str, **overrides) -> int:
 async def _delete_video(dsn: str, video_id: int) -> None:
     conn = await _connect(dsn)
     try:
+        await conn.execute("DELETE FROM video_content WHERE video_id = $1", video_id)
         await conn.execute("DELETE FROM videos WHERE id = $1", video_id)
     finally:
         await conn.close()
@@ -130,6 +134,83 @@ def test_retry_backoff_and_terminal_failure() -> None:
                     assert row["render_next_attempt_at"] is None
                 else:
                     assert expected_delay - 10 <= float(row["delay"]) <= expected_delay + 10
+        finally:
+            await conn.close()
+            await _delete_video(dsn, video_id)
+
+    asyncio.run(scenario())
+
+def test_render_completion_and_description_history_share_transaction() -> None:
+    async def scenario() -> None:
+        dsn = _database_url()
+        video_id = await _insert_video(
+            dsn,
+            render_status="rendering",
+            render_attempt_count=1,
+            render_worker_token="active-token",
+        )
+        conn = await _connect(dsn)
+        try:
+            await conn.execute(
+                """
+                INSERT INTO video_content (video_id, stage, output)
+                VALUES ($1, 'P_desc', 'old description')
+                """,
+                video_id,
+            )
+
+            with pytest.raises(RuntimeError, match="Lost render lease"):
+                await save_render_done(
+                    dsn,
+                    video_id,
+                    "wrong-token",
+                    video_path="unused.mp4",
+                    audio_url="https://example.invalid/audio.mp3",
+                    source_hash="source-hash",
+                    description_output="must not be inserted",
+                )
+            assert not await conn.fetchval(
+                """
+                SELECT EXISTS(
+                  SELECT 1 FROM video_content
+                  WHERE video_id = $1 AND output = 'must not be inserted'
+                )
+                """,
+                video_id,
+            )
+
+            await save_render_done(
+                dsn,
+                video_id,
+                "active-token",
+                video_path="final_video.mp4",
+                audio_url="https://example.invalid/audio.mp3",
+                source_hash="source-hash",
+                description_output="resolved description",
+            )
+            row = await conn.fetchrow(
+                """
+                SELECT render_status, video_path
+                FROM videos
+                WHERE id = $1
+                """,
+                video_id,
+            )
+            descriptions = await conn.fetch(
+                """
+                SELECT output
+                FROM video_content
+                WHERE video_id = $1 AND stage = 'P_desc'
+                ORDER BY id
+                """,
+                video_id,
+            )
+            assert row["render_status"] == "done"
+            assert row["video_path"] == "final_video.mp4"
+            assert [item["output"] for item in descriptions] == [
+                "old description",
+                "resolved description",
+            ]
         finally:
             await conn.close()
             await _delete_video(dsn, video_id)

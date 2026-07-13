@@ -3,9 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  getRenderedChaptersPath,
+  getRenderedSubtitlePath,
   getRenderDirectory,
   parseByteRange,
 } from "../lib/render/files.js";
+import { stripChapterAnchor } from "../lib/render/chapters.js";
 import {
   buildRenderQueueReset,
   MAX_RENDER_ATTEMPTS,
@@ -25,6 +28,15 @@ assert.throws(() => getRenderDirectory(-1), /Invalid video id/);
 const renderDirectory = getRenderDirectory(2);
 assert.equal(path.basename(renderDirectory), "2");
 assert(renderDirectory.includes(path.join("data", "renders")));
+assert.equal(path.basename(getRenderedSubtitlePath(2)), "subtitles.srt");
+assert.equal(path.basename(getRenderedChaptersPath(2)), "chapters.json");
+assert.throws(() => getRenderedSubtitlePath(0), /Invalid video id/);
+assert.equal(
+  stripChapterAnchor(
+    "01:20　心を整える　｜　ANCHOR: 心を静かに整えていきます",
+  ),
+  "01:20　心を整える",
+);
 
 assert.equal(parseRenderAction({ action: "retry" }), "retry");
 assert.equal(parseRenderAction({ action: "rerender" }), "rerender");
@@ -67,6 +79,48 @@ const fileRouteSource = await readFile(
 );
 assert(fileRouteSource.includes("getRenderedVideoPath(videoId)"));
 assert(!fileRouteSource.includes("stat(video.videoPath"));
+
+const subtitleRouteSource = await readFile(
+  new URL("../app/api/videos/[id]/render/subtitles/route.ts", import.meta.url),
+  "utf8",
+);
+assert(subtitleRouteSource.includes("getRenderedSubtitlePath(videoId)"));
+assert(
+  subtitleRouteSource.includes(
+    '"Content-Type": "application/x-subrip; charset=utf-8"',
+  ),
+);
+assert(subtitleRouteSource.includes('filename="video-${videoId}.srt"'));
+
+const statusRouteSource = await readFile(
+  new URL("../app/api/videos/[id]/render/status/route.ts", import.meta.url),
+  "utf8",
+);
+assert(statusRouteSource.includes("subtitleAvailable"));
+assert(statusRouteSource.includes("renderedSubtitleExists(videoId)"));
+
+const descriptionBuilderSource = await readFile(
+  new URL("../lib/pipeline/descriptionBuilder.ts", import.meta.url),
+  "utf8",
+);
+assert(descriptionBuilderSource.includes(".map(stripChapterAnchor)"));
+assert(descriptionBuilderSource.includes("resolvedChapters ?? parseChapters(p4)"));
+assert(descriptionBuilderSource.includes('video.renderStatus === "done"'));
+assert(descriptionBuilderSource.includes("video.audioUrl === video.renderedAudioUrl"));
+
+const renderPanelSource = await readFile(
+  new URL("../app/(dashboard)/videos/[id]/RenderPanel.tsx", import.meta.url),
+  "utf8",
+);
+assert(renderPanelSource.includes("snapshot.subtitleAvailable"));
+assert(renderPanelSource.includes("Tải SRT"));
+
+const videoTableSource = await readFile(
+  new URL("../app/(dashboard)/videos/VideosTable.tsx", import.meta.url),
+  "utf8",
+);
+assert(videoTableSource.includes("video.subtitleAvailable"));
+assert(videoTableSource.includes("/render/subtitles"));
 
 const deleteRouteSource = await readFile(
   new URL("../app/api/videos/bulk-delete/route.ts", import.meta.url),

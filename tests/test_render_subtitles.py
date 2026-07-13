@@ -1,10 +1,13 @@
 import pytest
 
 from auto_yt.render.subtitles import (
+    Card,
     align_tts_text_to_words,
     build_aligned_cards,
     build_cards_for_segment,
+    build_srt_from_cards,
     clean_tts_display_text,
+    parse_ass_cards,
 )
 
 
@@ -75,3 +78,38 @@ def test_alignment_rejects_low_coverage() -> None:
 def test_alignment_rejects_empty_whisper_words() -> None:
     with pytest.raises(ValueError, match="no usable word timestamps"):
         align_tts_text_to_words("今日は晴れです。", [])
+
+
+def test_srt_uses_card_text_and_millisecond_timestamps() -> None:
+    cards = [
+        Card(start=0.0, end=1.234, lines=["今日は、", "晴れです。"]),
+        Card(start=2.5, end=4.0, lines=["ありがとう。"]),
+    ]
+
+    srt = build_srt_from_cards(cards)
+
+    assert "00:00:00,000 --> 00:00:01,230" in srt
+    assert "今日は、\n晴れです。" in srt
+    assert "00:00:02,500 --> 00:00:04,000" in srt
+    assert "<#" not in srt
+
+
+def test_ass_cards_round_trip_for_srt_backfill(tmp_path) -> None:
+    ass_path = tmp_path / "sub.ass"
+    ass_path.write_text(
+        "\n".join(
+            [
+                "[Events]",
+                "Dialogue: 0,0:00:01.20,0:00:03.40,Quote,,0,0,0,,"
+                r"{\an4\pos(80,515)}一行目です。\N二行目です。",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    cards = parse_ass_cards(ass_path)
+
+    assert len(cards) == 1
+    assert cards[0].start == 1.2
+    assert cards[0].end == 3.4
+    assert cards[0].lines == ["一行目です。", "二行目です。"]

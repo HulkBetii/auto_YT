@@ -109,6 +109,13 @@ for (const [key, template] of Object.entries(ADAPTIVE_PROMPTS)) {
 }
 
 assert(ADAPTIVE_PROMPTS.P4.includes(`必ず${FIXED_PERSONA_TITLE_PREFIX}`));
+assert(
+  ADAPTIVE_PROMPTS.P4.includes(
+    "MM:SS　表示タイトル　｜　ANCHOR: 台本から完全一致する12〜24文字",
+  ),
+);
+assert(ADAPTIVE_PROMPTS.P4.includes("一字一句変えずにコピー"));
+assert(ADAPTIVE_PROMPTS.P4.includes("pause tag"));
 assert(ADAPTIVE_PROMPTS.P5.includes("person allocation、persona rotationは分析しない"));
 assert(ADAPTIVE_PROMPTS.P6.includes("人物追加、人物削減、persona rotation、別voice提案は禁止"));
 

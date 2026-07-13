@@ -344,9 +344,12 @@ section headerは下記の日本語を変えない。descriptionBuilder.tsがpar
 - Shorts投稿タイミング。
 
 ■ チャプター設計（00:00形式）
-- 必ず00:00から始める。
-- 台本の読み上げ時間の75%目安でtimestampを作る。
-- archetype構造を反映し、毎回同じchapter名にしない。`;
+- 各行は必ず「MM:SS　表示タイトル　｜　ANCHOR: 台本から完全一致する12〜24文字」の形式にする。
+- 必ず00:00から始める。timestampは仮の目安でよい。render後にalignment codeが実時間へ置換する。
+- ANCHORは[SCRIPT]内に実在する連続した12〜24文字を一字一句変えずにコピーする。要約、言い換え、省略、句読点変更は禁止。
+- ANCHORに<#1.0#>等のpause tag、改行、markdown、見出しを含めない。可能な限り台本内で一度だけ現れる箇所を選ぶ。
+- 表示タイトルにはANCHORを表示せず、archetype構造を反映した短く自然な日本語にする。
+- chapterは台本内の登場順に並べ、同じANCHORや同じ表示タイトルを繰り返さない。`;
 
 export const P_SCORE_TEMPLATE = `以下の動画素材（構成・台本・SEOパッケージ）を、下記のスコアカードに基づいて採点してください。
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Film, RefreshCw, RotateCcw } from "lucide-react";
+import { Captions, Download, Film, RefreshCw, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { RenderStatusBadge } from "@/components/RenderStatusBadge";
@@ -18,6 +18,7 @@ type RenderSnapshot = {
   renderFinishedAt: string | Date | null;
   renderHeartbeatAt: string | Date | null;
   outputAvailable: boolean;
+  subtitleAvailable: boolean;
   outputCurrent: boolean;
   waitingForAudio?: boolean;
   missingTtsText?: boolean;
@@ -172,6 +173,15 @@ export function RenderPanel({
               >
                 <Download className="h-4 w-4" />
                 Tải video
+              </a>
+            )}
+            {snapshot.subtitleAvailable && (
+              <a
+                href={`/api/videos/${videoId}/render/subtitles`}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--border-subtle)] px-3 text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"
+              >
+                <Captions className="h-4 w-4" />
+                Tải SRT
               </a>
             )}
             {canRetry && (

@@ -15,18 +15,22 @@ import shutil
 import sys
 import threading
 from pathlib import Path
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from auto_yt.paths import PROJECT_ROOT
 from auto_yt.render import assemble as asm
+from auto_yt.render import chapters as chapter_tools
 from auto_yt.render import subtitles as subs
 from auto_yt.services.render_db import (
     claim_render_video,
     claim_specific_render,
+    list_rendered_exports,
     mark_render_failed,
     owns_render_lease,
     save_render_done,
+    save_resolved_description,
     save_whisper_transcript,
     touch_render_heartbeat,
 )
@@ -258,6 +262,57 @@ def load_alignment_cache(path: Path, source_hash: str) -> dict | None:
     return cached
 
 
+def build_chapter_artifacts(
+    p4_output: str,
+    p_desc_output: str,
+    cards: list[subs.Card],
+    *,
+    source_hash: str | None,
+    duration_seconds: float | None = None,
+) -> tuple[dict, str | None]:
+    specs = chapter_tools.parse_chapter_specs(p4_output)
+    resolved = chapter_tools.resolve_chapters(
+        specs,
+        cards,
+        duration_seconds=duration_seconds,
+    )
+    resolved_duration = (
+        duration_seconds
+        if duration_seconds is not None and duration_seconds > 0
+        else max((card.end for card in cards), default=0.0)
+    )
+    payload = {
+        "source_hash": source_hash,
+        "duration_seconds": resolved_duration,
+        "chapters": [
+            {
+                "title": chapter.title,
+                "anchor": chapter.anchor,
+                "estimated_seconds": chapter.estimated_seconds,
+                "estimated_timestamp": chapter_tools.format_chapter_timestamp(
+                    chapter.estimated_seconds
+                ),
+                "resolved_seconds": chapter.seconds,
+                "resolved_timestamp": chapter_tools.format_chapter_timestamp(
+                    chapter.seconds
+                ),
+                "method": chapter.method,
+                "confidence": chapter.confidence,
+            }
+            for chapter in resolved
+        ],
+    }
+    updated_description = chapter_tools.replace_description_chapters(
+        p_desc_output,
+        resolved,
+    )
+    if specs and not resolved:
+        payload["error"] = "Could not resolve at least three valid chapters"
+    elif p_desc_output and updated_description is None:
+        payload["error"] = "Could not locate the P_desc chapter block"
+    return payload, updated_description
+
+
 async def render_video(
     dsn: str,
     openai_key: str,
@@ -274,11 +329,15 @@ async def render_video(
     work_dir.mkdir(parents=True, exist_ok=True)
     stable_audio = out_dir / "audio.mp3"
     stable_ass = out_dir / "sub.ass"
+    stable_srt = out_dir / "subtitles.srt"
     stable_alignment = out_dir / "alignment.json"
+    stable_chapters = out_dir / "chapters.json"
     stable_video = out_dir / "final_video.mp4"
     work_audio = work_dir / "audio.mp3"
     work_ass = work_dir / "sub.ass"
+    work_srt = work_dir / "subtitles.srt"
     work_alignment = work_dir / "alignment.json"
+    work_chapters = work_dir / "chapters.json"
     work_video = work_dir / "final_video.mp4"
 
     async def heartbeat() -> None:
@@ -351,7 +410,12 @@ async def render_video(
             logger.info("Video #%s: reusing alignment cache", video_id)
 
         await save_whisper_transcript(dsn, video_id, token, transcript)
-        _, coverage = subs.write_aligned_ass(tts_text, words, work_ass)
+        cards, coverage = subs.write_aligned_subtitles(
+            tts_text,
+            words,
+            work_ass,
+            work_srt,
+        )
         cache["coverage"] = coverage
         work_alignment.write_text(
             json.dumps(cache, ensure_ascii=False, indent=2),
@@ -392,6 +456,22 @@ async def render_video(
             seed=video_id,
             heartbeat=heartbeat_from_thread,
         )
+        video_duration = await asyncio.to_thread(
+            asm.get_media_duration,
+            str(work_video),
+            asm.resolve_ffprobe(),
+        )
+        chapter_payload, updated_description = build_chapter_artifacts(
+            str(video.get("p4_output") or ""),
+            str(video.get("p_desc_output") or ""),
+            cards,
+            source_hash=source_hash,
+            duration_seconds=video_duration,
+        )
+        work_chapters.write_text(
+            json.dumps(chapter_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
         if not await owns_render_lease(dsn, video_id, token):
             raise RuntimeError(f"Lost render lease before promoting video #{video_id}")
@@ -401,8 +481,10 @@ async def render_video(
         if audio_path == work_audio:
             replacements.append((work_audio, stable_audio))
         replacements.append((work_ass, stable_ass))
+        replacements.append((work_srt, stable_srt))
         if work_alignment.exists():
             replacements.append((work_alignment, stable_alignment))
+        replacements.append((work_chapters, stable_chapters))
         replacements.append((work_video, stable_video))
         backups, promoted = await asyncio.to_thread(
             promote_files,
@@ -417,6 +499,7 @@ async def render_video(
                 video_path=str(stable_video),
                 audio_url=audio_url,
                 source_hash=source_hash,
+                description_output=updated_description,
             )
         except Exception:
             await asyncio.to_thread(rollback_promoted_files, backups, promoted)
@@ -440,6 +523,84 @@ async def render_video(
             work_root.rmdir()
         except OSError:
             pass
+
+
+async def backfill_exports(
+    dsn: str,
+    *,
+    video_id: int | None = None,
+) -> dict[str, int]:
+    rows = await list_rendered_exports(dsn, video_id=video_id)
+    summary = {"processed": 0, "skipped": 0, "failed": 0}
+    for row in rows:
+        current_video_id = int(row["id"])
+        out_dir = OUTPUT_ROOT / str(current_video_id)
+        stable_ass = out_dir / "sub.ass"
+        stable_srt = out_dir / "subtitles.srt"
+        stable_chapters = out_dir / "chapters.json"
+        stable_video = out_dir / "final_video.mp4"
+        if not stable_ass.exists():
+            logger.warning("Video #%s: no sub.ass for export backfill", current_video_id)
+            summary["skipped"] += 1
+            continue
+
+        work_dir = out_dir / ".work" / f"backfill-{uuid4().hex}"
+        work_dir.mkdir(parents=True, exist_ok=True)
+        work_srt = work_dir / "subtitles.srt"
+        work_chapters = work_dir / "chapters.json"
+        try:
+            _, cards = subs.write_srt_from_ass(stable_ass, work_srt)
+            video_duration = await asyncio.to_thread(
+                asm.get_media_duration,
+                str(stable_video),
+                asm.resolve_ffprobe(),
+            )
+            chapter_payload, updated_description = build_chapter_artifacts(
+                str(row.get("p4_output") or ""),
+                str(row.get("p_desc_output") or ""),
+                cards,
+                source_hash=str(row.get("render_source_hash") or "") or None,
+                duration_seconds=video_duration,
+            )
+            work_chapters.write_text(
+                json.dumps(chapter_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            backups, promoted = await asyncio.to_thread(
+                promote_files,
+                [
+                    (work_srt, stable_srt),
+                    (work_chapters, stable_chapters),
+                ],
+                work_dir / "previous",
+            )
+            try:
+                if updated_description:
+                    await save_resolved_description(
+                        dsn,
+                        current_video_id,
+                        updated_description,
+                    )
+            except Exception:
+                await asyncio.to_thread(
+                    rollback_promoted_files,
+                    backups,
+                    promoted,
+                )
+                raise
+            else:
+                await asyncio.to_thread(discard_promotion_backups, backups)
+            summary["processed"] += 1
+            logger.info("Video #%s: SRT and chapters backfilled", current_video_id)
+        except Exception:
+            summary["failed"] += 1
+            logger.exception("Video #%s export backfill failed", current_video_id)
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            work_root = out_dir / ".work"
+            with contextlib.suppress(OSError):
+                work_root.rmdir()
+    return summary
 
 
 async def run(*, once: bool = False) -> None:
@@ -481,6 +642,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Local render worker for web")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--video-id", type=int)
+    parser.add_argument("--backfill-exports", action="store_true")
     args = parser.parse_args()
 
     STOP_REQUESTED.clear()
@@ -490,7 +652,15 @@ def main() -> None:
         signal.signal(signal.SIGBREAK, request_stop)
 
     try:
-        if args.video_id is not None:
+        if args.backfill_exports:
+            summary = asyncio.run(
+                backfill_exports(
+                    load_database_url(),
+                    video_id=args.video_id,
+                )
+            )
+            logger.info("Export backfill summary: %s", summary)
+        elif args.video_id is not None:
             asyncio.run(render_specific(args.video_id))
         else:
             asyncio.run(run(once=args.once))

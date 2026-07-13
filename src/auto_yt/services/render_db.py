@@ -124,12 +124,33 @@ async def _claim_render_video(
             )
             if claimed is None:
                 return None
+            claimed_data = dict(claimed)
+            claimed_data["p4_output"] = await conn.fetchval(
+                """
+                SELECT output
+                FROM video_content
+                WHERE video_id = $1 AND stage = 'P4'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                row["id"],
+            )
+            claimed_data["p_desc_output"] = await conn.fetchval(
+                """
+                SELECT output
+                FROM video_content
+                WHERE video_id = $1 AND stage = 'P_desc'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                row["id"],
+            )
             logger.info(
                 "Claimed video #%s render attempt %s",
                 claimed["id"],
                 claimed["render_attempt_count"],
             )
-            return dict(claimed)
+            return claimed_data
     finally:
         await conn.close()
 
@@ -204,32 +225,105 @@ async def save_render_done(
     video_path: str,
     audio_url: str,
     source_hash: str,
+    description_output: str | None = None,
 ) -> None:
     conn = await _connect(dsn)
     try:
-        result = await conn.execute(
-            """
-            UPDATE videos
-            SET video_path = $3,
-                rendered_audio_url = $4,
-                render_source_hash = $5,
-                render_status = 'done',
-                render_error = NULL,
-                render_next_attempt_at = NULL,
-                render_finished_at = now(),
-                render_heartbeat_at = now(),
-                render_worker_token = NULL
-            WHERE id = $1 AND render_status = 'rendering' AND render_worker_token = $2
-            """,
-            video_id,
-            token,
-            video_path,
-            audio_url,
-            source_hash,
-        )
-        if result != "UPDATE 1":
-            raise RuntimeError(f"Lost render lease before completing video #{video_id}")
+        async with conn.transaction():
+            result = await conn.execute(
+                """
+                UPDATE videos
+                SET video_path = $3,
+                    rendered_audio_url = $4,
+                    render_source_hash = $5,
+                    render_status = 'done',
+                    render_error = NULL,
+                    render_next_attempt_at = NULL,
+                    render_finished_at = now(),
+                    render_heartbeat_at = now(),
+                    render_worker_token = NULL
+                WHERE id = $1 AND render_status = 'rendering' AND render_worker_token = $2
+                """,
+                video_id,
+                token,
+                video_path,
+                audio_url,
+                source_hash,
+            )
+            if result != "UPDATE 1":
+                raise RuntimeError(f"Lost render lease before completing video #{video_id}")
+            if description_output:
+                await _insert_description(conn, video_id, description_output)
         logger.info("Video #%s render done -> %s", video_id, video_path)
+    finally:
+        await conn.close()
+
+
+async def _insert_description(conn, video_id: int, description_output: str) -> None:
+    await conn.execute(
+        """
+        INSERT INTO video_content (video_id, stage, output)
+        SELECT $1, 'P_desc', $2
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM video_content
+          WHERE video_id = $1 AND stage = 'P_desc' AND output = $2
+        )
+        """,
+        video_id,
+        description_output,
+    )
+
+
+async def save_resolved_description(
+    dsn: str,
+    video_id: int,
+    description_output: str,
+) -> None:
+    conn = await _connect(dsn)
+    try:
+        await _insert_description(conn, video_id, description_output)
+    finally:
+        await conn.close()
+
+
+async def list_rendered_exports(
+    dsn: str,
+    *,
+    video_id: int | None = None,
+) -> list[dict]:
+    conn = await _connect(dsn)
+    try:
+        where = "AND v.id = $1" if video_id is not None else ""
+        args = [video_id] if video_id is not None else []
+        rows = await conn.fetch(
+            f"""
+            SELECT
+              v.id,
+              v.render_source_hash,
+              (
+                SELECT output
+                FROM video_content
+                WHERE video_id = v.id AND stage = 'P4'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+              ) AS p4_output,
+              (
+                SELECT output
+                FROM video_content
+                WHERE video_id = v.id AND stage = 'P_desc'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+              ) AS p_desc_output
+            FROM videos v
+            WHERE v.render_status = 'done'
+              AND v.video_path IS NOT NULL
+              {where}
+            ORDER BY v.id
+            """,
+            *args,
+        )
+        return [dict(row) for row in rows]
     finally:
         await conn.close()
 

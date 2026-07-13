@@ -13,7 +13,10 @@ import {
 } from "@/lib/ui/fixedPersona";
 import { getVideo } from "@/lib/db/repo/videos";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
-import { renderedVideoExists } from "@/lib/render/files";
+import {
+  renderedSubtitleExists,
+  renderedVideoExists,
+} from "@/lib/render/files";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -42,7 +45,14 @@ export default async function VideoDetailPage({
   if (!Number.isFinite(videoId)) notFound();
   const video = await getVideo(videoId);
   if (!video) notFound();
-  const [content, videoJobs, analytics, ttsStatusFn, outputAvailable] = await Promise.all([
+  const [
+    content,
+    videoJobs,
+    analytics,
+    ttsStatusFn,
+    outputAvailable,
+    subtitleAvailable,
+  ] = await Promise.all([
     db
       .select()
       .from(videoContent)
@@ -60,6 +70,7 @@ export default async function VideoDetailPage({
       .orderBy(videoAnalytics.fetchedAt),
     buildTTSStatusChecker(),
     renderedVideoExists(videoId),
+    renderedSubtitleExists(videoId),
   ]);
   const ttsStatus = ttsStatusFn(video.featuredPerson, video.audioUrl);
   const personaStatus = getPersonaUiStatus(video.featuredPerson);
@@ -380,6 +391,7 @@ export default async function VideoDetailPage({
               renderFinishedAt: video.renderFinishedAt,
               renderHeartbeatAt: video.renderHeartbeatAt,
               outputAvailable,
+              subtitleAvailable,
               outputCurrent:
                 outputAvailable &&
                 video.renderStatus === "done" &&

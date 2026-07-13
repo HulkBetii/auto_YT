@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Captions, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -39,6 +39,7 @@ type VideoRow = {
   renderStatus: string;
   videoPath: string | null;
   outputAvailable: boolean;
+  subtitleAvailable: boolean;
   createdAt: Date | null;
 };
 
@@ -311,6 +312,17 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
                           className="text-[var(--text-muted)] transition-colors hover:text-[var(--accent-cyan)]"
                         >
                           <Download className="h-4 w-4" />
+                        </a>
+                      )}
+                      {video.subtitleAvailable && (
+                        <a
+                          href={`/api/videos/${video.id}/render/subtitles`}
+                          onClick={(event) => event.stopPropagation()}
+                          title="Tải phụ đề SRT"
+                          aria-label={`Tải phụ đề SRT video #${video.id}`}
+                          className="text-[var(--text-muted)] transition-colors hover:text-[var(--accent-cyan)]"
+                        >
+                          <Captions className="h-4 w-4" />
                         </a>
                       )}
                     </div>

@@ -1,7 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { videos, videoStatusEnum } from "@/lib/db/schema";
-import { renderedVideoExists } from "@/lib/render/files";
+import {
+  renderedSubtitleExists,
+  renderedVideoExists,
+} from "@/lib/render/files";
 import { StatusTabs } from "./StatusTabs";
 import { VideosTable } from "./VideosTable";
 export const dynamic = "force-dynamic";
@@ -31,10 +34,17 @@ export default async function VideosPage({
     : ALL;
   const videosList = await getVideos(filter);
   const rows = await Promise.all(
-    videosList.map(async (video) => ({
-      ...video,
-      outputAvailable: await renderedVideoExists(video.id),
-    })),
+    videosList.map(async (video) => {
+      const [outputAvailable, subtitleAvailable] = await Promise.all([
+        renderedVideoExists(video.id),
+        renderedSubtitleExists(video.id),
+      ]);
+      return {
+        ...video,
+        outputAvailable,
+        subtitleAvailable,
+      };
+    }),
   );
   return (
     <>

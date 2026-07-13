@@ -12,6 +12,8 @@ import { videos } from "../db/schema";
 import { getConfigValue } from "../db/repo/channel-config";
 import { getLatestVideoContent, saveVideoContent } from "../db/repo/video-content";
 import { getVideo } from "../db/repo/videos";
+import { stripChapterAnchor } from "../render/chapters";
+import { readResolvedChapterLines } from "../render/files";
 
 // ── Section extractor ─────────────────────────────────────────────────────────
 
@@ -160,7 +162,8 @@ function parseChapters(p4: string): string {
   const lines = block
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => /^\d{1,2}:\d{2}/.test(l));
+    .filter((l) => /^\d{1,2}:\d{2}/.test(l))
+    .map(stripChapterAnchor);
   if (lines.length === 0) return "00:00　[チャプター情報なし]";
   return lines.join("\n");
 }
@@ -202,9 +205,14 @@ export async function buildVideoDescription(videoId: number): Promise<string> {
 
   const p3 = p3Content?.output ?? "";
   const p4 = p4Content?.output ?? "";
+  const resolvedChapters =
+    video.renderStatus === "done" &&
+    video.audioUrl === video.renderedAudioUrl
+      ? await readResolvedChapterLines(videoId)
+      : null;
 
   const { hook1, hook2, content } = parseOverview(p4);
-  const chapters = parseChapters(p4);
+  const chapters = resolvedChapters ?? parseChapters(p4);
   const tags = parseTags(p4);
   const commentPrompt = parseCommentPrompt(p3, p4);
   const commentCta = commentCallToAction(video.commentMode);

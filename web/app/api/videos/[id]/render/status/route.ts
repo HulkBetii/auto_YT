@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { videos } from "@/lib/db/schema";
-import { renderedVideoExists } from "@/lib/render/files";
+import {
+  renderedSubtitleExists,
+  renderedVideoExists,
+} from "@/lib/render/files";
 
 export const dynamic = "force-dynamic";
 
@@ -38,11 +41,15 @@ export async function GET(
     return NextResponse.json({ error: "Video not found" }, { status: 404 });
   }
 
-  const outputAvailable = await renderedVideoExists(videoId);
+  const [outputAvailable, subtitleAvailable] = await Promise.all([
+    renderedVideoExists(videoId),
+    renderedSubtitleExists(videoId),
+  ]);
   const { ttsText, ...status } = video;
   return NextResponse.json({
     ...status,
     outputAvailable,
+    subtitleAvailable,
     outputCurrent:
       outputAvailable &&
       video.renderStatus === "done" &&

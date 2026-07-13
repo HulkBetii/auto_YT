@@ -397,6 +397,22 @@ def _fmt_ts(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
+def _fmt_srt_ts(seconds: float) -> str:
+    """SRT timestamp using the same centisecond precision as ASS."""
+    if seconds < 0:
+        seconds = 0.0
+    milliseconds = int(round(seconds * 100)) * 10
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds_part, milliseconds = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{seconds_part:02d},{milliseconds:03d}"
+
+
+def _parse_ass_ts(value: str) -> float:
+    hours, minutes, seconds = value.strip().split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
 def _escape(text: str) -> str:
     # ASS control chars — strip braces (override blocks) and normalise newlines.
     return text.replace("{", "(").replace("}", ")").replace("\n", " ")
@@ -475,6 +491,61 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return "\n".join(lines) + "\n"
 
 
+def build_srt_from_cards(cards: list[Card]) -> str:
+    """Build an SRT document from the same cards used by the ASS overlay."""
+    entries: list[str] = []
+    for card in cards:
+        if not card.lines or card.end <= card.start:
+            continue
+        text = "\n".join(line.strip() for line in card.lines if line.strip())
+        if not text:
+            continue
+        entries.append(
+            "\n".join(
+                [
+                    str(len(entries) + 1),
+                    f"{_fmt_srt_ts(card.start)} --> {_fmt_srt_ts(card.end)}",
+                    text,
+                ]
+            )
+        )
+    if not entries:
+        raise ValueError("SRT document contains no subtitle cues")
+    return "\n\n".join(entries) + "\n"
+
+
+def parse_ass_cards(ass_path: Path) -> list[Card]:
+    """Read cards from an ASS file produced by this render pipeline."""
+    cards: list[Card] = []
+    override_re = re.compile(r"\{[^}]*\}")
+    for line in ass_path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("Dialogue:"):
+            continue
+        fields = line.split(",", 9)
+        if len(fields) != 10:
+            continue
+        text = override_re.sub("", fields[9]).replace("\\N", "\n").replace("\\n", "\n")
+        lines = [part.strip() for part in text.splitlines() if part.strip()]
+        start = _parse_ass_ts(fields[1])
+        end = _parse_ass_ts(fields[2])
+        if lines and end > start:
+            cards.append(Card(start=start, end=end, lines=lines))
+    if not cards:
+        raise ValueError(f"ASS file contains no subtitle events: {ass_path}")
+    return cards
+
+
+def write_srt_from_cards(cards: list[Card], out_path: Path) -> Path:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(build_srt_from_cards(cards), encoding="utf-8")
+    return out_path
+
+
+def write_srt_from_ass(ass_path: Path, out_path: Path) -> tuple[Path, list[Card]]:
+    cards = parse_ass_cards(ass_path)
+    return write_srt_from_cards(cards, out_path), cards
+
+
 def write_ass(segments: list[dict], out_path: Path, **kwargs) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(build_ass(segments, **kwargs), encoding="utf-8")
@@ -493,6 +564,34 @@ def write_aligned_ass(
         raise ValueError("Aligned ASS document contains no subtitle events")
     out_path.write_text(document, encoding="utf-8")
     return out_path, coverage
+
+
+def write_aligned_subtitles(
+    tts_text: str,
+    words: list[dict],
+    ass_path: Path,
+    srt_path: Path,
+    *,
+    font_name: str = FONT_NAME,
+    font_size: int = FONT_SIZE,
+    pos_x: int = POS_X,
+    pos_y: int = POS_Y,
+) -> tuple[list[Card], float]:
+    """Write ASS and SRT from one aligned card set."""
+    cards, coverage = build_aligned_cards(tts_text, words)
+    document = _build_ass_document(
+        cards,
+        font_name=font_name,
+        font_size=font_size,
+        pos_x=pos_x,
+        pos_y=pos_y,
+    )
+    if "Dialogue:" not in document:
+        raise ValueError("Aligned ASS document contains no subtitle events")
+    ass_path.parent.mkdir(parents=True, exist_ok=True)
+    ass_path.write_text(document, encoding="utf-8")
+    write_srt_from_cards(cards, srt_path)
+    return cards, coverage
 
 
 _DEMO_SEGMENTS = [
