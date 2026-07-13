@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { videos, videoStatusEnum } from "@/lib/db/schema";
+import { renderedVideoExists } from "@/lib/render/files";
 import { StatusTabs } from "./StatusTabs";
 import { VideosTable } from "./VideosTable";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,13 @@ export default async function VideosPage({
   ).includes(status ?? "")
     ? (status as StatusFilter)
     : ALL;
-  const rows = await getVideos(filter);
+  const videosList = await getVideos(filter);
+  const rows = await Promise.all(
+    videosList.map(async (video) => ({
+      ...video,
+      outputAvailable: await renderedVideoExists(video.id),
+    })),
+  );
   return (
     <>
       <div className="flex items-center justify-between gap-4">

@@ -39,6 +39,8 @@ async function main() {
       { key: "anti_dup_fatigue_lookback", value: "12" },
       { key: "anti_dup_semantic_days", value: "90" },
       { key: "anti_dup_similarity_threshold", value: "85" },
+      { key: "render_seconds_per_image", value: "30" },
+      { key: "render_crossfade_seconds", value: "0.5" },
     ])
     .onConflictDoNothing();
 

@@ -36,6 +36,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# character image library (local assets for video render, not source-controlled)
+/data/character-images/*/*
+!/data/character-images/*/.gitkeep
+
+# rendered video output (produced by the local render worker)
+/data/renders/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

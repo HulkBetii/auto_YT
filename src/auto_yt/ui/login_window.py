@@ -65,7 +65,6 @@ def _load_saved_session_cookies() -> list[dict]:
 WINDOW_WIDTH = 520
 WINDOW_HEIGHT = 480
 DEFAULT_GPT_ACCOUNT_KEY = "gpt_account1"
-DEFAULT_GPT_PROFILE = "PROFILE_GPT_1"
 
 
 # --- Worker thread -------------------------------------------------------
@@ -93,7 +92,7 @@ class LoginWorker(QThread):
         try:
             self.log.emit("🚀 Launching browser...")
             playwright = await async_playwright().start()
-            profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
+            profile_dir = gpt_profile_dir()
             profile_dir.mkdir(parents=True, exist_ok=True)
             self.log.emit(f"📁 Using Chrome profile: {profile_dir}")
             context = await playwright.chromium.launch_persistent_context(
@@ -134,7 +133,7 @@ class LoginWorker(QThread):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             account_payload = dict(self.account)
             account_payload["session_cookie"] = result.get("cookies", [])
-            account_payload.setdefault("folder_user_data", DEFAULT_GPT_PROFILE)
+            account_payload["folder_user_data"] = str(gpt_profile_dir())
             _save_account_payload(account_payload)
 
             SESSION_PATH.write_text(
@@ -182,7 +181,7 @@ class OpenProfileWorker(QThread):
         context = None
 
         try:
-            profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
+            profile_dir = gpt_profile_dir()
             profile_dir.mkdir(parents=True, exist_ok=True)
             self.log.emit(f"📂 Opening profile: {profile_dir}")
 
@@ -348,7 +347,7 @@ class LoginWindow(QWidget):
                 "password": self.password_input.text(),
                 "totp_secret": self.totp_input.text().strip(),
                 "session_cookie": session_cookie,
-                "folder_user_data": str(gpt_profile_dir(DEFAULT_GPT_PROFILE)),
+                "folder_user_data": str(gpt_profile_dir()),
                 "type_account": "unknown",
             }
         }
@@ -386,7 +385,7 @@ class LoginWindow(QWidget):
             "email": email,
             "password": password,
             "totp_secret": self.totp_input.text().strip() or None,
-            "folder_user_data": str(gpt_profile_dir(DEFAULT_GPT_PROFILE)),
+            "folder_user_data": str(gpt_profile_dir()),
             "session_cookie": self._saved_cookies if email == self._saved_email else [],
         }
 
@@ -399,7 +398,7 @@ class LoginWindow(QWidget):
         self._saved_cookies = []
         if SESSION_PATH.exists():
             SESSION_PATH.unlink()
-        profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
+        profile_dir = gpt_profile_dir()
         if profile_dir.exists():
             shutil.rmtree(profile_dir, ignore_errors=True)
         self._save_config()

@@ -29,7 +29,7 @@ async def run():
     account = data.get("gpt_account1", data)
 
     pw = await async_playwright().start()
-    profile_dir = gpt_profile_dir("PROFILE_GPT_1")
+    profile_dir = gpt_profile_dir()
     profile_dir.mkdir(parents=True, exist_ok=True)
     ctx = await pw.chromium.launch_persistent_context(
         str(profile_dir),

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { StatusBadge } from "@/components/StatusBadge";
+import { RenderStatusBadge } from "@/components/RenderStatusBadge";
 import {
   Table,
   TableBody,
@@ -34,6 +36,9 @@ type VideoRow = {
   status: string;
   score: number | null;
   audioUrl: string | null;
+  renderStatus: string;
+  videoPath: string | null;
+  outputAvailable: boolean;
   createdAt: Date | null;
 };
 
@@ -153,6 +158,9 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
               </TableHead>
               <TableHead className="w-16 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
                 Audio
+              </TableHead>
+              <TableHead className="w-28 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
+                Render
               </TableHead>
               <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
                 Created
@@ -288,6 +296,25 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
                       <span className="text-[var(--text-secondary)]">—</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <RenderStatusBadge
+                        audioUrl={video.audioUrl}
+                        renderStatus={video.renderStatus}
+                      />
+                      {video.outputAvailable && (
+                        <a
+                          href={`/api/videos/${video.id}/render/file?download=1`}
+                          onClick={(event) => event.stopPropagation()}
+                          title="Tải video"
+                          aria-label={`Tải video #${video.id}`}
+                          className="text-[var(--text-muted)] transition-colors hover:text-[var(--accent-cyan)]"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-[13px] text-[var(--text-muted)]">
                     {formatDateTime(video.createdAt)}
                   </TableCell>
@@ -297,7 +324,7 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
             {rows.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="py-12 text-center text-[15px] text-[var(--text-secondary)]"
                 >
                   Không có video nào khớp bộ lọc này.

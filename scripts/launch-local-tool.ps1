@@ -180,27 +180,7 @@ function Ensure-Database {
 }
 
 
-function Ensure-ControlServer {
-  $controlUrl = "http://localhost:4242/status"
-  Write-Step "Checking auto_yt control server"
-  if (Test-UrlOk $controlUrl) {
-    Write-Ok "Control server is already running"
-    return
-  }
-
-  $portConn = Get-NetTCPConnection -LocalPort 4242 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($portConn) {
-    $ownerProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$($portConn.OwningProcess)" -ErrorAction SilentlyContinue
-    $ownerCommand = if ($ownerProcess) { [string]$ownerProcess.CommandLine } else { "" }
-    if ($ownerCommand -match "auto_yt\.control_server|control_server\.py") {
-      Write-Warn "Port 4242 is held by an unresponsive auto_yt control server; restarting PID $($portConn.OwningProcess)"
-      Stop-Process -Id $portConn.OwningProcess -Force -ErrorAction SilentlyContinue
-      Start-Sleep -Seconds 2
-    } else {
-      Fail "Port 4242 is occupied but $controlUrl does not return HTTP 200. Owner PID=$($portConn.OwningProcess). Not killing unknown process."
-    }
-  }
-
+function Ensure-PythonEnvironment {
   $autoVenvPython = Join-Path $root ".venv\Scripts\python.exe"
   $autoVenvPip = Join-Path $root ".venv\Scripts\pip.exe"
   if (-not (Test-Path $autoVenvPython)) {
@@ -226,8 +206,32 @@ function Ensure-ControlServer {
   } finally {
     Pop-Location
   }
+  Write-Ok "auto_YT Python dependencies are ready"
+}
+
+function Ensure-ControlServer {
+  $controlUrl = "http://localhost:4242/status"
+  Write-Step "Checking auto_yt control server"
+  if (Test-UrlOk $controlUrl) {
+    Write-Ok "Control server is already running"
+    return
+  }
+
+  $portConn = Get-NetTCPConnection -LocalPort 4242 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($portConn) {
+    $ownerProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$($portConn.OwningProcess)" -ErrorAction SilentlyContinue
+    $ownerCommand = if ($ownerProcess) { [string]$ownerProcess.CommandLine } else { "" }
+    if ($ownerCommand -match "auto_yt\.control_server|control_server\.py") {
+      Write-Warn "Port 4242 is held by an unresponsive auto_yt control server; restarting PID $($portConn.OwningProcess)"
+      Stop-Process -Id $portConn.OwningProcess -Force -ErrorAction SilentlyContinue
+      Start-Sleep -Seconds 2
+    } else {
+      Fail "Port 4242 is occupied but $controlUrl does not return HTTP 200. Owner PID=$($portConn.OwningProcess). Not killing unknown process."
+    }
+  }
 
   Write-Step "Starting auto_yt.control_server"
+  $autoVenvPython = Join-Path $root ".venv\Scripts\python.exe"
   $log = Join-Path $root ".control-server.log"
   $err = Join-Path $root ".control-server.err.log"
   $srcPath = Join-Path $root "src"
@@ -241,6 +245,25 @@ function Ensure-ControlServer {
     Fail "Could not verify auto_yt.control_server"
   }
   Write-Ok "Control server is ready"
+}
+
+function Ensure-RenderWorker {
+  if ($App -ne "web") { return }
+  Write-Step "Ensuring render worker"
+  try {
+    $status = Invoke-RestMethod -Uri "http://localhost:4242/status" -TimeoutSec 5
+    if ($status.render_running) {
+      Write-Ok "Render worker is already running"
+      return
+    }
+    $result = Invoke-RestMethod -Uri "http://localhost:4242/render/start" -Method Post -TimeoutSec 10
+    if (-not $result.ok -and $result.reason -ne "already_running") {
+      Fail "Render worker could not start: $($result | ConvertTo-Json -Compress)"
+    }
+    Write-Ok "Render worker started"
+  } catch {
+    Fail "Render worker startup failed: $($_.Exception.Message)"
+  }
 }
 
 function Ensure-PlaywrightBrowsers {
@@ -300,7 +323,9 @@ Ensure-NodeAndPnpm
 Ensure-DockerDesktop
 Ensure-Dependencies
 Ensure-Database
+Ensure-PythonEnvironment
 Ensure-ControlServer
+Ensure-RenderWorker
 Ensure-PlaywrightBrowsers
 Ensure-DevServer
 

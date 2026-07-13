@@ -10,6 +10,16 @@ const intString = (min: number, max: number) =>
     return n >= min && n <= max;
   }, `Phải nằm trong khoảng từ ${min} đến ${max}`);
 
+const decimalString = (min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d+(?:\.\d+)?$/, "Phải là một số")
+    .refine((value) => {
+      const number = Number.parseFloat(value);
+      return number >= min && number <= max;
+    }, `Phải nằm trong khoảng từ ${min} đến ${max}`);
+
 /**
  * Editable `channel_config` key/value rows, with per-field zod validation run
  * both client- and server-side before save. `worker_heartbeat` is intentionally
@@ -81,6 +91,18 @@ export const SETTINGS_FIELDS = [
     label: "Chống lặp: ngưỡng tương đồng (0-100)",
     description: "Ngưỡng cosine similarity (0-100) để coi là trùng chủ đề. Mặc định: 85 (= 0.85).",
     schema: intString(50, 99),
+  },
+  {
+    key: "render_seconds_per_image",
+    label: "Render: giây mỗi ảnh",
+    description: "Thời lượng hiển thị mỗi ảnh nền. Cho phép từ 5 đến 120 giây.",
+    schema: decimalString(5, 120),
+  },
+  {
+    key: "render_crossfade_seconds",
+    label: "Render: thời gian crossfade",
+    description: "Thời lượng chuyển cảnh giữa hai ảnh. Cho phép từ 0 đến 3 giây.",
+    schema: decimalString(0, 3),
   },
   {
     key: "tts_voice_map",

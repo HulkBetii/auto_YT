@@ -35,9 +35,11 @@ function StatusDot({ state, label }: { state: ProcState; label: string }) {
 }
 export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
   const [workerState, setWorkerState] = useState<ProcState>("unknown");
+  const [renderState, setRenderState] = useState<ProcState>("unknown");
   const [appState, setAppState] = useState<ProcState>("unknown");
   const [dbHeartbeat, setDbHeartbeat] = useState<WorkerHeartbeat>(heartbeat);
   const [busyWorker, setBusyWorker] = useState(false);
+  const [busyRender, setBusyRender] = useState(false);
   const [busyApp, setBusyApp] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const poll = useCallback(async () => {
@@ -47,9 +49,11 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
       });
       const data = await res.json();
       setWorkerState(data.running ? "running" : "stopped");
+      setRenderState(data.render_running ? "running" : "stopped");
       setAppState(data.app_running ? "running" : "stopped");
     } catch {
       setWorkerState("offline");
+      setRenderState("offline");
       setAppState("offline");
     }
     try {
@@ -108,6 +112,22 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
       setAppState("offline");
     } finally {
       setBusyApp(false);
+      setTimeout(poll, 800);
+    }
+  }
+  async function toggleRender() {
+    setBusyRender(true);
+    try {
+      const path = renderState === "running" ? "/render/stop" : "/render/start";
+      const data = await callEndpoint(path, path.endsWith("/stop") ? 25000 : 5000);
+      if (data.ok || data.reason === "already_running") setRenderState("running");
+      if ((data.ok || data.reason === "not_running") && path.endsWith("/stop")) {
+        setRenderState("stopped");
+      }
+    } catch {
+      setRenderState("offline");
+    } finally {
+      setBusyRender(false);
       setTimeout(poll, 800);
     }
   }
@@ -193,6 +213,22 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
                 {heartbeatNotice}
               </span>
             )}
+          </div>
+          <span className="text-[var(--text-secondary)] text-[13px]">·</span>
+          <div className="flex items-center gap-2">
+            <StatusDot state={renderState} label="Render" />
+            <button
+              onClick={toggleRender}
+              disabled={busyRender || renderState === "unknown"}
+              className={[
+                "rounded-lg px-3 py-1.5 text-[13px] font-medium text-[var(--dashboard-bg)] transition-colors disabled:opacity-50",
+                renderState === "running"
+                  ? "bg-[var(--danger)] hover:bg-[var(--danger)]"
+                  : "bg-[var(--success)] hover:bg-[var(--success)]",
+              ].join(" ")}
+            >
+              {busyRender ? "…" : renderState === "running" ? "Tắt" : "Bật"}
+            </button>
           </div>
           <span className="text-[var(--text-secondary)] text-[13px]">·</span>
           {/* Qt App */}

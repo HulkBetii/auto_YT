@@ -2,6 +2,10 @@ import { count, desc, eq, gte } from "drizzle-orm";
 
 import { db } from "../index";
 import { videos, type videoStatusEnum } from "../schema";
+import {
+  buildRenderQueueReset,
+  shouldResetRenderForAudio,
+} from "@/lib/render/state";
 
 type VideoStatus = (typeof videoStatusEnum.enumValues)[number];
 
@@ -35,11 +39,32 @@ export async function createVideo(input: typeof videos.$inferInsert) {
 }
 
 export async function updateVideoAudioUrl(videoId: number, audioUrl: string) {
-  await db.update(videos).set({ audioUrl, ttsTaskId: null, ttsSubmittedAt: null }).where(eq(videos.id, videoId));
+  const [current] = await db
+    .select({ audioUrl: videos.audioUrl })
+    .from(videos)
+    .where(eq(videos.id, videoId))
+    .limit(1);
+  const renderReset =
+    current && !shouldResetRenderForAudio(current.audioUrl, audioUrl)
+      ? {}
+      : buildRenderQueueReset();
+
+  await db
+    .update(videos)
+    .set({
+      audioUrl,
+      ttsTaskId: null,
+      ttsSubmittedAt: null,
+      ...renderReset,
+    })
+    .where(eq(videos.id, videoId));
 }
 
-export async function setVideoTtsTaskId(videoId: number, taskId: string) {
-  await db.update(videos).set({ ttsTaskId: taskId, ttsSubmittedAt: new Date() }).where(eq(videos.id, videoId));
+export async function setVideoTtsTaskId(videoId: number, taskId: string, ttsText: string) {
+  await db
+    .update(videos)
+    .set({ ttsTaskId: taskId, ttsText, ttsSubmittedAt: new Date() })
+    .where(eq(videos.id, videoId));
 }
 
 export async function clearVideoTtsTaskId(videoId: number) {

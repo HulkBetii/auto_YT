@@ -444,7 +444,7 @@ export async function runTTSForReadyVideos(): Promise<TTSRunResult> {
           console.warn(`[tts] Video #${video.id} AI33.PRO submit failed — trying Genmax fallback: ${msg}`);
           taskId = GENMAX_TASK_PREFIX + (await submitGenmax(ttsText, voiceId));
         }
-        await setVideoTtsTaskId(video.id, taskId); // also saves tts_submitted_at = now()
+        await setVideoTtsTaskId(video.id, taskId, ttsText); // also saves tts_submitted_at = now()
         console.log(`[tts] Video #${video.id} submitted task ${taskId} (voice: ${voiceId})`);
         results.push({ videoId: video.id, ok: false, error: "submitted" });
       } else {

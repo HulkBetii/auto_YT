@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -32,7 +33,9 @@ export const videoStatusEnum = pgEnum("video_status", [
 
 export const videoFormatEnum = pgEnum("video_format", ["standard", "comparison"]);
 
-export const videos = pgTable("videos", {
+export const videos = pgTable(
+  "videos",
+  {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   titlePattern: text("title_pattern"),
@@ -61,10 +64,45 @@ export const videos = pgTable("videos", {
   /** AI33.PRO task_id of the in-flight TTS job. Set when submitted, cleared when audio_url is saved.
    *  Prevents duplicate submissions when cron fires before the previous task completes. */
   ttsTaskId: text("tts_task_id"),
+  /** Exact narration submitted to the TTS provider, including supported pause tags. */
+  ttsText: text("tts_text"),
   /** UTC timestamp when the TTS task was submitted. Used to detect stale tasks (> 15 min without completion). */
   ttsSubmittedAt: timestamp("tts_submitted_at", { withTimezone: true }),
+  /**
+   * Video render lifecycle — ORTHOGONAL to `status` (a video can be published AND render_status=done).
+   * Driven entirely by the local render worker (src/auto_yt/render_worker.py), never by the serverless
+   * chain. not_started → rendering → done | failed. Vercel can't run ffmpeg, so this lives out-of-band.
+   */
+  renderStatus: text("render_status").notNull().default("not_started"),
+  /** Local filesystem path of the rendered final_video.mp4 (written by the local render worker). */
+  videoPath: text("video_path"),
+  /** Whisper transcript retained for alignment audit; display text comes from tts_text. */
+  whisperTranscript: text("whisper_transcript"),
+  renderError: text("render_error"),
+  renderAttemptCount: integer("render_attempt_count").notNull().default(0),
+  renderNextAttemptAt: timestamp("render_next_attempt_at", { withTimezone: true }),
+  renderRequestedAt: timestamp("render_requested_at", { withTimezone: true }),
+  renderStartedAt: timestamp("render_started_at", { withTimezone: true }),
+  renderFinishedAt: timestamp("render_finished_at", { withTimezone: true }),
+  renderHeartbeatAt: timestamp("render_heartbeat_at", { withTimezone: true }),
+  renderWorkerToken: text("render_worker_token"),
+  renderedAudioUrl: text("rendered_audio_url"),
+  renderSourceHash: text("render_source_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+  },
+  (table) => [
+    index("videos_render_queue_idx").on(
+      table.renderStatus,
+      table.renderNextAttemptAt,
+      table.renderRequestedAt,
+      table.id,
+    ),
+  ],
+);
+
+/** render_status values — kept as TEXT (not a pgEnum) so the Python worker writes raw strings without a cast. */
+export const RENDER_STATUSES = ["not_started", "rendering", "done", "failed"] as const;
+export type RenderStatus = (typeof RENDER_STATUSES)[number];
 
 export const videosRelations = relations(videos, ({ many }) => ({
   content: many(videoContentTableRef),

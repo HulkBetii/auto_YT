@@ -13,6 +13,7 @@ import {
 } from "@/lib/ui/fixedPersona";
 import { getVideo } from "@/lib/db/repo/videos";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
+import { renderedVideoExists } from "@/lib/render/files";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -29,6 +30,7 @@ import { YoutubeIdInline } from "./YoutubeIdInline";
 import { AnalyticsForm } from "./AnalyticsForm";
 import { PipelineTimeline } from "./PipelineTimeline";
 import { AudioCard, AudioCardPending, AudioCardNoMapping } from "./AudioCard";
+import { RenderPanel } from "./RenderPanel";
 export const dynamic = "force-dynamic";
 export default async function VideoDetailPage({
   params,
@@ -40,7 +42,7 @@ export default async function VideoDetailPage({
   if (!Number.isFinite(videoId)) notFound();
   const video = await getVideo(videoId);
   if (!video) notFound();
-  const [content, videoJobs, analytics, ttsStatusFn] = await Promise.all([
+  const [content, videoJobs, analytics, ttsStatusFn, outputAvailable] = await Promise.all([
     db
       .select()
       .from(videoContent)
@@ -57,6 +59,7 @@ export default async function VideoDetailPage({
       .where(eq(videoAnalytics.videoId, videoId))
       .orderBy(videoAnalytics.fetchedAt),
     buildTTSStatusChecker(),
+    renderedVideoExists(videoId),
   ]);
   const ttsStatus = ttsStatusFn(video.featuredPerson, video.audioUrl);
   const personaStatus = getPersonaUiStatus(video.featuredPerson);
@@ -364,6 +367,27 @@ export default async function VideoDetailPage({
               ) : null}
             </section>
           )}
+          <RenderPanel
+            videoId={video.id}
+            initialSnapshot={{
+              audioUrl: video.audioUrl,
+              renderStatus: video.renderStatus,
+              renderError: video.renderError,
+              renderAttemptCount: video.renderAttemptCount,
+              renderNextAttemptAt: video.renderNextAttemptAt,
+              renderRequestedAt: video.renderRequestedAt,
+              renderStartedAt: video.renderStartedAt,
+              renderFinishedAt: video.renderFinishedAt,
+              renderHeartbeatAt: video.renderHeartbeatAt,
+              outputAvailable,
+              outputCurrent:
+                outputAvailable &&
+                video.renderStatus === "done" &&
+                video.audioUrl === video.renderedAudioUrl,
+              waitingForAudio: !video.audioUrl,
+              missingTtsText: Boolean(video.audioUrl && !video.ttsText),
+            }}
+          />
         </div>
       </div>
     </>

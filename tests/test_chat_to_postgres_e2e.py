@@ -64,8 +64,10 @@ async def run() -> bool:
     account = load_account()
 
     pw = await async_playwright().start()
+    profile_dir = gpt_profile_dir()
+    profile_dir.mkdir(parents=True, exist_ok=True)
     ctx = await pw.chromium.launch_persistent_context(
-        str(gpt_profile_dir("PROFILE_GPT_1")),
+        str(profile_dir),
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
         viewport={"width": 1280, "height": 800},

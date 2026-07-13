@@ -39,7 +39,7 @@ for (const video of toProcess) {
     console.log(`🎙️  ${tag} → voice=${voiceId} (${text.length} chars)`);
 
     const taskId = await submitTTS(text, voiceId);
-    await setVideoTtsTaskId(video.id, taskId); // persist so server-side fire-and-poll can cancel/resume on timeout
+    await setVideoTtsTaskId(video.id, taskId, text); // persist so server-side fire-and-poll can cancel/resume on timeout
     console.log(`   submitted task=${taskId}, polling...`);
 
     const audioUrl = await pollTTSTask(taskId, 600_000); // 10 min max per video (clone voice can be slow)
