@@ -8,7 +8,7 @@ export function NavLink({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       className={[
-        "relative flex h-[52px] items-center text-[14px] font-medium transition-colors duration-150",
+        "relative flex h-[52px] shrink-0 items-center text-[14px] font-medium transition-colors duration-150",
         isActive
           ? "text-[var(--text-primary)]"
           : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",

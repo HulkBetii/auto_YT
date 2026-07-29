@@ -1,7 +1,9 @@
 import { getAllDrConfig } from "@/lib/db/repo/channel-config";
-import { DR_CONFIG_KEYS } from "@/lib/db/schema";
+import { hasStudySettingValue } from "@/lib/db/repo/study-settings";
+import { DR_CONFIG_KEYS, STUDY_SETTING_KEYS } from "@/lib/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { SettingField } from "./SettingField";
+import { StudyApiKeyField } from "./StudyApiKeyField";
 export const dynamic = "force-dynamic";
 const FIELDS = [
   {
@@ -27,9 +29,11 @@ const FIELDS = [
 ] as const;
 export default async function SettingsPage() {
   let config: Record<string, string> = {};
+  let studyAi33ApiKeyConfigured = false;
   let dbError: string | null = null;
   try {
     config = await getAllDrConfig();
+    studyAi33ApiKeyConfigured = await hasStudySettingValue(STUDY_SETTING_KEYS.ai33ApiKey);
   } catch (err) {
     dbError = err instanceof Error ? err.message : String(err);
     console.error("[settings] database unavailable", dbError);
@@ -67,6 +71,10 @@ export default async function SettingsPage() {
               placeholder={f.placeholder}
             />
           ))}
+          <StudyApiKeyField
+            fieldKey={STUDY_SETTING_KEYS.ai33ApiKey}
+            configured={studyAi33ApiKeyConfigured}
+          />
         </div>
       </section>
     </>

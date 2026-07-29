@@ -15,6 +15,27 @@
       "when": 1782220168251,
       "tag": "0001_past_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785080101396,
+      "tag": "0002_study_mvp",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785115377515,
+      "tag": "0003_study_music_generation",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785120672444,
+      "tag": "0004_study_settings",
+      "breakpoints": true
     }
   ]
 }
