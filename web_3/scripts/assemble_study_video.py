@@ -27,6 +27,8 @@ except Exception:
     pass
 
 DEFAULT_STUDY_MEDIA_ROOT = Path(r"D:\VibeCoding\STUDY_WITH_ME")
+DEFAULT_STUDY_OVERLAY_FONT = Path(r"C:\Windows\Fonts\consolab.ttf")
+STUDY_OVERLAY_FONT_ENV = "STUDY_OVERLAY_FONT"
 CROSSFADE_SEC = 3.0
 FADE_SEC = 3.0
 TARGET_WIDTH = 1920
@@ -400,7 +402,7 @@ def _load_env_local() -> None:
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
             value = value[1:-1]
-        if key in {"DATABASE_URL", "STUDY_MEDIA_ROOT"} and not os.getenv(key):
+        if key in {"DATABASE_URL", "STUDY_MEDIA_ROOT", STUDY_OVERLAY_FONT_ENV} and not os.getenv(key):
             os.environ[key] = value
 
 
@@ -805,16 +807,15 @@ def nvenc_runtime_available() -> bool:
 
 
 def _resolve_timer_font() -> Path:
-    candidates = [
-        Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / "consolab.ttf",
-        Path(r"C:\Windows\Fonts\consolab.ttf"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"),
-        Path("/usr/share/fonts/truetype/liberation2/LiberationMono-Bold.ttf"),
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-    raise AssemblyError("Consolas Bold (or a monospace bold fallback) font was not found.")
+    _load_env_local()
+    configured = os.getenv(STUDY_OVERLAY_FONT_ENV, "").strip()
+    font_path = Path(configured) if configured else DEFAULT_STUDY_OVERLAY_FONT
+    if not font_path.is_absolute() or not font_path.is_file():
+        raise AssemblyError(
+            f"{STUDY_OVERLAY_FONT_ENV} must be an absolute path to an existing font file: "
+            f"{font_path}"
+        )
+    return font_path.resolve()
 
 
 def _escape_filter_path(path: Path) -> str:
@@ -1921,6 +1922,7 @@ async def preview_video_id(video_id: int, run_id: str) -> Path:
         raise AssemblyError(f"Audio week {week_number} is not ready.")
     if context["rights_verified_at"] is None:
         raise AssemblyError(f"Commercial rights for audio week {week_number} are not verified.")
+    _resolve_timer_font()
 
     requested_offset = float(context.get("preview_requested_offset_sec") or 0.0)
     claimed_actual_offset = float(context.get("preview_actual_offset_sec") or 0.0)
@@ -2004,6 +2006,7 @@ async def assemble_video_id(video_id: int) -> Path:
         raise AssemblyError(
             "The video must be claimed by the Assemble API before running the media worker."
         )
+    _resolve_timer_font()
 
     assembly_started_at = context["assembly_started_at"]
     media_root = _media_root().resolve()

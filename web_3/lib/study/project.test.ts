@@ -1,24 +1,35 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   clampStudyPreviewWindow,
+  DEFAULT_STUDY_OVERLAY_FONT,
   getStudyDayPaths,
   getStudyWeekPaths,
   isFreshStudyAssembly,
   isFreshStudyMusicGeneration,
   isFreshStudyPreview,
+  resolveStudyOverlayFontPath,
   studyAudioWeekStatusForRights,
   StudyVideoCreateSchema,
   weekNumberForDay,
 } from "./project";
 
 const originalMediaRoot = process.env.STUDY_MEDIA_ROOT;
+const originalOverlayFont = process.env.STUDY_OVERLAY_FONT;
+const temporaryDirectories: string[] = [];
 
 afterEach(() => {
   if (originalMediaRoot === undefined) delete process.env.STUDY_MEDIA_ROOT;
   else process.env.STUDY_MEDIA_ROOT = originalMediaRoot;
+  if (originalOverlayFont === undefined) delete process.env.STUDY_OVERLAY_FONT;
+  else process.env.STUDY_OVERLAY_FONT = originalOverlayFont;
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 describe("study project helpers", () => {
@@ -52,6 +63,30 @@ describe("study project helpers", () => {
     );
     expect(day.masterVideoPath).toBe(path.join(day.workDir, "master_silent.mp4"));
     expect(day.finalVideoPath).toBe(path.join(day.outputDir, "final_video.mp4"));
+  });
+
+  it("uses the pinned default Study overlay font", () => {
+    delete process.env.STUDY_OVERLAY_FONT;
+    expect(resolveStudyOverlayFontPath()).toBe(DEFAULT_STUDY_OVERLAY_FONT);
+  });
+
+  it("accepts a custom absolute Study overlay font file", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "study-overlay-font-"));
+    temporaryDirectories.push(directory);
+    const fontPath = path.join(directory, "custom.ttf");
+    writeFileSync(fontPath, "test font");
+    process.env.STUDY_OVERLAY_FONT = fontPath;
+    expect(resolveStudyOverlayFontPath()).toBe(path.resolve(fontPath));
+  });
+
+  it.each([
+    ["relative", path.join("fonts", "consolab.ttf")],
+    ["missing", path.join(os.tmpdir(), "missing-study-overlay-font.ttf")],
+  ])("rejects a %s Study overlay font path", (_label, fontPath) => {
+    process.env.STUDY_OVERLAY_FONT = fontPath;
+    expect(() => resolveStudyOverlayFontPath()).toThrow(
+      new RegExp(`STUDY_OVERLAY_FONT.*${fontPath.replaceAll("\\", "\\\\")}`),
+    );
   });
 
   it("only blocks assembly while its four-hour lease is fresh", () => {

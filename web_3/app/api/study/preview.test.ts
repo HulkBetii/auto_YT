@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getVideo: vi.fn(),
   getWeek: vi.fn(),
   markFailed: vi.fn(),
+  resolveOverlayFont: vi.fn(),
   scanFootage: vi.fn(),
 }));
 
@@ -18,7 +19,11 @@ vi.mock("@/lib/db/repo/study", () => ({
 
 vi.mock("@/lib/study/project", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/study/project")>();
-  return { ...actual, ensureStudyDayDirs: mocks.ensureDayDirs };
+  return {
+    ...actual,
+    ensureStudyDayDirs: mocks.ensureDayDirs,
+    resolveStudyOverlayFontPath: mocks.resolveOverlayFont,
+  };
 });
 
 vi.mock("@/lib/study/media", () => ({ scanStudyFootage: mocks.scanFootage }));
@@ -111,6 +116,7 @@ beforeEach(() => {
   mocks.scanFootage.mockResolvedValue(footageManifest);
   mocks.claim.mockResolvedValue(new Date("2026-07-26T00:00:00Z"));
   mocks.markFailed.mockResolvedValue(true);
+  mocks.resolveOverlayFont.mockReturnValue("C:\\Windows\\Fonts\\consolab.ttf");
 });
 
 describe("study preview API", () => {
@@ -165,5 +171,18 @@ describe("study preview API", () => {
     mocks.claim.mockResolvedValue(null);
     const response = await previewVideo(request({}), { params: Promise.resolve({ id: "1" }) });
     expect(response.status).toBe(409);
+  });
+
+  it("rejects a missing overlay font before scanning or claiming", async () => {
+    mocks.resolveOverlayFont.mockImplementation(() => {
+      throw new Error(
+        "STUDY_OVERLAY_FONT must be an absolute path to an existing font file: C:\\missing.ttf",
+      );
+    });
+    const response = await previewVideo(request({}), { params: Promise.resolve({ id: "1" }) });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("STUDY_OVERLAY_FONT") });
+    expect(mocks.scanFootage).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 
 import { z } from "zod";
@@ -13,6 +14,8 @@ export const STUDY_PREVIEW_DURATION_SEC = 90;
 export const STUDY_PREVIEW_STALE_MS = 30 * 60 * 1000;
 export const STUDY_MUSIC_GENERATION_STALE_MS = 5 * 60 * 1000;
 export const DEFAULT_STUDY_MEDIA_ROOT = String.raw`D:\VibeCoding\STUDY_WITH_ME`;
+export const DEFAULT_STUDY_OVERLAY_FONT = String.raw`C:\Windows\Fonts\consolab.ttf`;
+export const STUDY_OVERLAY_FONT_ENV = "STUDY_OVERLAY_FONT";
 
 export const StudyWeekCreateSchema = z.object({
   weekNumber: z.number().int().min(1).max(STUDY_MAX_WEEKS),
@@ -98,6 +101,23 @@ function paddedNumber(value: number): string {
 
 export function getStudyMediaRoot(): string {
   return path.resolve(process.env.STUDY_MEDIA_ROOT?.trim() || DEFAULT_STUDY_MEDIA_ROOT);
+}
+
+export function resolveStudyOverlayFontPath(): string {
+  const fontPath = process.env[STUDY_OVERLAY_FONT_ENV]?.trim() || DEFAULT_STUDY_OVERLAY_FONT;
+  if (!path.isAbsolute(fontPath)) {
+    throw new Error(
+      `${STUDY_OVERLAY_FONT_ENV} must be an absolute path to an existing font file: ${fontPath}`,
+    );
+  }
+  try {
+    if (!statSync(fontPath).isFile()) throw new Error("not a regular file");
+  } catch {
+    throw new Error(
+      `${STUDY_OVERLAY_FONT_ENV} must be an absolute path to an existing font file: ${fontPath}`,
+    );
+  }
+  return path.resolve(fontPath);
 }
 
 export function getStudyWeekPaths(weekNumber: number) {

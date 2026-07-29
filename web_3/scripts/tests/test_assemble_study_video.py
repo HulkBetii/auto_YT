@@ -18,6 +18,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from assemble_study_video import (  # noqa: E402
     AssemblyError,
     AudioTrackInfo,
+    DEFAULT_STUDY_OVERLAY_FONT,
     FootageInfo,
     LoudnessMeasurement,
     OutputInfo,
@@ -29,6 +30,7 @@ from assemble_study_video import (  # noqa: E402
     _parse_loudnorm_measurement,
     _normalized_video_filter,
     _pomodoro_video_filter,
+    _resolve_timer_font,
     _validate_silent_master,
     _validate_final_loudness,
     _video_filter,
@@ -84,6 +86,33 @@ def make_footage(index: int = 1, duration_sec: float = 120.0) -> FootageInfo:
 
 
 class HelperTests(unittest.TestCase):
+    def test_timer_font_uses_pinned_default(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(_resolve_timer_font(), DEFAULT_STUDY_OVERLAY_FONT.resolve())
+
+    def test_timer_font_accepts_custom_absolute_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            font_path = Path(temp) / "custom.ttf"
+            font_path.write_bytes(b"test font")
+            with patch.dict(os.environ, {"STUDY_OVERLAY_FONT": str(font_path)}, clear=True):
+                self.assertEqual(_resolve_timer_font(), font_path.resolve())
+
+    def test_timer_font_rejects_relative_missing_and_directory_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            invalid_paths = [Path("fonts/consolab.ttf"), Path(temp) / "missing.ttf", Path(temp)]
+            for font_path in invalid_paths:
+                with self.subTest(font_path=font_path):
+                    with patch.dict(
+                        os.environ,
+                        {"STUDY_OVERLAY_FONT": str(font_path)},
+                        clear=True,
+                    ):
+                        with self.assertRaisesRegex(
+                            AssemblyError,
+                            "STUDY_OVERLAY_FONT.*existing font file",
+                        ):
+                            _resolve_timer_font()
+
     def test_preview_window_clamps_to_source(self) -> None:
         self.assertEqual(clamp_preview_window(0, 60), (0, 60))
         self.assertEqual(clamp_preview_window(999, 120), (30, 90))

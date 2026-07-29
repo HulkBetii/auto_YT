@@ -20,6 +20,7 @@ import {
   ensureStudyDayDirs,
   isFreshStudyAssembly,
   isFreshStudyPreview,
+  resolveStudyOverlayFontPath,
   STUDY_ASSEMBLY_STALE_MS,
   STUDY_PREVIEW_STALE_MS,
   STUDY_TRACKS_PER_WEEK,
@@ -94,6 +95,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (!existsSync(assemblerScriptPath())) {
     return NextResponse.json({ ok: false, error: "Study assembler script is missing" }, { status: 500 });
+  }
+  try {
+    resolveStudyOverlayFontPath();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 
   let assemblyClaimed = false;
