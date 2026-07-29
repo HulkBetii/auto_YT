@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 import shutil
 import subprocess
 import sys
@@ -18,12 +19,18 @@ from assemble_study_video import (  # noqa: E402
     AssemblyError,
     AudioTrackInfo,
     FootageInfo,
+    LoudnessMeasurement,
     OutputInfo,
     SilentMasterInfo,
     _audio_filter,
+    _loudnorm_filter,
+    _measure_loudness,
+    _normalize_sequence,
+    _parse_loudnorm_measurement,
     _normalized_video_filter,
     _pomodoro_video_filter,
     _validate_silent_master,
+    _validate_final_loudness,
     _video_filter,
     build_audio_sequence,
     build_pomodoro_cue_schedule,
@@ -147,8 +154,8 @@ class HelperTests(unittest.TestCase):
     def test_audio_sequence_accounts_for_crossfade(self) -> None:
         tracks = [make_track(index) for index in range(20)]
         sequence = build_audio_sequence(tracks, day_number=1, target_duration_sec=30, crossfade_sec=3)
-        self.assertEqual(len(sequence), 4)
-        effective_duration = sum(item.duration_sec for item in sequence) - 3 * (len(sequence) - 1)
+        self.assertEqual(len(sequence), 5)
+        effective_duration = sum(item.duration_sec for item in sequence) - 3 * len(sequence)
         self.assertGreaterEqual(effective_duration, 30)
 
     def test_audio_sequence_loops_after_all_twenty_tracks(self) -> None:
@@ -162,7 +169,7 @@ class HelperTests(unittest.TestCase):
         self.assertGreater(len(sequence), 20)
         self.assertEqual(sequence[0].path.name, "02.mp3")
         self.assertEqual(sequence[20].path.name, "02.mp3")
-        effective_duration = sum(item.duration_sec for item in sequence) - 3 * (len(sequence) - 1)
+        effective_duration = sum(item.duration_sec for item in sequence) - 3 * len(sequence)
         self.assertGreaterEqual(effective_duration, 150)
 
     def test_track_must_be_longer_than_crossfade(self) -> None:
@@ -253,13 +260,19 @@ class HelperTests(unittest.TestCase):
         self.assertIn("FOCUS", video_filter)
         self.assertIn("BREAK", video_filter)
 
-        audio_filter = _audio_filter(1, 7, 0.05, 4, 2)
+        audio_filter = _audio_filter(2, 7, 0.05, 4, 2)
         self.assertIn("sin(2*PI*880*t)", audio_filter)
         self.assertIn("sin(2*PI*660*t)", audio_filter)
         self.assertIn("adelay=4000|4000", audio_filter)
         self.assertIn("adelay=4400|4400", audio_filter)
         self.assertIn("volume=volume=0.630957", audio_filter)
-        self.assertIn("alimiter=limit=0.891251", audio_filter)
+        self.assertIn("alimiter=limit=0.794328", audio_filter)
+        self.assertNotIn("loudnorm", audio_filter)
+        self.assertLess(audio_filter.index("acrossfade"), audio_filter.index("afade"))
+        self.assertLess(audio_filter.index("afade"), audio_filter.index("volume="))
+        self.assertLess(audio_filter.index("volume="), audio_filter.index("amix=inputs=2"))
+        self.assertLess(audio_filter.index("amix=inputs=2"), audio_filter.index("alimiter"))
+        self.assertLess(audio_filter.index("alimiter"), audio_filter.rindex("atrim="))
 
     def test_preview_audio_filter_keeps_absolute_timeline(self) -> None:
         audio_filter = _audio_filter(
@@ -274,6 +287,53 @@ class HelperTests(unittest.TestCase):
         )
         self.assertIn("adelay=3000000|3000000", audio_filter)
         self.assertIn("atrim=start=2970.000000:end=3060.000000", audio_filter)
+
+    def test_loudnorm_measurement_and_apply_filter(self) -> None:
+        output = """
+        [Parsed_loudnorm_0] {
+            "input_i" : "-22.10",
+            "input_tp" : "-4.20",
+            "input_lra" : "3.10",
+            "input_thresh" : "-32.20",
+            "target_offset" : "0.30"
+        }
+        """
+        measured = _parse_loudnorm_measurement(output)
+        self.assertEqual(measured.integrated_lufs, -22.1)
+        apply_filter = _loudnorm_filter(measured=measured, print_format="summary")
+        self.assertIn("measured_I=-22.100000", apply_filter)
+        self.assertIn("measured_TP=-4.200000", apply_filter)
+        self.assertIn("linear=true", apply_filter)
+
+    def test_normalized_tracks_are_reused_when_playlist_loops(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            first = make_track(1)
+            second = make_track(2)
+
+            def normalize(source, destination):
+                return replace(source, path=destination, codec_name="flac")
+
+            with patch("assemble_study_video._normalize_track", side_effect=normalize) as normalize_mock:
+                result = _normalize_sequence([first, second, first], Path(temp))
+            self.assertEqual(normalize_mock.call_count, 2)
+            self.assertEqual(result[0].path, result[2].path)
+
+    def test_final_loudness_acceptance_checks_lufs_and_true_peak(self) -> None:
+        accepted = LoudnessMeasurement(-16.2, -1.7, 4.0, -26.0, 0.0)
+        with patch("assemble_study_video._measure_loudness", return_value=accepted):
+            self.assertEqual(_validate_final_loudness(Path("final.mp4")), accepted)
+        with patch(
+            "assemble_study_video._measure_loudness",
+            return_value=replace(accepted, integrated_lufs=-17.2),
+        ):
+            with self.assertRaises(AssemblyError):
+                _validate_final_loudness(Path("final.mp4"))
+        with patch(
+            "assemble_study_video._measure_loudness",
+            return_value=replace(accepted, true_peak_dbtp=-1.4),
+        ):
+            with self.assertRaises(AssemblyError):
+                _validate_final_loudness(Path("final.mp4"))
 
     def test_silent_master_validation(self) -> None:
         valid = SilentMasterInfo(
@@ -406,9 +466,11 @@ class PreviewRenderTests(unittest.TestCase):
                 patch("assemble_study_video._render_preview_video_from_master", side_effect=write_destination) as from_master,
                 patch("assemble_study_video._render_preview_video_from_footage", side_effect=write_destination) as from_footage,
                 patch("assemble_study_video._render_audio", side_effect=write_destination),
+                patch("assemble_study_video._normalize_sequence", side_effect=lambda sequence, _temp: list(sequence)),
                 patch("assemble_study_video._mux_preview", side_effect=mux),
                 patch("assemble_study_video.probe_output", return_value=valid_output),
                 patch("assemble_study_video._validate_output"),
+                patch("assemble_study_video._validate_final_loudness"),
             ):
                 render_preview_media(
                     footage,
@@ -544,22 +606,22 @@ class FfmpegSmokeTests(unittest.TestCase):
                 [
                     "-f", "lavfi", "-i", "color=c=0x202020:size=640x360:rate=24",
                     "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
-                    "-t", "1.2", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-t", "60", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                     "-c:a", "aac", str(source_dir / "clip1.mp4"),
                 ]
             )
             self.run_ffmpeg(
                 [
                     "-f", "lavfi", "-i", "color=c=0x303030:size=1280x720:rate=25",
-                    "-t", "1.1", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-t", "60", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                     str(source_dir / "clip2.mp4"),
                 ]
             )
             base_track = audio_dir / "01.mp3"
             self.run_ffmpeg(
                 [
-                    "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                    "-t", "0.35", "-c:a", "libmp3lame", str(base_track),
+                    "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=44100",
+                    "-t", "125", "-c:a", "libmp3lame", str(base_track),
                 ]
             )
             for index in range(2, 21):
@@ -575,8 +637,8 @@ class FfmpegSmokeTests(unittest.TestCase):
                 crossfade_sec=0.05,
                 prefer_nvenc=False,
                 check_disk=False,
-                pomodoro_focus_sec=1,
-                pomodoro_break_sec=1,
+                pomodoro_focus_sec=50,
+                pomodoro_break_sec=20,
             )
 
             self.assertTrue(output.exists())
@@ -588,19 +650,32 @@ class FfmpegSmokeTests(unittest.TestCase):
             self.assertLessEqual(abs(result.duration_sec - sum(item.duration_sec for item in footage)), 2.0)
             self.assertEqual(probe_output(output), result)
 
-            focus_frame = self.extract_timer_frame(output, 0.5)
-            break_frame = self.extract_timer_frame(output, 1.5)
+            focus_frame = self.extract_timer_frame(output, 20)
+            break_frame = self.extract_timer_frame(output, 55)
             self.assertGreater(self.count_near_color(focus_frame, (103, 232, 249)), 20)
             self.assertGreater(self.count_near_color(break_frame, (245, 158, 11)), 20)
 
             samples = self.decode_audio(output)
-            for cue_start in (0.0, 1.0, 1.4, 2.0):
+            for cue_start in (0.0, 50.0, 50.4, 70.0):
                 with self.subTest(cue_start=cue_start):
                     self.assertGreater(
                         self.audio_window_peak(samples, cue_start, cue_start + 0.25),
                         0.02,
                     )
             self.assertLess(max(abs(value) for value in samples), 1.0)
+
+    def test_loudnorm_analysis_reads_ffmpeg_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            audio = Path(temp) / "tone.wav"
+            self.run_ffmpeg(
+                [
+                    "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000",
+                    "-t", "5", "-c:a", "pcm_s16le", str(audio),
+                ]
+            )
+            measurement = _measure_loudness(audio)
+            self.assertTrue(math.isfinite(measurement.integrated_lufs))
+            self.assertTrue(math.isfinite(measurement.true_peak_dbtp))
 
 
 if __name__ == "__main__":

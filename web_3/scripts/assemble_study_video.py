@@ -36,7 +36,10 @@ ASPECT_RATIO_TOLERANCE = 0.02
 MIN_FREE_SPACE_MULTIPLIER = 2.5
 EXPECTED_TRACK_COUNT = 20
 OUTPUT_DURATION_TOLERANCE_SEC = 2.0
-LOUDNORM_FILTER = "loudnorm=I=-16:TP=-1.5:LRA=11"
+LOUDNESS_TARGET_I = -16.0
+LOUDNESS_TARGET_TP = -1.5
+LOUDNESS_TARGET_LRA = 11.0
+LOUDNESS_I_TOLERANCE = 1.0
 STUDY_MASTER_PROFILE = "study-master-v1"
 STUDY_ASSEMBLY_PROFILE = "study-pomodoro-v2"
 POMODORO_FOCUS_SEC = 50 * 60
@@ -53,7 +56,7 @@ POMODORO_CHIME_DURATION_SEC = 1.2
 POMODORO_CHIME_DECAY = 3.0
 POMODORO_CHIME_FUNDAMENTAL_GAIN = 0.18
 POMODORO_CHIME_HARMONIC_GAIN = 0.08
-POMODORO_LIMITER_LEVEL = 10 ** (-1 / 20)
+POMODORO_LIMITER_LEVEL = 10 ** (-2 / 20)
 PREVIEW_DURATION_SEC = 90.0
 PREVIEW_HEARTBEAT_SEC = 15.0
 _ASYNCPG_UNSUPPORTED = {"channel_binding", "options"}
@@ -105,6 +108,15 @@ class OutputInfo:
     frame_rate: float
     video_codec: str
     audio_codec: str
+
+
+@dataclass(frozen=True)
+class LoudnessMeasurement:
+    integrated_lufs: float
+    true_peak_dbtp: float
+    loudness_range: float
+    threshold: float
+    target_offset: float
 
 
 @dataclass(frozen=True)
@@ -186,9 +198,7 @@ def build_audio_sequence(
     while effective_duration + 1e-6 < target_duration_sec:
         track = ordered[index % len(ordered)]
         sequence.append(track)
-        effective_duration += track.duration_sec
-        if len(sequence) > 1:
-            effective_duration -= crossfade_sec
+        effective_duration += track.duration_sec - crossfade_sec
         index += 1
         if index > 10_000:
             raise AssemblyError("Audio playlist expansion exceeded the safety limit.")
@@ -455,6 +465,154 @@ def _run_media_command(command: list[str], label: str) -> None:
         raise AssemblyError(f"Required executable is not available: {command[0]}") from exc
     except subprocess.CalledProcessError as exc:
         raise AssemblyError(f"{label} failed with exit code {exc.returncode}.") from exc
+
+
+def _run_media_capture(command: list[str], label: str) -> str:
+    print(f"{label}...")
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except FileNotFoundError as exc:
+        raise AssemblyError(f"Required executable is not available: {command[0]}") from exc
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise AssemblyError(f"{label} failed: {detail[-2000:]}") from exc
+    return f"{result.stdout}\n{result.stderr}"
+
+
+def _loudnorm_filter(
+    *,
+    measured: LoudnessMeasurement | None = None,
+    print_format: str = "json",
+) -> str:
+    fields = [
+        f"I={LOUDNESS_TARGET_I:g}",
+        f"TP={LOUDNESS_TARGET_TP:g}",
+        f"LRA={LOUDNESS_TARGET_LRA:g}",
+    ]
+    if measured is not None:
+        fields.extend(
+            [
+                f"measured_I={measured.integrated_lufs:.6f}",
+                f"measured_TP={measured.true_peak_dbtp:.6f}",
+                f"measured_LRA={measured.loudness_range:.6f}",
+                f"measured_thresh={measured.threshold:.6f}",
+                f"offset={measured.target_offset:.6f}",
+                "linear=true",
+            ]
+        )
+    return f"loudnorm={':'.join(fields)}:print_format={print_format}"
+
+
+def _parse_loudnorm_measurement(output: str) -> LoudnessMeasurement:
+    candidates = re.findall(r"\{[^{}]*\}", output, flags=re.DOTALL)
+    for candidate in reversed(candidates):
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        keys = ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")
+        if not all(key in value for key in keys):
+            continue
+        try:
+            measurement = LoudnessMeasurement(
+                integrated_lufs=float(value["input_i"]),
+                true_peak_dbtp=float(value["input_tp"]),
+                loudness_range=float(value["input_lra"]),
+                threshold=float(value["input_thresh"]),
+                target_offset=float(value["target_offset"]),
+            )
+        except (TypeError, ValueError) as exc:
+            raise AssemblyError("FFmpeg loudnorm returned non-finite measurements.") from exc
+        if not all(math.isfinite(item) for item in (
+            measurement.integrated_lufs,
+            measurement.true_peak_dbtp,
+            measurement.loudness_range,
+            measurement.threshold,
+            measurement.target_offset,
+        )):
+            raise AssemblyError("FFmpeg loudnorm returned non-finite measurements.")
+        return measurement
+    raise AssemblyError("FFmpeg loudnorm analysis did not return a JSON measurement.")
+
+
+def _measure_loudness(path: Path) -> LoudnessMeasurement:
+    output = _run_media_capture(
+        [
+            "ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "info", "-nostats",
+            "-i", str(path),
+            "-map", "0:a:0",
+            "-af", _loudnorm_filter(print_format="json"),
+            "-f", "null", "-",
+        ],
+        f"Analyzing loudness for {path.name}",
+    )
+    return _parse_loudnorm_measurement(output)
+
+
+def _normalize_track(source: AudioTrackInfo, destination: Path) -> AudioTrackInfo:
+    measured = _measure_loudness(source.path)
+    _run_media_command(
+        [
+            "ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats",
+            "-i", str(source.path),
+            "-map", "0:a:0",
+            "-af", _loudnorm_filter(measured=measured, print_format="summary"),
+            "-ar", "48000", "-ac", "2",
+            "-c:a", "flac",
+            str(destination),
+        ],
+        f"Normalizing track {source.path.name}",
+    )
+    probe = _probe(destination)
+    return AudioTrackInfo(
+        path=destination,
+        relative_path=source.relative_path,
+        sha256=source.sha256,
+        size_bytes=destination.stat().st_size,
+        duration_sec=_duration(probe, destination),
+        codec_name="flac",
+        sample_rate=48000,
+        channels=2,
+    )
+
+
+def _normalize_sequence(
+    sequence: Sequence[AudioTrackInfo],
+    temp_dir: Path,
+) -> list[AudioTrackInfo]:
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    cache: dict[str, AudioTrackInfo] = {}
+    normalized: list[AudioTrackInfo] = []
+    for source in sequence:
+        item = cache.get(source.sha256)
+        if item is None:
+            destination = temp_dir / f"normalized-{len(cache) + 1:02d}-{source.sha256[:12]}.flac"
+            item = _normalize_track(source, destination)
+            cache[source.sha256] = item
+        normalized.append(item)
+    return normalized
+
+
+def _validate_final_loudness(path: Path) -> LoudnessMeasurement:
+    measurement = _measure_loudness(path)
+    if abs(measurement.integrated_lufs - LOUDNESS_TARGET_I) > LOUDNESS_I_TOLERANCE:
+        raise AssemblyError(
+            f"Final integrated loudness is {measurement.integrated_lufs:.2f} LUFS; "
+            f"expected {LOUDNESS_TARGET_I:g} +/- {LOUDNESS_I_TOLERANCE:g}."
+        )
+    if measurement.true_peak_dbtp > LOUDNESS_TARGET_TP:
+        raise AssemblyError(
+            f"Final true peak is {measurement.true_peak_dbtp:.2f} dBTP; "
+            f"must be <= {LOUDNESS_TARGET_TP:g} dBTP."
+        )
+    return measurement
 
 
 def _probe(path: Path) -> dict[str, Any]:
@@ -862,8 +1020,7 @@ def _audio_filter(
     fade = min(FADE_SEC, full_duration / 2)
     fade_out_start = max(0.0, full_duration - fade)
     parts.append(
-        f"[music]{LOUDNORM_FILTER},"
-        f"atrim=end={timeline_end_sec:.6f},"
+        "[music]"
         f"afade=t=in:st=0:d={fade:.6f},"
         f"afade=t=out:st={fade_out_start:.6f}:d={fade:.6f},"
         "asetpts=PTS-STARTPTS[musicbase]"
@@ -1113,7 +1270,6 @@ def render_preview_media(
     if len(tracks) != EXPECTED_TRACK_COUNT:
         raise AssemblyError(f"Expected {EXPECTED_TRACK_COUNT} audio tracks, got {len(tracks)}.")
     timeline_end = timeline_start_sec + preview_duration_sec
-    sequence = build_audio_sequence(tracks, day_number, timeline_end, crossfade_sec)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp_dir = Path(tempfile.mkdtemp(prefix=".preview-", dir=destination.parent))
     preview_video = temp_dir / "preview_video.mp4"
@@ -1146,6 +1302,13 @@ def render_preview_media(
                 pomodoro_focus_sec,
                 pomodoro_break_sec,
             )
+        normalized_tracks = _normalize_sequence(tracks, temp_dir)
+        sequence = build_audio_sequence(
+            normalized_tracks,
+            day_number,
+            timeline_end,
+            crossfade_sec,
+        )
         _render_audio(
             sequence,
             preview_audio,
@@ -1160,6 +1323,7 @@ def render_preview_media(
         _mux_preview(preview_video, preview_audio, temporary_final, preview_duration_sec)
         output = probe_output(temporary_final)
         _validate_output(output, preview_duration_sec)
+        _validate_final_loudness(temporary_final)
         os.replace(temporary_final, destination)
         return output
     finally:
@@ -1258,7 +1422,6 @@ def assemble_from_master(
         raise AssemblyError(f"Expected {EXPECTED_TRACK_COUNT} audio tracks, got {len(tracks)}.")
     _validate_silent_master(probe_silent_master(master_path), target_duration_sec)
 
-    sequence = build_audio_sequence(tracks, day_number, target_duration_sec, crossfade_sec)
     final_path.parent.mkdir(parents=True, exist_ok=True)
 
     temp_dir = Path(tempfile.mkdtemp(prefix=".assembly-", dir=final_path.parent))
@@ -1267,6 +1430,13 @@ def assemble_from_master(
     try:
         use_nvenc = prefer_nvenc and nvenc_runtime_available()
         print(f"Video encoder: {'h264_nvenc' if use_nvenc else 'libx264'}")
+        normalized_tracks = _normalize_sequence(tracks, temp_dir)
+        sequence = build_audio_sequence(
+            normalized_tracks,
+            day_number,
+            target_duration_sec,
+            crossfade_sec,
+        )
         _render_audio(
             sequence,
             assembled_audio,
@@ -1286,6 +1456,7 @@ def assemble_from_master(
         )
         output = probe_output(temporary_final)
         _validate_output(output, target_duration_sec)
+        _validate_final_loudness(temporary_final)
         os.replace(temporary_final, final_path)
         return output
     finally:
