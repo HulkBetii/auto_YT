@@ -3,10 +3,12 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  clampStudyPreviewWindow,
   getStudyDayPaths,
   getStudyWeekPaths,
   isFreshStudyAssembly,
   isFreshStudyMusicGeneration,
+  isFreshStudyPreview,
   studyAudioWeekStatusForRights,
   StudyVideoCreateSchema,
   weekNumberForDay,
@@ -64,6 +66,18 @@ describe("study project helpers", () => {
     expect(isFreshStudyMusicGeneration("generating", new Date("2026-07-26T11:56:00Z"), now)).toBe(true);
     expect(isFreshStudyMusicGeneration("generating", new Date("2026-07-26T11:54:00Z"), now)).toBe(false);
     expect(isFreshStudyMusicGeneration("failed", new Date("2026-07-26T11:59:00Z"), now)).toBe(false);
+  });
+
+  it("clamps previews to a 90-second window", () => {
+    expect(clampStudyPreviewWindow(0, 60)).toEqual({ actualOffsetSec: 0, durationSec: 60 });
+    expect(clampStudyPreviewWindow(999, 120)).toEqual({ actualOffsetSec: 30, durationSec: 90 });
+  });
+
+  it("only blocks preview retries while the 30-minute heartbeat is fresh", () => {
+    const now = new Date("2026-07-26T12:00:00Z");
+    expect(isFreshStudyPreview("rendering", new Date("2026-07-26T11:31:00Z"), now)).toBe(true);
+    expect(isFreshStudyPreview("rendering", new Date("2026-07-26T11:29:00Z"), now)).toBe(false);
+    expect(isFreshStudyPreview("failed", new Date("2026-07-26T11:59:00Z"), now)).toBe(false);
   });
 
   it("keeps scanned music rights-gated until confirmation", () => {

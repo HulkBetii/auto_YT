@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CircleAlert,
   Coins,
+  Eye,
   Gauge,
   Loader2,
   Music2,
@@ -401,30 +402,56 @@ export function StudyDayActions({
   outputFolderPath,
   status,
   isFreshAssembly,
+  previewStatus,
+  previewActualOffsetSec,
+  previewErrorMessage,
+  isFreshPreview,
 }: {
   videoId: number;
   sourceFolderPath: string;
   outputFolderPath: string;
   status: string;
   isFreshAssembly: boolean;
+  previewStatus: string;
+  previewActualOffsetSec: number | null;
+  previewErrorMessage: string | null;
+  isFreshPreview: boolean;
 }) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isAssembleLoading, setIsAssembleLoading] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewOffset, setPreviewOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const isAssembling = status === "assembling";
 
   async function assemble() {
     setError(null);
-    setIsLoading(true);
+    setIsAssembleLoading(true);
     try {
       await postJson(`/api/study/videos/${videoId}/assemble`, {});
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Cannot start assembly.");
     } finally {
-      setIsLoading(false);
+      setIsAssembleLoading(false);
     }
   }
+
+  async function renderPreview(atSeconds: number) {
+    setError(null);
+    setPreviewOffset(atSeconds);
+    setIsPreviewLoading(true);
+    try {
+      await postJson(`/api/study/videos/${videoId}/preview`, { atSeconds });
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot start preview render.");
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }
+
+  const previewDisabled = isPreviewLoading || isFreshPreview || isFreshAssembly;
 
   return (
     <div className="space-y-2">
@@ -443,10 +470,10 @@ export function StudyDayActions({
           type="button"
           size="sm"
           onClick={assemble}
-          disabled={isLoading || isFreshAssembly}
+          disabled={isAssembleLoading || isFreshAssembly || isFreshPreview}
           className="h-7 gap-1.5 bg-[var(--accent-cyan)] text-[var(--dashboard-bg)] hover:bg-[var(--accent-cyan-hover)] text-[12px]"
         >
-          {isLoading || isFreshAssembly ? (
+          {isAssembleLoading || isFreshAssembly ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Play className="h-3.5 w-3.5" />
@@ -458,6 +485,60 @@ export function StudyDayActions({
               : "Assemble"}
         </Button>
       </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => renderPreview(0)}
+          disabled={previewDisabled}
+          className="h-7 text-[12px]"
+        >
+          Preview 0:00
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => renderPreview(2970)}
+          disabled={previewDisabled}
+          className="h-7 text-[12px]"
+        >
+          Preview 49:30
+        </Button>
+        <Input
+          type="number"
+          min={0}
+          step="any"
+          value={previewOffset}
+          onChange={(event) => setPreviewOffset(Number(event.target.value))}
+          aria-label="Preview offset in seconds"
+          className="h-7 w-24 text-[12px]"
+        />
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => renderPreview(previewOffset)}
+          disabled={previewDisabled || !Number.isFinite(previewOffset) || previewOffset < 0}
+          className="h-7 gap-1.5 text-[12px]"
+        >
+          {isPreviewLoading || isFreshPreview ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+          {isFreshPreview ? "Rendering preview" : "Render preview"}
+        </Button>
+      </div>
+      {previewStatus !== "idle" && (
+        <p className="text-[11px] text-[var(--text-muted)]">
+          Preview {previewStatus.replaceAll("_", " ")}
+          {previewActualOffsetSec === null ? "" : ` at ${Math.round(previewActualOffsetSec)}s`}
+        </p>
+      )}
+      {previewErrorMessage && previewStatus === "failed" && (
+        <p className="text-[12px] text-[var(--danger)]">{previewErrorMessage}</p>
+      )}
       <InlineError message={error} />
     </div>
   );

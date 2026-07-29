@@ -43,6 +43,13 @@
       "when": 1785317602418,
       "tag": "0005_study_master_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785319494564,
+      "tag": "0006_study_video_preview",
+      "breakpoints": true
     }
   ]
 }

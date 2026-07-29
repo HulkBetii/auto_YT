@@ -76,6 +76,8 @@ function video(overrides: Record<string, unknown> = {}) {
     weekId: 1,
     status: "draft",
     assemblyStartedAt: null,
+    previewStatus: "idle",
+    previewHeartbeatAt: null,
     ...overrides,
   };
 }
@@ -143,6 +145,17 @@ describe("study assemble API gates", () => {
     mocks.getVideo.mockResolvedValue(video({
       status: "assembling",
       assemblyStartedAt: new Date(Date.now() - 60_000),
+    }));
+    const response = await assembleVideo(request(), { params: Promise.resolve({ id: "1" }) });
+    expect(response.status).toBe(409);
+    expect(mocks.getWeek).not.toHaveBeenCalled();
+    expect(mocks.scanFootage).not.toHaveBeenCalled();
+  });
+
+  it("rejects assembly while a preview heartbeat is fresh", async () => {
+    mocks.getVideo.mockResolvedValue(video({
+      previewStatus: "rendering",
+      previewHeartbeatAt: new Date(Date.now() - 60_000),
     }));
     const response = await assembleVideo(request(), { params: Promise.resolve({ id: "1" }) });
     expect(response.status).toBe(409);

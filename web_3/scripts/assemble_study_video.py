@@ -54,6 +54,8 @@ POMODORO_CHIME_DECAY = 3.0
 POMODORO_CHIME_FUNDAMENTAL_GAIN = 0.18
 POMODORO_CHIME_HARMONIC_GAIN = 0.08
 POMODORO_LIMITER_LEVEL = 10 ** (-1 / 20)
+PREVIEW_DURATION_SEC = 90.0
+PREVIEW_HEARTBEAT_SEC = 15.0
 _ASYNCPG_UNSUPPORTED = {"channel_binding", "options"}
 _ACTIVE_ATTEMPTS: dict[int, Any] = {}
 
@@ -74,6 +76,13 @@ class FootageInfo:
     frame_rate: float
     codec_name: str
     has_audio: bool
+
+
+@dataclass(frozen=True)
+class FootageSlice:
+    footage: FootageInfo
+    source_offset_sec: float
+    duration_sec: float
 
 
 @dataclass(frozen=True)
@@ -184,6 +193,61 @@ def build_audio_sequence(
         if index > 10_000:
             raise AssemblyError("Audio playlist expansion exceeded the safety limit.")
     return sequence
+
+
+def clamp_preview_window(
+    requested_offset_sec: float,
+    total_duration_sec: float,
+    preview_duration_sec: float = PREVIEW_DURATION_SEC,
+) -> tuple[float, float]:
+    if not math.isfinite(requested_offset_sec) or requested_offset_sec < 0:
+        raise AssemblyError("Preview offset must be a finite non-negative number.")
+    if not math.isfinite(total_duration_sec) or total_duration_sec <= 0:
+        raise AssemblyError("Preview source duration must be a finite positive number.")
+    if not math.isfinite(preview_duration_sec) or preview_duration_sec <= 0:
+        raise AssemblyError("Preview duration must be a finite positive number.")
+    actual_offset = min(requested_offset_sec, max(0.0, total_duration_sec - preview_duration_sec))
+    actual_duration = min(preview_duration_sec, total_duration_sec)
+    return actual_offset, actual_duration
+
+
+def select_preview_footage_slices(
+    footage: Sequence[FootageInfo],
+    start_sec: float,
+    duration_sec: float,
+) -> list[FootageSlice]:
+    if not footage:
+        raise AssemblyError("No footage was provided for the preview.")
+    if not math.isfinite(start_sec) or start_sec < 0:
+        raise AssemblyError("Preview start must be a finite non-negative number.")
+    if not math.isfinite(duration_sec) or duration_sec <= 0:
+        raise AssemblyError("Preview duration must be a finite positive number.")
+
+    end_sec = start_sec + duration_sec
+    cursor = 0.0
+    slices: list[FootageSlice] = []
+    for item in footage:
+        item_start = cursor
+        item_end = cursor + item.duration_sec
+        overlap_start = max(start_sec, item_start)
+        overlap_end = min(end_sec, item_end)
+        if overlap_end > overlap_start + 1e-6:
+            slices.append(
+                FootageSlice(
+                    footage=item,
+                    source_offset_sec=overlap_start - item_start,
+                    duration_sec=overlap_end - overlap_start,
+                )
+            )
+        cursor = item_end
+        if cursor >= end_sec:
+            break
+    if not slices:
+        raise AssemblyError("The preview window does not intersect the footage.")
+    covered = sum(item.duration_sec for item in slices)
+    if abs(covered - duration_sec) > OUTPUT_DURATION_TOLERANCE_SEC:
+        raise AssemblyError("The preview footage window is incomplete.")
+    return slices
 
 
 def pomodoro_state_at(
@@ -599,8 +663,19 @@ def _escape_filter_path(path: Path) -> str:
     return str(path).replace("\\", "/").replace(":", r"\:").replace("'", r"\'")
 
 
-def _countdown_text(phase: str, phase_end_sec: int, cycle_duration_sec: int) -> str:
-    position = f"floor(mod(t\\,{cycle_duration_sec:g}))"
+def _timeline_value(timeline_offset_sec: float) -> str:
+    if not math.isfinite(timeline_offset_sec) or timeline_offset_sec < 0:
+        raise AssemblyError("Timeline offset must be a finite non-negative number.")
+    return "t" if timeline_offset_sec == 0 else f"(t+{timeline_offset_sec:.6f})"
+
+
+def _countdown_text(
+    phase: str,
+    phase_end_sec: int,
+    cycle_duration_sec: int,
+    timeline_offset_sec: float = 0.0,
+) -> str:
+    position = f"floor(mod({_timeline_value(timeline_offset_sec)}\\,{cycle_duration_sec:g}))"
     remaining = f"{phase_end_sec:g}-{position}"
     return (
         f"{phase} %{{eif\\:floor(({remaining})/60)\\:d\\:2}}"
@@ -654,24 +729,26 @@ def _pomodoro_video_filter(
     focus_duration_sec: int = POMODORO_FOCUS_SEC,
     break_duration_sec: int = POMODORO_BREAK_SEC,
     font_path: Path | None = None,
+    timeline_offset_sec: float = 0.0,
 ) -> str:
     if focus_duration_sec <= 0 or break_duration_sec <= 0:
         raise AssemblyError("Pomodoro phase durations must be greater than zero.")
 
     cycle_duration_sec = focus_duration_sec + break_duration_sec
     font = font_path or _resolve_timer_font()
-    focus_enable = f"lt(mod(t\\,{cycle_duration_sec:g})\\,{focus_duration_sec:g})"
-    break_enable = f"gte(mod(t\\,{cycle_duration_sec:g})\\,{focus_duration_sec:g})"
+    timeline = _timeline_value(timeline_offset_sec)
+    focus_enable = f"lt(mod({timeline}\\,{cycle_duration_sec:g})\\,{focus_duration_sec:g})"
+    break_enable = f"gte(mod({timeline}\\,{cycle_duration_sec:g})\\,{focus_duration_sec:g})"
     focus_drawtext = _drawtext_filter(
         POMODORO_FOCUS_COLOR,
         focus_enable,
-        _countdown_text("FOCUS", focus_duration_sec, cycle_duration_sec),
+        _countdown_text("FOCUS", focus_duration_sec, cycle_duration_sec, timeline_offset_sec),
         font,
     )
     break_drawtext = _drawtext_filter(
         POMODORO_BREAK_COLOR,
         break_enable,
-        _countdown_text("BREAK", cycle_duration_sec, cycle_duration_sec),
+        _countdown_text("BREAK", cycle_duration_sec, cycle_duration_sec, timeline_offset_sec),
         font,
     )
     return (
@@ -743,13 +820,26 @@ def _chime_expression(phase: str) -> str:
 
 def _audio_filter(
     sequence_count: int,
-    target_duration_sec: float,
+    timeline_end_sec: float,
     crossfade_sec: float,
     focus_duration_sec: int = POMODORO_FOCUS_SEC,
     break_duration_sec: int = POMODORO_BREAK_SEC,
+    *,
+    timeline_start_sec: float = 0.0,
+    output_duration_sec: float | None = None,
+    full_duration_sec: float | None = None,
 ) -> str:
     if sequence_count <= 0:
         raise AssemblyError("At least one audio track is required.")
+    if not math.isfinite(timeline_start_sec) or timeline_start_sec < 0:
+        raise AssemblyError("Audio timeline start must be a finite non-negative number.")
+    if not math.isfinite(timeline_end_sec) or timeline_end_sec <= timeline_start_sec:
+        raise AssemblyError("Audio timeline end must be greater than its start.")
+    output_duration = output_duration_sec or (timeline_end_sec - timeline_start_sec)
+    full_duration = full_duration_sec or timeline_end_sec
+    if output_duration <= 0 or full_duration < timeline_end_sec:
+        raise AssemblyError("Audio preview duration is invalid.")
+
     parts: list[str] = []
     for index in range(sequence_count):
         parts.append(
@@ -769,17 +859,17 @@ def _audio_filter(
             )
             current = output
 
-    fade = min(FADE_SEC, target_duration_sec / 2)
-    fade_out_start = max(0.0, target_duration_sec - fade)
+    fade = min(FADE_SEC, full_duration / 2)
+    fade_out_start = max(0.0, full_duration - fade)
     parts.append(
         f"[music]{LOUDNORM_FILTER},"
-        f"atrim=end={target_duration_sec:.6f},"
+        f"atrim=end={timeline_end_sec:.6f},"
         f"afade=t=in:st=0:d={fade:.6f},"
         f"afade=t=out:st={fade_out_start:.6f}:d={fade:.6f},"
         "asetpts=PTS-STARTPTS[musicbase]"
     )
     duck_windows = build_pomodoro_duck_windows(
-        target_duration_sec,
+        timeline_end_sec,
         focus_duration_sec,
         break_duration_sec,
     )
@@ -792,7 +882,7 @@ def _audio_filter(
     )
 
     cues = build_pomodoro_cue_schedule(
-        target_duration_sec,
+        timeline_end_sec,
         focus_duration_sec,
         break_duration_sec,
     )
@@ -814,7 +904,8 @@ def _audio_filter(
     parts.append(
         "[musicduck][cues]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
         f"alimiter=limit={POMODORO_LIMITER_LEVEL:.6f}:level=false:latency=true,"
-        f"atrim=end={target_duration_sec:.6f},asetpts=PTS-STARTPTS[outa]"
+        f"atrim=start={timeline_start_sec:.6f}:end={timeline_end_sec:.6f},"
+        "asetpts=PTS-STARTPTS[outa]"
     )
     return ";".join(parts)
 
@@ -822,11 +913,16 @@ def _audio_filter(
 def _render_audio(
     sequence: Sequence[AudioTrackInfo],
     destination: Path,
-    target_duration_sec: float,
+    timeline_end_sec: float,
     crossfade_sec: float,
     focus_duration_sec: int = POMODORO_FOCUS_SEC,
     break_duration_sec: int = POMODORO_BREAK_SEC,
+    *,
+    timeline_start_sec: float = 0.0,
+    output_duration_sec: float | None = None,
+    full_duration_sec: float | None = None,
 ) -> None:
+    output_duration = output_duration_sec or (timeline_end_sec - timeline_start_sec)
     command = ["ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats"]
     for item in sequence:
         command += ["-i", str(item.path)]
@@ -834,14 +930,17 @@ def _render_audio(
         "-filter_complex",
         _audio_filter(
             len(sequence),
-            target_duration_sec,
+            timeline_end_sec,
             crossfade_sec,
             focus_duration_sec,
             break_duration_sec,
+            timeline_start_sec=timeline_start_sec,
+            output_duration_sec=output_duration,
+            full_duration_sec=full_duration_sec,
         ),
         "-map", "[outa]",
         "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2",
-        "-t", f"{target_duration_sec:.6f}",
+        "-t", f"{output_duration:.6f}",
         str(destination),
     ]
     _run_media_command(command, "Building weekly audio playlist")
@@ -887,6 +986,184 @@ def _render_final_from_master(
             focus_duration_sec=focus_duration_sec,
             break_duration_sec=break_duration_sec,
         )
+
+
+def _render_preview_video_from_master(
+    master: Path,
+    destination: Path,
+    start_sec: float,
+    duration_sec: float,
+    use_nvenc: bool,
+    focus_duration_sec: int = POMODORO_FOCUS_SEC,
+    break_duration_sec: int = POMODORO_BREAK_SEC,
+) -> None:
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats",
+        "-ss", f"{start_sec:.6f}", "-t", f"{duration_sec:.6f}", "-i", str(master),
+        "-filter_complex",
+        _pomodoro_video_filter(
+            focus_duration_sec=focus_duration_sec,
+            break_duration_sec=break_duration_sec,
+            timeline_offset_sec=start_sec,
+        ),
+        "-map", "[outv]", "-an",
+        *encoder_args(use_nvenc),
+        "-t", f"{duration_sec:.6f}",
+        "-movflags", "+faststart",
+        str(destination),
+    ]
+    try:
+        _run_media_command(command, "Rendering preview video from silent master")
+    except AssemblyError:
+        if not use_nvenc:
+            raise
+        destination.unlink(missing_ok=True)
+        print("NVENC preview render failed; retrying with libx264.")
+        _render_preview_video_from_master(
+            master,
+            destination,
+            start_sec,
+            duration_sec,
+            use_nvenc=False,
+            focus_duration_sec=focus_duration_sec,
+            break_duration_sec=break_duration_sec,
+        )
+
+
+def _render_preview_video_from_footage(
+    slices: Sequence[FootageSlice],
+    destination: Path,
+    timeline_start_sec: float,
+    duration_sec: float,
+    use_nvenc: bool,
+    focus_duration_sec: int = POMODORO_FOCUS_SEC,
+    break_duration_sec: int = POMODORO_BREAK_SEC,
+) -> None:
+    if not slices:
+        raise AssemblyError("At least one footage slice is required for a preview.")
+    command = ["ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats"]
+    for item in slices:
+        command += [
+            "-ss", f"{item.source_offset_sec:.6f}",
+            "-t", f"{item.duration_sec:.6f}",
+            "-i", str(item.footage.path),
+        ]
+    normalized = _normalized_video_filter(len(slices), "preview_normalized")
+    timer = _pomodoro_video_filter(
+        "preview_normalized",
+        "outv",
+        focus_duration_sec,
+        break_duration_sec,
+        timeline_offset_sec=timeline_start_sec,
+    )
+    command += [
+        "-filter_complex", f"{normalized};{timer}",
+        "-map", "[outv]", "-an",
+        *encoder_args(use_nvenc),
+        "-t", f"{duration_sec:.6f}",
+        "-movflags", "+faststart",
+        str(destination),
+    ]
+    try:
+        _run_media_command(command, "Rendering preview video from footage window")
+    except AssemblyError:
+        if not use_nvenc:
+            raise
+        destination.unlink(missing_ok=True)
+        print("NVENC preview render failed; retrying with libx264.")
+        _render_preview_video_from_footage(
+            slices,
+            destination,
+            timeline_start_sec,
+            duration_sec,
+            use_nvenc=False,
+            focus_duration_sec=focus_duration_sec,
+            break_duration_sec=break_duration_sec,
+        )
+
+
+def _mux_preview(video: Path, audio: Path, destination: Path, duration_sec: float) -> None:
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats",
+        "-i", str(video), "-i", str(audio),
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-c:v", "copy", "-c:a", "copy",
+        "-t", f"{duration_sec:.6f}",
+        "-movflags", "+faststart",
+        str(destination),
+    ]
+    _run_media_command(command, "Muxing Study preview")
+
+
+def render_preview_media(
+    footage: Sequence[FootageInfo],
+    tracks: Sequence[AudioTrackInfo],
+    day_number: int,
+    destination: Path,
+    total_duration_sec: float,
+    timeline_start_sec: float,
+    preview_duration_sec: float,
+    *,
+    master_path: Path | None = None,
+    crossfade_sec: float = CROSSFADE_SEC,
+    prefer_nvenc: bool = True,
+    pomodoro_focus_sec: int = POMODORO_FOCUS_SEC,
+    pomodoro_break_sec: int = POMODORO_BREAK_SEC,
+) -> OutputInfo:
+    if len(tracks) != EXPECTED_TRACK_COUNT:
+        raise AssemblyError(f"Expected {EXPECTED_TRACK_COUNT} audio tracks, got {len(tracks)}.")
+    timeline_end = timeline_start_sec + preview_duration_sec
+    sequence = build_audio_sequence(tracks, day_number, timeline_end, crossfade_sec)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix=".preview-", dir=destination.parent))
+    preview_video = temp_dir / "preview_video.mp4"
+    preview_audio = temp_dir / "preview_audio.m4a"
+    temporary_final = temp_dir / "preview.mp4"
+    try:
+        use_nvenc = prefer_nvenc and nvenc_runtime_available()
+        if master_path is not None:
+            _render_preview_video_from_master(
+                master_path,
+                preview_video,
+                timeline_start_sec,
+                preview_duration_sec,
+                use_nvenc,
+                pomodoro_focus_sec,
+                pomodoro_break_sec,
+            )
+        else:
+            slices = select_preview_footage_slices(
+                footage,
+                timeline_start_sec,
+                preview_duration_sec,
+            )
+            _render_preview_video_from_footage(
+                slices,
+                preview_video,
+                timeline_start_sec,
+                preview_duration_sec,
+                use_nvenc,
+                pomodoro_focus_sec,
+                pomodoro_break_sec,
+            )
+        _render_audio(
+            sequence,
+            preview_audio,
+            timeline_end,
+            crossfade_sec,
+            pomodoro_focus_sec,
+            pomodoro_break_sec,
+            timeline_start_sec=timeline_start_sec,
+            output_duration_sec=preview_duration_sec,
+            full_duration_sec=total_duration_sec,
+        )
+        _mux_preview(preview_video, preview_audio, temporary_final, preview_duration_sec)
+        output = probe_output(temporary_final)
+        _validate_output(output, preview_duration_sec)
+        os.replace(temporary_final, destination)
+        return output
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def probe_silent_master(path: Path) -> SilentMasterInfo:
@@ -1079,6 +1356,11 @@ async def _load_video_context(video_id: int) -> dict[str, Any]:
                 v.master_path,
                 v.master_created_at,
                 v.assembly_started_at,
+                v.preview_status,
+                v.preview_run_id,
+                v.preview_heartbeat_at,
+                v.preview_requested_offset_sec,
+                v.preview_actual_offset_sec,
                 w.week_number,
                 w.status AS week_status,
                 w.track_manifest,
@@ -1264,6 +1546,127 @@ async def _mark_failed(video_id: int, message: str, assembly_started_at: Any) ->
         )
 
 
+async def _touch_preview_heartbeat(video_id: int, run_id: str) -> None:
+    conn = await _connect()
+    try:
+        result = await conn.execute(
+            """
+            UPDATE study_daily_videos
+            SET preview_heartbeat_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+              AND preview_status = 'rendering'
+              AND preview_run_id = $2
+            """,
+            video_id,
+            run_id,
+        )
+    finally:
+        await conn.close()
+    if result != "UPDATE 1":
+        raise AssemblyError("This preview worker lost its lease.")
+
+
+async def _preview_heartbeat_loop(
+    video_id: int,
+    run_id: str,
+    stop_event: asyncio.Event,
+) -> None:
+    while True:
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=PREVIEW_HEARTBEAT_SEC)
+            return
+        except TimeoutError:
+            await _touch_preview_heartbeat(video_id, run_id)
+
+
+async def _mark_preview_done(
+    video_id: int,
+    run_id: str,
+    attempt_path: Path,
+    preview_path: Path,
+) -> None:
+    conn = await _connect()
+    backup_path = preview_path.parent / f".preview-backup-{uuid.uuid4().hex}.mp4"
+    promoted = False
+    had_previous = preview_path.is_file()
+    try:
+        async with conn.transaction():
+            owner = await conn.fetchrow(
+                """
+                SELECT preview_status, preview_run_id
+                FROM study_daily_videos
+                WHERE id = $1
+                FOR UPDATE
+                """,
+                video_id,
+            )
+            if (
+                owner is None
+                or owner["preview_status"] != "rendering"
+                or owner["preview_run_id"] != run_id
+            ):
+                raise AssemblyError(
+                    "This preview attempt is stale and cannot overwrite a newer preview."
+                )
+
+            if had_previous:
+                shutil.copy2(preview_path, backup_path)
+            os.replace(attempt_path, preview_path)
+            promoted = True
+            result = await conn.execute(
+                """
+                UPDATE study_daily_videos
+                SET preview_status = 'done',
+                    preview_error_message = NULL,
+                    preview_finished_at = NOW(),
+                    preview_heartbeat_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $1
+                  AND preview_status = 'rendering'
+                  AND preview_run_id = $2
+                """,
+                video_id,
+                run_id,
+            )
+            if result != "UPDATE 1":
+                raise AssemblyError("This preview attempt lost its lease while finalizing.")
+    except Exception:
+        if promoted:
+            if had_previous and backup_path.is_file():
+                os.replace(backup_path, preview_path)
+            else:
+                preview_path.unlink(missing_ok=True)
+        raise
+    finally:
+        backup_path.unlink(missing_ok=True)
+        await conn.close()
+
+
+async def _mark_preview_failed(video_id: int, run_id: str, message: str) -> None:
+    conn = await _connect()
+    try:
+        result = await conn.execute(
+            """
+            UPDATE study_daily_videos
+            SET preview_status = 'failed',
+                preview_error_message = $1,
+                preview_finished_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $2
+              AND preview_status = 'rendering'
+              AND preview_run_id = $3
+            """,
+            message[:4000],
+            video_id,
+            run_id,
+        )
+    finally:
+        await conn.close()
+    if result != "UPDATE 1":
+        raise AssemblyError("Could not mark the preview failed because its lease is no longer current.")
+
+
 async def _ensure_silent_master(
     video_id: int,
     context: dict[str, Any],
@@ -1308,6 +1711,107 @@ async def _ensure_silent_master(
         return master_path
     finally:
         candidate_path.unlink(missing_ok=True)
+
+
+def _find_valid_cached_master(
+    context: dict[str, Any],
+    footage: Sequence[FootageInfo],
+    master_path: Path,
+    master_relative_path: str,
+    target_duration_sec: float,
+) -> Path | None:
+    expected_signature = compute_master_signature([item.sha256 for item in footage])
+    if (
+        context.get("master_signature") != expected_signature
+        or context.get("master_path") != master_relative_path
+        or not master_path.is_file()
+    ):
+        return None
+    try:
+        _validate_silent_master(probe_silent_master(master_path), target_duration_sec)
+    except AssemblyError as exc:
+        print(f"Silent master is unavailable for preview: {exc}")
+        return None
+    print(f"Reusing silent footage master for preview: {master_path}")
+    return master_path
+
+
+async def preview_video_id(video_id: int, run_id: str) -> Path:
+    context = await _load_video_context(video_id)
+    if context.get("preview_status") != "rendering" or context.get("preview_run_id") != run_id:
+        raise AssemblyError("The preview must be claimed by the Preview API before rendering.")
+
+    day_number = int(context["day_number"])
+    week_number = int(context["week_number"] or 0)
+    expected_week = week_number_for_day(day_number)
+    if week_number != expected_week:
+        raise AssemblyError(f"Day {day_number} must use week {expected_week}, not week {week_number}.")
+    if context["week_status"] != "ready":
+        raise AssemblyError(f"Audio week {week_number} is not ready.")
+    if context["rights_verified_at"] is None:
+        raise AssemblyError(f"Commercial rights for audio week {week_number} are not verified.")
+
+    requested_offset = float(context.get("preview_requested_offset_sec") or 0.0)
+    claimed_actual_offset = float(context.get("preview_actual_offset_sec") or 0.0)
+    media_root = _media_root().resolve()
+    day_root = media_root / "daily" / f"day-{day_number:03d}"
+    source_dir = day_root / "source"
+    audio_dir = media_root / "audio" / f"week-{week_number:03d}"
+    work_dir = day_root / "work"
+    output_dir = day_root / "output"
+    master_path = work_dir / "master_silent.mp4"
+    preview_path = output_dir / "preview.mp4"
+    attempt_path = output_dir / f".preview-{uuid.uuid4().hex}.mp4"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    footage = scan_footage(source_dir, media_root)
+    _assert_unique_current_footage(footage)
+    tracks = scan_audio_tracks(audio_dir, media_root)
+    saved_track_identity = _manifest_identity(context["track_manifest"])
+    current_track_identity = [(item.relative_path, item.sha256) for item in tracks]
+    if saved_track_identity != current_track_identity:
+        raise AssemblyError(f"Audio week {week_number} changed after its last scan; scan the week again.")
+
+    total_duration = sum(item.duration_sec for item in footage)
+    actual_offset, preview_duration = clamp_preview_window(requested_offset, total_duration)
+    if abs(actual_offset - claimed_actual_offset) > 0.001:
+        raise AssemblyError("Footage duration changed after the preview request; request the preview again.")
+    master_relative_path = master_path.relative_to(media_root).as_posix()
+    cached_master = _find_valid_cached_master(
+        context,
+        footage,
+        master_path,
+        master_relative_path,
+        total_duration,
+    )
+
+    stop_heartbeat = asyncio.Event()
+    heartbeat_task = asyncio.create_task(
+        _preview_heartbeat_loop(video_id, run_id, stop_heartbeat)
+    )
+    try:
+        await asyncio.to_thread(
+            render_preview_media,
+            footage,
+            tracks,
+            day_number,
+            attempt_path,
+            total_duration,
+            actual_offset,
+            preview_duration,
+            master_path=cached_master,
+        )
+        stop_heartbeat.set()
+        await heartbeat_task
+        await _mark_preview_done(video_id, run_id, attempt_path, preview_path)
+    finally:
+        stop_heartbeat.set()
+        if not heartbeat_task.done():
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
+        attempt_path.unlink(missing_ok=True)
+    print(f"Study preview #{video_id} done: {preview_path}")
+    return preview_path
 
 
 async def assemble_video_id(video_id: int) -> Path:
@@ -1434,12 +1938,29 @@ async def _run_with_failure_update(video_id: int) -> None:
         raise
 
 
+async def _run_preview_with_failure_update(video_id: int, run_id: str) -> None:
+    try:
+        await preview_video_id(video_id, run_id)
+    except Exception as exc:
+        message = f"{type(exc).__name__}: {exc}"
+        print(message, file=sys.stderr)
+        try:
+            await _mark_preview_failed(video_id, run_id, message)
+        except Exception as update_exc:
+            print(f"Could not persist failed preview status: {update_exc}", file=sys.stderr)
+        raise
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assemble one Study With Me daily video.")
     parser.add_argument("video_id", type=int, help="study_daily_videos.id")
+    parser.add_argument("--preview-run-id", help="Render the claimed 90-second preview instead")
     args = parser.parse_args()
     try:
-        asyncio.run(_run_with_failure_update(args.video_id))
+        if args.preview_run_id:
+            asyncio.run(_run_preview_with_failure_update(args.video_id, args.preview_run_id))
+        else:
+            asyncio.run(_run_with_failure_update(args.video_id))
     except Exception:
         raise SystemExit(1)
 

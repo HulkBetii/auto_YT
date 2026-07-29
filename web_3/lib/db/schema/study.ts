@@ -1,4 +1,13 @@
-import { check, integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  check,
+  doublePrecision,
+  integer,
+  jsonb,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const STUDY_AUDIO_WEEK_STATUSES = [
@@ -12,6 +21,9 @@ export type StudyAudioWeekStatus = (typeof STUDY_AUDIO_WEEK_STATUSES)[number];
 
 export const STUDY_DAILY_VIDEO_STATUSES = ["draft", "assembling", "done", "failed"] as const;
 export type StudyDailyVideoStatus = (typeof STUDY_DAILY_VIDEO_STATUSES)[number];
+
+export const STUDY_VIDEO_PREVIEW_STATUSES = ["idle", "rendering", "done", "failed"] as const;
+export type StudyVideoPreviewStatus = (typeof STUDY_VIDEO_PREVIEW_STATUSES)[number];
 
 export interface StudyAudioTrackFile {
   fileName: string;
@@ -173,6 +185,14 @@ export const studyDailyVideos = pgTable(
     errorMessage: text("error_message"),
     assemblyStartedAt: timestamp("assembly_started_at", { withTimezone: true }),
     assemblyFinishedAt: timestamp("assembly_finished_at", { withTimezone: true }),
+    previewStatus: text("preview_status").notNull().default("idle"),
+    previewRunId: text("preview_run_id"),
+    previewHeartbeatAt: timestamp("preview_heartbeat_at", { withTimezone: true }),
+    previewRequestedOffsetSec: doublePrecision("preview_requested_offset_sec"),
+    previewActualOffsetSec: doublePrecision("preview_actual_offset_sec"),
+    previewStartedAt: timestamp("preview_started_at", { withTimezone: true }),
+    previewFinishedAt: timestamp("preview_finished_at", { withTimezone: true }),
+    previewErrorMessage: text("preview_error_message"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -181,6 +201,10 @@ export const studyDailyVideos = pgTable(
     check(
       "study_daily_videos_status_check",
       sql`${table.status} IN ('draft', 'assembling', 'done', 'failed')`,
+    ),
+    check(
+      "study_daily_videos_preview_status_check",
+      sql`${table.previewStatus} IN ('idle', 'rendering', 'done', 'failed')`,
     ),
   ],
 );

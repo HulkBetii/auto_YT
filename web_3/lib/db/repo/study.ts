@@ -268,6 +268,7 @@ export async function claimStudyDailyVideoForAssembly(input: {
   durationSec: number;
   inputSignature: string;
   staleBefore: Date;
+  previewStaleBefore?: Date;
 }): Promise<Date | null> {
   return db.transaction(async (tx) => {
     // Serialize manifest claims so two days cannot reserve the same footage.
@@ -293,6 +294,7 @@ export async function claimStudyDailyVideoForAssembly(input: {
     }
 
     const now = new Date();
+    const previewStaleBefore = input.previewStaleBefore ?? new Date(0);
     const claimed = await tx
       .update(studyDailyVideos)
       .set({
@@ -314,11 +316,98 @@ export async function claimStudyDailyVideoForAssembly(input: {
             isNull(studyDailyVideos.assemblyStartedAt),
             lt(studyDailyVideos.assemblyStartedAt, input.staleBefore),
           ),
+          or(
+            ne(studyDailyVideos.previewStatus, "rendering"),
+            isNull(studyDailyVideos.previewHeartbeatAt),
+            lt(studyDailyVideos.previewHeartbeatAt, previewStaleBefore),
+          ),
         ),
       )
       .returning({ assemblyStartedAt: studyDailyVideos.assemblyStartedAt });
     return claimed[0]?.assemblyStartedAt ?? null;
   });
+}
+
+export async function claimStudyDailyVideoForPreview(input: {
+  id: number;
+  runId: string;
+  requestedOffsetSec: number;
+  actualOffsetSec: number;
+  assemblyStaleBefore: Date;
+  previewStaleBefore: Date;
+}): Promise<Date | null> {
+  const now = new Date();
+  const claimed = await db
+    .update(studyDailyVideos)
+    .set({
+      previewStatus: "rendering",
+      previewRunId: input.runId,
+      previewHeartbeatAt: now,
+      previewRequestedOffsetSec: input.requestedOffsetSec,
+      previewActualOffsetSec: input.actualOffsetSec,
+      previewStartedAt: now,
+      previewFinishedAt: null,
+      previewErrorMessage: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(studyDailyVideos.id, input.id),
+        or(
+          ne(studyDailyVideos.status, "assembling"),
+          isNull(studyDailyVideos.assemblyStartedAt),
+          lt(studyDailyVideos.assemblyStartedAt, input.assemblyStaleBefore),
+        ),
+        or(
+          ne(studyDailyVideos.previewStatus, "rendering"),
+          isNull(studyDailyVideos.previewHeartbeatAt),
+          lt(studyDailyVideos.previewHeartbeatAt, input.previewStaleBefore),
+        ),
+      ),
+    )
+    .returning({ previewStartedAt: studyDailyVideos.previewStartedAt });
+  return claimed[0]?.previewStartedAt ?? null;
+}
+
+export async function touchStudyDailyVideoPreviewHeartbeat(input: {
+  id: number;
+  runId: string;
+}): Promise<boolean> {
+  const result = await db
+    .update(studyDailyVideos)
+    .set({ previewHeartbeatAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(studyDailyVideos.id, input.id),
+        eq(studyDailyVideos.previewStatus, "rendering"),
+        eq(studyDailyVideos.previewRunId, input.runId),
+      ),
+    );
+  return result.rowCount === 1;
+}
+
+export async function markStudyDailyVideoPreviewFailed(input: {
+  id: number;
+  runId: string;
+  errorMessage: string;
+}): Promise<boolean> {
+  const now = new Date();
+  const result = await db
+    .update(studyDailyVideos)
+    .set({
+      previewStatus: "failed",
+      previewErrorMessage: input.errorMessage.slice(0, 4000),
+      previewFinishedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(studyDailyVideos.id, input.id),
+        eq(studyDailyVideos.previewStatus, "rendering"),
+        eq(studyDailyVideos.previewRunId, input.runId),
+      ),
+    );
+  return result.rowCount === 1;
 }
 
 export async function markStudyDailyVideoFailed(

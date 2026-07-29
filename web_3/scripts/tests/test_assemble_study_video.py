@@ -18,6 +18,7 @@ from assemble_study_video import (  # noqa: E402
     AssemblyError,
     AudioTrackInfo,
     FootageInfo,
+    OutputInfo,
     SilentMasterInfo,
     _audio_filter,
     _normalized_video_filter,
@@ -40,6 +41,10 @@ from assemble_study_video import (  # noqa: E402
     assemble_media,
     week_number_for_day,
     _ensure_silent_master,
+    _find_valid_cached_master,
+    clamp_preview_window,
+    select_preview_footage_slices,
+    render_preview_media,
 )
 
 
@@ -72,6 +77,29 @@ def make_footage(index: int = 1, duration_sec: float = 120.0) -> FootageInfo:
 
 
 class HelperTests(unittest.TestCase):
+    def test_preview_window_clamps_to_source(self) -> None:
+        self.assertEqual(clamp_preview_window(0, 60), (0, 60))
+        self.assertEqual(clamp_preview_window(999, 120), (30, 90))
+
+    def test_preview_slices_only_include_intersecting_footage(self) -> None:
+        footage = [make_footage(1, 100), make_footage(2, 100), make_footage(3, 100)]
+        slices = select_preview_footage_slices(footage, 50, 90)
+        self.assertEqual(
+            [(item.footage.path.name, item.source_offset_sec, item.duration_sec) for item in slices],
+            [("clip1.mp4", 50, 50), ("clip2.mp4", 0, 40)],
+        )
+        exact = select_preview_footage_slices(footage, 100, 90)
+        self.assertEqual([item.footage.path.name for item in exact], ["clip2.mp4"])
+
+    def test_preview_timer_uses_absolute_timeline(self) -> None:
+        self.assertEqual(pomodoro_state_at(2970), ("FOCUS", 30))
+        timer = _pomodoro_video_filter(
+            focus_duration_sec=50,
+            break_duration_sec=5,
+            font_path=Path("C:/Windows/Fonts/consolab.ttf"),
+            timeline_offset_sec=2970,
+        )
+        self.assertIn("t+2970.000000", timer)
     def test_natural_sort(self) -> None:
         values = ["clip10.mp4", "Clip2.mp4", "clip1.mp4"]
         self.assertEqual(
@@ -233,6 +261,20 @@ class HelperTests(unittest.TestCase):
         self.assertIn("volume=volume=0.630957", audio_filter)
         self.assertIn("alimiter=limit=0.891251", audio_filter)
 
+    def test_preview_audio_filter_keeps_absolute_timeline(self) -> None:
+        audio_filter = _audio_filter(
+            1,
+            3060,
+            0.05,
+            3000,
+            300,
+            timeline_start_sec=2970,
+            output_duration_sec=90,
+            full_duration_sec=6000,
+        )
+        self.assertIn("adelay=3000000|3000000", audio_filter)
+        self.assertIn("atrim=start=2970.000000:end=3060.000000", audio_filter)
+
     def test_silent_master_validation(self) -> None:
         valid = SilentMasterInfo(
             duration_sec=120.0,
@@ -319,6 +361,83 @@ class MasterCacheTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(master.read_bytes(), b"fresh")
             render_mock.assert_called_once()
             mark.assert_awaited_once()
+
+
+class PreviewRenderTests(unittest.TestCase):
+    def test_valid_master_is_reused_without_touching_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            master = Path(temp) / "master_silent.mp4"
+            master.write_bytes(b"cached")
+            footage = [make_footage(1, 120)]
+            context = {
+                "master_signature": compute_master_signature([footage[0].sha256]),
+                "master_path": "daily/day-001/work/master_silent.mp4",
+            }
+            valid = SilentMasterInfo(120.0, 1920, 1080, 30.0, "h264", "yuv420p")
+            with patch("assemble_study_video.probe_silent_master", return_value=valid):
+                result = _find_valid_cached_master(
+                    context,
+                    footage,
+                    master,
+                    "daily/day-001/work/master_silent.mp4",
+                    120,
+                )
+            self.assertEqual(result, master)
+            self.assertTrue(master.exists())
+
+    def test_preview_render_uses_master_or_only_intersecting_slices(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            destination = root / "preview-attempt.mp4"
+            master = root / "master_silent.mp4"
+            master.write_bytes(b"master")
+            footage = [make_footage(1, 100), make_footage(2, 100), make_footage(3, 100)]
+            tracks = [make_track(index, 200) for index in range(20)]
+            valid_output = OutputInfo(90.0, 1920, 1080, 30.0, "h264", "aac")
+
+            def write_destination(*args, **_kwargs) -> None:
+                Path(args[1]).write_bytes(b"stream")
+
+            def mux(_video, _audio, output, _duration) -> None:
+                output.write_bytes(b"preview")
+
+            with (
+                patch("assemble_study_video.nvenc_runtime_available", return_value=False),
+                patch("assemble_study_video._render_preview_video_from_master", side_effect=write_destination) as from_master,
+                patch("assemble_study_video._render_preview_video_from_footage", side_effect=write_destination) as from_footage,
+                patch("assemble_study_video._render_audio", side_effect=write_destination),
+                patch("assemble_study_video._mux_preview", side_effect=mux),
+                patch("assemble_study_video.probe_output", return_value=valid_output),
+                patch("assemble_study_video._validate_output"),
+            ):
+                render_preview_media(
+                    footage,
+                    tracks,
+                    1,
+                    destination,
+                    300,
+                    50,
+                    90,
+                    master_path=master,
+                )
+                from_master.assert_called_once()
+                from_footage.assert_not_called()
+
+                destination.unlink()
+                render_preview_media(
+                    footage,
+                    tracks,
+                    1,
+                    destination,
+                    300,
+                    50,
+                    90,
+                )
+                selected = from_footage.call_args.args[0]
+                self.assertEqual(
+                    [(item.footage.path.name, item.duration_sec) for item in selected],
+                    [("clip1.mp4", 50), ("clip2.mp4", 40)],
+                )
 
 
 @unittest.skipUnless(

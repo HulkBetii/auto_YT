@@ -19,7 +19,9 @@ import {
 import {
   ensureStudyDayDirs,
   isFreshStudyAssembly,
+  isFreshStudyPreview,
   STUDY_ASSEMBLY_STALE_MS,
+  STUDY_PREVIEW_STALE_MS,
   STUDY_TRACKS_PER_WEEK,
 } from "@/lib/study/project";
 import { assertStudyAuth } from "../../../_auth";
@@ -75,6 +77,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (isFreshStudyAssembly(video.status, video.assemblyStartedAt)) {
     return NextResponse.json({ ok: false, error: "Study video is already assembling" }, { status: 409 });
   }
+  if (isFreshStudyPreview(video.previewStatus, video.previewHeartbeatAt)) {
+    return NextResponse.json({ ok: false, error: "Study video preview is currently rendering" }, { status: 409 });
+  }
   const week = await getStudyAudioWeek(video.weekId);
   if (
     !week ||
@@ -121,9 +126,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       durationSec,
       inputSignature,
       staleBefore: new Date(Date.now() - STUDY_ASSEMBLY_STALE_MS),
+      previewStaleBefore: new Date(Date.now() - STUDY_PREVIEW_STALE_MS),
     });
     if (!assemblyStartedAt) {
-      return NextResponse.json({ ok: false, error: "Study video is already assembling" }, { status: 409 });
+      return NextResponse.json(
+        { ok: false, error: "Study video assembly or preview is already running" },
+        { status: 409 },
+      );
     }
     assemblyClaimed = true;
 

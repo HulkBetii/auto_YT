@@ -1,0 +1,9 @@
+ALTER TABLE "study_daily_videos" DROP CONSTRAINT "study_daily_videos_preview_status_check";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_error_message";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_finished_at";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_started_at";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_actual_offset_sec";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_requested_offset_sec";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_heartbeat_at";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_run_id";
+ALTER TABLE "study_daily_videos" DROP COLUMN "preview_status";

@@ -14,6 +14,7 @@ import {
   getStudyDayPaths,
   getStudyWeekPaths,
   isFreshStudyAssembly,
+  isFreshStudyPreview,
 } from "@/lib/study/project";
 import {
   CreateDayForm,
@@ -228,12 +229,19 @@ export default async function StudyPage() {
                       videoId={video.id}
                       sourceFolderPath={paths.sourceDir}
                       outputFolderPath={paths.outputDir}
-                      status={video.status}
-                      isFreshAssembly={isFreshStudyAssembly(
-                        video.status,
-                        video.assemblyStartedAt,
-                      )}
-                    />
+                       status={video.status}
+                       isFreshAssembly={isFreshStudyAssembly(
+                         video.status,
+                         video.assemblyStartedAt,
+                       )}
+                       previewStatus={video.previewStatus}
+                       previewActualOffsetSec={video.previewActualOffsetSec}
+                       previewErrorMessage={video.previewErrorMessage}
+                       isFreshPreview={isFreshStudyPreview(
+                         video.previewStatus,
+                         video.previewHeartbeatAt,
+                       )}
+                     />
                     </div>
                   </CardContent>
                 </Card>
