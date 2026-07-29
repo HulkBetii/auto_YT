@@ -25,18 +25,6 @@ export const runtime = "nodejs";
 
 const PROMPT_VERSION = "study-organic-focus-v1";
 const MAX_PROVIDER_TASKS = 20;
-const STUDY_PHASES = [
-  "First light setup",
-  "Morning momentum",
-  "Clear desk flow",
-  "Deep work warmth",
-  "Late-morning concentration",
-  "Midday reset",
-  "Quiet persistence",
-  "Afternoon clarity",
-  "Steady finish",
-  "Golden-hour closure",
-] as const;
 
 function workerScriptPath(): string {
   return path.join(process.cwd(), "scripts", "generate_study_music.py");
@@ -58,7 +46,7 @@ function createGenerationManifest(now: Date): StudyMusicGenerationManifest {
     tasks: [],
     slots: Array.from({ length: STUDY_TRACKS_PER_WEEK }, (_, index) => ({
       slotNumber: index + 1,
-      phase: STUDY_PHASES[Math.floor(index / 2)],
+      taskIndex: Math.floor(index / 2) + 1,
       status: "pending" as const,
     })),
     lastKnownCredits: null,

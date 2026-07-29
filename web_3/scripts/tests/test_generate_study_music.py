@@ -18,50 +18,88 @@ from generate_study_music import (  # noqa: E402
     AmbiguousSubmissionError,
     AI33Client,
     AudioProbe,
+    LEGACY_PHASE_TASK_INDEX,
     GenerationError,
     GenerationRunner,
-    PHASES,
     PROMPT_VERSION,
     ProviderClip,
     ProviderTransientError,
     ProviderTaskResult,
     StaleGenerationError,
+    STUDY_STYLE_PROMPT,
     TRACK_COUNT,
+    build_prompt,
     create_generation_manifest,
     extract_provider_clips,
-    next_phase_for_submission,
+    next_task_index_for_submission,
     normalize_generation_manifest,
     parse_provider_task,
-    phase_for_slot,
+    task_index_for_slot,
 )
+
+LEGACY_PHASES = tuple(LEGACY_PHASE_TASK_INDEX)
 
 
 class ManifestTests(unittest.TestCase):
-    def test_manifest_has_twenty_slots_and_day_phases(self) -> None:
+    def test_manifest_has_twenty_slots_and_task_indexes(self) -> None:
         manifest = create_generation_manifest()
         self.assertEqual(len(manifest["slots"]), TRACK_COUNT)
-        self.assertEqual(manifest["slots"][0]["phase"], PHASES[0])
-        self.assertEqual(manifest["slots"][1]["phase"], PHASES[0])
-        self.assertEqual(manifest["slots"][19]["phase"], PHASES[9])
-        self.assertEqual(phase_for_slot(20), PHASES[9])
+        self.assertEqual(manifest["slots"][0]["taskIndex"], 1)
+        self.assertEqual(manifest["slots"][1]["taskIndex"], 1)
+        self.assertEqual(manifest["slots"][19]["taskIndex"], 10)
+        self.assertEqual(task_index_for_slot(20), 10)
+        self.assertTrue(all("phase" not in slot for slot in manifest["slots"]))
         self.assertEqual(manifest["promptVersion"], PROMPT_VERSION)
 
-    def test_submission_order_attempts_ten_phases_then_topups(self) -> None:
+    def test_all_tracks_use_the_fixed_style_prompt(self) -> None:
+        self.assertEqual(
+            build_prompt(),
+            "Organic acoustic ambient study music, felt piano and "
+            "nylon-string guitar, warm analog pad, soft room tone, "
+            "no drums, no percussion, no vocals, no lead synth, "
+            "68 BPM, key of A minor, sparse and unhurried, "
+            "gentle consistent dynamics, natural reverb tail",
+        )
+        self.assertEqual(build_prompt(), STUDY_STYLE_PROMPT)
+
+    def test_submission_order_attempts_ten_task_indexes_then_topups(self) -> None:
         manifest = create_generation_manifest()
-        for phase in PHASES:
+        for task_index in range(1, 11):
             manifest["tasks"].append(
                 {
                     "submissionIndex": len(manifest["tasks"]) + 1,
-                    "phase": phase,
+                    "taskIndex": task_index,
                     "status": "done",
                     "providerTaskId": f"task-{len(manifest['tasks']) + 1}",
                 }
             )
         for slot in manifest["slots"]:
             slot["status"] = "downloaded"
-        self.assertIsNone(next_phase_for_submission(manifest))
+        self.assertIsNone(next_task_index_for_submission(manifest))
         manifest["slots"][0]["status"] = "pending"
-        self.assertEqual(next_phase_for_submission(manifest), PHASES[0])
+        self.assertEqual(next_task_index_for_submission(manifest), 1)
+
+    def test_legacy_phase_manifest_is_canonicalized_to_task_indexes(self) -> None:
+        manifest = create_generation_manifest()
+        for slot in manifest["slots"]:
+            task_index = slot.pop("taskIndex")
+            slot["phase"] = LEGACY_PHASES[task_index - 1]
+        manifest["tasks"].append(
+            {
+                "submissionIndex": 1,
+                "phase": LEGACY_PHASES[0],
+                "status": "done",
+                "providerTaskId": "legacy-task",
+                "submittedAt": "2026-01-01T00:00:00.000Z",
+            }
+        )
+
+        normalized = normalize_generation_manifest(manifest)
+
+        self.assertEqual(normalized["tasks"][0]["taskIndex"], 1)
+        self.assertNotIn("phase", normalized["tasks"][0])
+        self.assertEqual(normalized["slots"][19]["taskIndex"], 10)
+        self.assertTrue(all("phase" not in slot for slot in normalized["slots"]))
 
     def test_normalization_rejects_invalid_task_count(self) -> None:
         manifest = create_generation_manifest()
@@ -102,17 +140,37 @@ class ManifestTests(unittest.TestCase):
         rate_limit = HTTPError("url", 429, "busy", None, io.BytesIO(b"busy"))
         with patch("generate_study_music.urlopen", side_effect=rate_limit):
             with self.assertRaises(ProviderTransientError):
-                client.submit_task(PHASES[0])
+                client.submit_task()
 
         server_error = HTTPError("url", 500, "error", None, io.BytesIO(b"error"))
         with patch("generate_study_music.urlopen", side_effect=server_error):
             with self.assertRaises(AmbiguousSubmissionError):
-                client.submit_task(PHASES[0])
+                client.submit_task()
 
         poll_error = HTTPError("url", 503, "error", None, io.BytesIO(b"error"))
         with patch("generate_study_music.urlopen", side_effect=poll_error):
             with self.assertRaises(ProviderTransientError):
                 client.poll_task("task-1")
+
+    def test_provider_submission_uses_fixed_instrumental_prompt(self) -> None:
+        client = AI33Client("test-key")
+        with patch.object(
+            client,
+            "_json_request",
+            return_value={"task_id": "task-1", "ec_remain_credits": 9000},
+        ) as request:
+            task_id, credits = client.submit_task()
+
+        self.assertEqual((task_id, credits), ("task-1", 9000))
+        request.assert_called_once_with(
+            "POST",
+            "/v1s/task/music-generation",
+            {
+                "create_mode": "simple",
+                "gpt_description_prompt": STUDY_STYLE_PROMPT,
+                "make_instrumental": True,
+            },
+        )
 
 
 class FakeStore:
@@ -153,9 +211,9 @@ class FakeClient:
         self.submissions = []
         self.polls = []
 
-    def submit_task(self, phase):
+    def submit_task(self):
         task_id = f"task-{len(self.submissions) + 1}"
-        self.submissions.append((task_id, phase))
+        self.submissions.append(task_id)
         return task_id, 1000 - len(self.submissions)
 
     def poll_task(self, task_id):
@@ -203,6 +261,11 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(store.completed)
             manifest, track_manifest, total_duration = store.completed
             self.assertEqual(len(manifest["tasks"]), 10)
+            self.assertEqual(
+                [task["taskIndex"] for task in manifest["tasks"]],
+                list(range(1, 11)),
+            )
+            self.assertTrue(all("phase" not in task for task in manifest["tasks"]))
             self.assertEqual(len(track_manifest["files"]), 20)
             self.assertEqual([item["fileName"] for item in track_manifest["files"]], [
                 f"{index:02d}.mp3" for index in range(1, 21)
@@ -310,10 +373,13 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             week_dir = root / "audio" / "week-001"
             week_dir.mkdir(parents=True)
             manifest = create_generation_manifest()
+            for slot in manifest["slots"]:
+                task_index = slot.pop("taskIndex")
+                slot["phase"] = LEGACY_PHASES[task_index - 1]
             manifest["tasks"].append(
                 {
                     "submissionIndex": 1,
-                    "phase": PHASES[0],
+                    "phase": LEGACY_PHASES[0],
                     "status": "done",
                     "providerTaskId": "old-task",
                     "submittedAt": "2026-01-01T00:00:00.000Z",
@@ -357,7 +423,8 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             )
             await runner.run(7, "run-1")
             self.assertEqual(len(client.submissions), 9)
-            self.assertEqual(client.submissions[0][1], PHASES[1])
+            self.assertEqual(store.completed[0]["tasks"][1]["taskIndex"], 2)
+            self.assertTrue(all("phase" not in task for task in store.completed[0]["tasks"]))
             self.assertEqual((week_dir / "01.mp3").read_bytes(), original_payloads[0])
             self.assertEqual((week_dir / "02.mp3").read_bytes(), original_payloads[1])
 
@@ -377,11 +444,11 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
                 super().__init__()
                 self.attempts = 0
 
-            def submit_task(self, phase):
+            def submit_task(self):
                 self.attempts += 1
                 if self.attempts <= 2:
                     raise ProviderTransientError("rate limited")
-                return super().submit_task(phase)
+                return super().submit_task()
 
         delays = []
 
@@ -402,14 +469,14 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         )
         runner.deadline = 100
         manifest = create_generation_manifest()
-        await runner._submit_one(7, "run-1", manifest, PHASES[0])
+        await runner._submit_one(7, "run-1", manifest, 1)
         self.assertEqual(delays, [10, 20])
         self.assertLessEqual(max(delays), 60)
         self.assertEqual(manifest["tasks"][0]["status"], "doing")
 
     async def test_ambiguous_submission_is_not_retried(self) -> None:
         class AmbiguousClient(FakeClient):
-            def submit_task(self, phase):
+            def submit_task(self):
                 raise AmbiguousSubmissionError("unknown")
 
         with tempfile.TemporaryDirectory() as temp:

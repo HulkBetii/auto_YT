@@ -36,9 +36,8 @@ export type StudyMusicGenerationTaskStatus =
   | "error"
   | "ambiguous";
 
-export interface StudyMusicGenerationTask {
+interface StudyMusicGenerationTaskBase {
   submissionIndex: number;
-  phase: string;
   status: StudyMusicGenerationTaskStatus;
   providerTaskId?: string;
   submittedAt: string;
@@ -47,9 +46,15 @@ export interface StudyMusicGenerationTask {
   creditCost?: number;
 }
 
-export interface StudyMusicGenerationSlot {
+type StudyMusicGenerationIdentity =
+  | { taskIndex: number; phase?: never }
+  | { taskIndex?: never; phase: string };
+
+export type StudyMusicGenerationTask = StudyMusicGenerationTaskBase &
+  StudyMusicGenerationIdentity;
+
+interface StudyMusicGenerationSlotBase {
   slotNumber: number;
-  phase: string;
   status: "pending" | "downloaded";
   fileName?: string;
   relativePath?: string;
@@ -63,6 +68,9 @@ export interface StudyMusicGenerationSlot {
   providerClipId?: string;
   sourceUrl?: string;
 }
+
+export type StudyMusicGenerationSlot = StudyMusicGenerationSlotBase &
+  StudyMusicGenerationIdentity;
 
 export interface StudyMusicGenerationManifest {
   promptVersion: string;

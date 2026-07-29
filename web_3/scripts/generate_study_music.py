@@ -41,28 +41,26 @@ MAX_RUNTIME_SEC = 90 * 60.0
 DOWNLOAD_ATTEMPTS = 3
 _ASYNCPG_UNSUPPORTED = {"channel_binding", "options"}
 
-PHASES = (
-    "First light setup",
-    "Morning momentum",
-    "Clear desk flow",
-    "Deep work warmth",
-    "Late-morning concentration",
-    "Midday reset",
-    "Quiet persistence",
-    "Afternoon clarity",
-    "Steady finish",
-    "Golden-hour closure",
-)
+LEGACY_PHASE_TASK_INDEX = {
+    "First light setup": 1,
+    "Morning momentum": 2,
+    "Clear desk flow": 3,
+    "Deep work warmth": 4,
+    "Late-morning concentration": 5,
+    "Midday reset": 6,
+    "Quiet persistence": 7,
+    "Afternoon clarity": 8,
+    "Steady finish": 9,
+    "Golden-hour closure": 10,
+}
 
-STYLE_PROMPT = (
-    "Instrumental organic ambient lo-fi for a long daytime study session, "
-    "warm felt piano, soft electric piano, subtle acoustic textures, very light "
-    "brushed percussion, calm steady rhythm, gentle forward motion, natural "
-    "daylight, focused and optimistic, no vocals, no spoken words, no dramatic "
-    "drops, no cinematic climax, smooth intro and outro, seamless background "
-    "listening. Phase: {phase}."
+STUDY_STYLE_PROMPT = (
+    "Organic acoustic ambient study music, felt piano and "
+    "nylon-string guitar, warm analog pad, soft room tone, "
+    "no drums, no percussion, no vocals, no lead synth, "
+    "68 BPM, key of A minor, sparse and unhurried, "
+    "gentle consistent dynamics, natural reverb tail"
 )
-
 
 class GenerationError(RuntimeError):
     """Raised when a generation run cannot safely continue."""
@@ -112,19 +110,39 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def build_prompt(phase: str) -> str:
-    if phase not in PHASES:
-        raise GenerationError(f"Unknown study music phase: {phase}")
-    prompt = STYLE_PROMPT.format(phase=phase)
-    if len(prompt) > 500:
+def build_prompt() -> str:
+    if len(STUDY_STYLE_PROMPT) > 500:
         raise GenerationError("The AI33 simple-mode prompt exceeds 500 characters.")
-    return prompt
+    return STUDY_STYLE_PROMPT
 
 
-def phase_for_slot(slot_number: int) -> str:
+def task_index_for_slot(slot_number: int) -> int:
     if not 1 <= slot_number <= TRACK_COUNT:
         raise GenerationError(f"slot_number must be between 1 and {TRACK_COUNT}.")
-    return PHASES[(slot_number - 1) // 2]
+    return ((slot_number - 1) // 2) + 1
+
+
+def _resolve_task_index(record: dict[str, Any], label: str) -> int:
+    """Resolve new taskIndex data and legacy phase data to one canonical index."""
+    raw_task_index = record.get("taskIndex")
+    raw_phase = record.get("phase")
+    task_index: int | None = None
+    if raw_task_index is not None:
+        if isinstance(raw_task_index, bool) or not isinstance(raw_task_index, int):
+            raise GenerationError(f"{label} has an invalid taskIndex.")
+        if not 1 <= raw_task_index <= TRACK_COUNT // 2:
+            raise GenerationError(f"{label} has an invalid taskIndex.")
+        task_index = raw_task_index
+    if raw_phase is not None:
+        if not isinstance(raw_phase, str) or raw_phase not in LEGACY_PHASE_TASK_INDEX:
+            raise GenerationError(f"{label} has an invalid legacy phase.")
+        legacy_task_index = LEGACY_PHASE_TASK_INDEX[raw_phase]
+        if task_index is not None and task_index != legacy_task_index:
+            raise GenerationError(f"{label} has conflicting taskIndex and phase.")
+        task_index = legacy_task_index
+    if task_index is None:
+        raise GenerationError(f"{label} must define taskIndex or legacy phase.")
+    return task_index
 
 
 def create_generation_manifest() -> dict[str, Any]:
@@ -137,7 +155,7 @@ def create_generation_manifest() -> dict[str, Any]:
         "slots": [
             {
                 "slotNumber": slot_number,
-                "phase": phase_for_slot(slot_number),
+                "taskIndex": task_index_for_slot(slot_number),
                 "status": "pending",
             }
             for slot_number in range(1, TRACK_COUNT + 1)
@@ -186,8 +204,9 @@ def normalize_generation_manifest(value: Any) -> dict[str, Any]:
         if submission_index != expected_index or submission_index in seen_submission_indexes:
             raise GenerationError("Generation task indexes must be contiguous and deterministic.")
         seen_submission_indexes.add(submission_index)
-        if task.get("phase") not in PHASES:
-            raise GenerationError(f"Task #{submission_index} has an invalid phase.")
+        task_index = _resolve_task_index(task, f"Task #{submission_index}")
+        task["taskIndex"] = task_index
+        task.pop("phase", None)
         if task.get("status") not in allowed_task_statuses:
             raise GenerationError(f"Task #{submission_index} has an invalid status.")
         if task.get("status") in {"doing", "done"} and not task.get("providerTaskId"):
@@ -201,8 +220,12 @@ def normalize_generation_manifest(value: Any) -> dict[str, Any]:
         if slot_number != expected_slot or slot_number in seen_slots:
             raise GenerationError("Generation slots must be numbered 1 through 20.")
         seen_slots.add(slot_number)
-        if slot.get("phase") != phase_for_slot(slot_number):
-            raise GenerationError(f"Slot #{slot_number} has an invalid phase.")
+        task_index = _resolve_task_index(slot, f"Slot #{slot_number}")
+        expected_task_index = task_index_for_slot(slot_number)
+        if task_index != expected_task_index:
+            raise GenerationError(f"Slot #{slot_number} has an invalid taskIndex.")
+        slot["taskIndex"] = task_index
+        slot.pop("phase", None)
         if slot.get("status") not in {"pending", "downloaded"}:
             raise GenerationError(f"Slot #{slot_number} has an invalid status.")
 
@@ -218,20 +241,23 @@ def downloaded_slots(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return [slot for slot in manifest["slots"] if slot["status"] == "downloaded"]
 
 
-def next_phase_for_submission(manifest: dict[str, Any]) -> str | None:
-    """Attempt every daytime phase once, then top up the first missing pair."""
-    attempted = {task["phase"] for task in manifest["tasks"]}
-    for phase in PHASES:
-        if phase not in attempted:
-            return phase
-    active_phases = {
-        task["phase"]
+def next_task_index_for_submission(manifest: dict[str, Any]) -> int | None:
+    """Attempt task indexes 1-10 once, then top up the first missing pair."""
+    attempted = {int(task["taskIndex"]) for task in manifest["tasks"]}
+    for task_index in range(1, TRACK_COUNT // 2 + 1):
+        if task_index not in attempted:
+            return task_index
+    active_task_indexes = {
+        int(task["taskIndex"])
         for task in manifest["tasks"]
         if task["status"] in {"submitting", "doing"}
     }
     for slot in manifest["slots"]:
-        if slot["status"] == "pending" and slot["phase"] not in active_phases:
-            return str(slot["phase"])
+        if (
+            slot["status"] == "pending"
+            and int(slot["taskIndex"]) not in active_task_indexes
+        ):
+            return int(slot["taskIndex"])
     return None
 
 
@@ -480,13 +506,13 @@ class AI33Client:
             raise ProviderError("AI33 returned a non-object JSON response.")
         return payload
 
-    def submit_task(self, phase: str) -> tuple[str, int | None]:
+    def submit_task(self) -> tuple[str, int | None]:
         payload = self._json_request(
             "POST",
             "/v1s/task/music-generation",
             {
                 "create_mode": "simple",
-                "gpt_description_prompt": build_prompt(phase),
+                "gpt_description_prompt": build_prompt(),
                 "make_instrumental": True,
             },
         )
@@ -724,7 +750,7 @@ class GenerationRunner:
                 raise GenerationError(
                     f"AI33 task cap reached with {len(downloaded_slots(manifest))}/{TRACK_COUNT} valid tracks."
                 )
-            if not doing and next_phase_for_submission(manifest) is None:
+            if not doing and next_task_index_for_submission(manifest) is None:
                 raise GenerationError("No safe provider work remains for the missing tracks.")
 
             await self.store.save_progress(week_id, run_id, manifest)
@@ -799,7 +825,7 @@ class GenerationRunner:
                 slot.update(
                     {
                         "slotNumber": slot_number,
-                        "phase": phase_for_slot(slot_number),
+                        "taskIndex": task_index_for_slot(slot_number),
                         "status": "pending",
                     }
                 )
@@ -913,7 +939,7 @@ class GenerationRunner:
         week_dir: Path,
         generation_dir: Path,
     ) -> None:
-        phase = str(task["phase"])
+        task_index = int(task["taskIndex"])
         assigned_identities = {
             (slot.get("providerTaskId"), slot.get("providerClipId") or slot.get("sourceUrl"))
             for slot in downloaded_slots(manifest)
@@ -928,7 +954,7 @@ class GenerationRunner:
                 (
                     slot
                     for slot in manifest["slots"]
-                    if slot["phase"] == phase and slot["status"] == "pending"
+                    if int(slot["taskIndex"]) == task_index and slot["status"] == "pending"
                 ),
                 None,
             )
@@ -988,24 +1014,24 @@ class GenerationRunner:
             and len(manifest["tasks"]) < MAX_PROVIDER_TASKS
             and len(downloaded_slots(manifest)) < TRACK_COUNT
         ):
-            phase = next_phase_for_submission(manifest)
-            if phase is None:
+            task_index = next_task_index_for_submission(manifest)
+            if task_index is None:
                 return
-            await self._submit_one(week_id, run_id, manifest, phase)
+            await self._submit_one(week_id, run_id, manifest, task_index)
 
     async def _submit_one(
         self,
         week_id: int,
         run_id: str,
         manifest: dict[str, Any],
-        phase: str,
+        task_index: int,
     ) -> None:
         submission_index = len(manifest["tasks"]) + 1
         if submission_index > MAX_PROVIDER_TASKS:
             raise GenerationError("AI33 provider task cap reached.")
         task: dict[str, Any] = {
             "submissionIndex": submission_index,
-            "phase": phase,
+            "taskIndex": task_index,
             "status": "submitting",
             "submittedAt": utc_now(),
         }
@@ -1016,7 +1042,7 @@ class GenerationRunner:
         while True:
             self._assert_runtime()
             try:
-                task_id, credits = await asyncio.to_thread(self.client.submit_task, phase)
+                task_id, credits = await asyncio.to_thread(self.client.submit_task)
                 task["providerTaskId"] = task_id
                 task["status"] = "doing"
                 task.pop("errorMessage", None)

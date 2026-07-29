@@ -86,7 +86,7 @@ beforeEach(() => {
 });
 
 describe("study music generation API", () => {
-  it("claims one run and creates the fixed 20-slot daytime manifest", async () => {
+  it("claims one run and creates the fixed 20-slot task-index manifest", async () => {
     const response = await generateMusic(request(), { params: Promise.resolve({ id: "1" }) });
 
     expect(response.status).toBe(202);
@@ -107,12 +107,10 @@ describe("study music generation API", () => {
       lastKnownCredits: null,
     });
     expect(input.generationManifest.slots).toHaveLength(20);
-    expect(input.generationManifest.slots.slice(0, 4).map((slot: { phase: string }) => slot.phase)).toEqual([
-      "First light setup",
-      "First light setup",
-      "Morning momentum",
-      "Morning momentum",
-    ]);
+    expect(
+      input.generationManifest.slots.map((slot: { taskIndex: number }) => slot.taskIndex),
+    ).toEqual(Array.from({ length: 20 }, (_, index) => Math.floor(index / 2) + 1));
+    expect(input.generationManifest.slots.every((slot: Record<string, unknown>) => !("phase" in slot))).toBe(true);
     expect(mocks.spawn).toHaveBeenCalledOnce();
   });
 
