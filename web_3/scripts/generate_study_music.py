@@ -28,6 +28,7 @@ except Exception:
 
 AI33_BASE_URL = "https://api.ai33.pro"
 DEFAULT_STUDY_MEDIA_ROOT = Path(r"D:\VibeCoding\STUDY_WITH_ME")
+STUDY_MAX_WEEKS = 53
 PROMPT_VERSION = "study-organic-focus-v1"
 PROVIDER_NAME = "ai33.pro"
 TRACK_COUNT = 20
@@ -715,7 +716,7 @@ class GenerationRunner:
         if context.get("status") != "generating" or context.get("generation_run_id") != run_id:
             raise StaleGenerationError("The Generate API must claim this week before the worker runs.")
         week_number = int(context.get("week_number") or 0)
-        if not 1 <= week_number <= 15:
+        if not 1 <= week_number <= STUDY_MAX_WEEKS:
             raise GenerationError(f"Invalid study week number: {week_number}")
 
         manifest = normalize_generation_manifest(context.get("generation_manifest"))

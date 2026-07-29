@@ -15,6 +15,8 @@ import {
   getStudyWeekPaths,
   isFreshStudyAssembly,
   isFreshStudyPreview,
+  STUDY_MAX_WEEKS,
+  STUDY_TOTAL_DAYS,
 } from "@/lib/study/project";
 import {
   CreateDayForm,
@@ -73,11 +75,11 @@ export default async function StudyPage() {
   }
 
   const nextWeek = Math.min(
-    15,
+    STUDY_MAX_WEEKS,
     Math.max(1, ...weeks.map((week) => week.weekNumber + 1)),
   );
   const nextDay = Math.min(
-    100,
+    STUDY_TOTAL_DAYS,
     Math.max(1, ...videos.map((video) => video.dayNumber + 1)),
   );
   const weekNumberById = new Map(
@@ -112,7 +114,7 @@ export default async function StudyPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CreateWeekForm defaultWeek={nextWeek} />
+            <CreateWeekForm defaultWeek={nextWeek} maxWeek={STUDY_MAX_WEEKS} />
           </CardContent>
         </Card>
         <Card className="rounded-xl border-[var(--border-subtle)] bg-[var(--surface)] shadow-none">
@@ -123,7 +125,7 @@ export default async function StudyPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CreateDayForm defaultDay={nextDay} />
+            <CreateDayForm defaultDay={nextDay} maxDay={STUDY_TOTAL_DAYS} />
           </CardContent>
         </Card>
       </section>

@@ -158,7 +158,7 @@ export const studyAudioWeeks = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check("study_audio_weeks_week_number_check", sql`${table.weekNumber} BETWEEN 1 AND 15`),
+    check("study_audio_weeks_week_number_check", sql`${table.weekNumber} BETWEEN 1 AND 53`),
     check(
       "study_audio_weeks_status_check",
       sql`${table.status} IN ('draft', 'generating', 'awaiting_rights', 'ready', 'failed')`,
@@ -197,7 +197,7 @@ export const studyDailyVideos = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check("study_daily_videos_day_number_check", sql`${table.dayNumber} BETWEEN 1 AND 100`),
+    check("study_daily_videos_day_number_check", sql`${table.dayNumber} BETWEEN 1 AND 365`),
     check(
       "study_daily_videos_status_check",
       sql`${table.status} IN ('draft', 'assembling', 'done', 'failed')`,

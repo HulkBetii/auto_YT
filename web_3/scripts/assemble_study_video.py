@@ -29,6 +29,7 @@ except Exception:
 DEFAULT_STUDY_MEDIA_ROOT = Path(r"D:\VibeCoding\STUDY_WITH_ME")
 DEFAULT_STUDY_OVERLAY_FONT = Path(r"C:\Windows\Fonts\consolab.ttf")
 STUDY_OVERLAY_FONT_ENV = "STUDY_OVERLAY_FONT"
+STUDY_TOTAL_DAYS = 365
 CROSSFADE_SEC = 3.0
 FADE_SEC = 3.0
 TARGET_WIDTH = 1920
@@ -149,8 +150,8 @@ def natural_sort_key(value: str | Path) -> tuple[Any, ...]:
 
 
 def week_number_for_day(day_number: int) -> int:
-    if not 1 <= day_number <= 100:
-        raise AssemblyError("day_number must be between 1 and 100.")
+    if not 1 <= day_number <= STUDY_TOTAL_DAYS:
+        raise AssemblyError(f"day_number must be between 1 and {STUDY_TOTAL_DAYS}.")
     return math.ceil(day_number / 7)
 
 

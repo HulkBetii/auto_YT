@@ -97,7 +97,13 @@ function generationProgress(value: unknown): GenerationProgress {
   };
 }
 
-export function CreateWeekForm({ defaultWeek }: { defaultWeek: number }) {
+export function CreateWeekForm({
+  defaultWeek,
+  maxWeek,
+}: {
+  defaultWeek: number;
+  maxWeek: number;
+}) {
   const router = useRouter();
   const [weekNumber, setWeekNumber] = useState(defaultWeek);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,7 +129,7 @@ export function CreateWeekForm({ defaultWeek }: { defaultWeek: number }) {
         <Input
           type="number"
           min={1}
-          max={15}
+          max={maxWeek}
           value={weekNumber}
           onChange={(event) => setWeekNumber(Number(event.target.value))}
           aria-label="Week number"
@@ -144,7 +150,13 @@ export function CreateWeekForm({ defaultWeek }: { defaultWeek: number }) {
   );
 }
 
-export function CreateDayForm({ defaultDay }: { defaultDay: number }) {
+export function CreateDayForm({
+  defaultDay,
+  maxDay,
+}: {
+  defaultDay: number;
+  maxDay: number;
+}) {
   const router = useRouter();
   const [dayNumber, setDayNumber] = useState(defaultDay);
   const [isLoading, setIsLoading] = useState(false);
@@ -170,7 +182,7 @@ export function CreateDayForm({ defaultDay }: { defaultDay: number }) {
         <Input
           type="number"
           min={1}
-          max={100}
+          max={maxDay}
           value={dayNumber}
           onChange={(event) => setDayNumber(Number(event.target.value))}
           aria-label="Day number"

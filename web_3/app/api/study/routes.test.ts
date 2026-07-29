@@ -19,13 +19,13 @@ function request(body: unknown): Request {
 
 describe("study API validation", () => {
   it("rejects an invalid week number before touching the database", async () => {
-    const response = await createWeek(request({ weekNumber: 16 }));
+    const response = await createWeek(request({ weekNumber: 54 }));
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ ok: false });
   });
 
   it("rejects an invalid day number before touching the database", async () => {
-    const response = await createVideo(request({ dayNumber: 0 }));
+    const response = await createVideo(request({ dayNumber: 366 }));
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ ok: false });
   });

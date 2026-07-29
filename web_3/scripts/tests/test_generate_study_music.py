@@ -247,6 +247,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_runner_generates_twenty_tracks_with_max_three_in_flight(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             store = FakeStore()
+            store.context["week_number"] = 53
             client = FakeClient(clips_per_task=2)
             runner = GenerationRunner(
                 store,
@@ -273,7 +274,17 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(total_duration, int(round(sum(
                 item["durationSec"] for item in track_manifest["files"]
             ))))
-            self.assertTrue((Path(temp) / "audio" / "week-001" / "01.mp3").exists())
+            self.assertTrue((Path(temp) / "audio" / "week-053" / "01.mp3").exists())
+
+    async def test_runner_rejects_week_above_supported_range(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            store = FakeStore()
+            store.context["week_number"] = 54
+            client = FakeClient()
+            runner = GenerationRunner(store, client, Path(temp), max_runtime_sec=10)
+            with self.assertRaisesRegex(GenerationError, "Invalid study week number: 54"):
+                await runner.run(7, "run-1")
+            self.assertEqual(client.submissions, [])
 
     async def test_runner_topups_to_hard_cap_when_provider_returns_one_clip(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

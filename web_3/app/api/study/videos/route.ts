@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   }
   const parsed = StudyVideoCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "dayNumber must be an integer from 1 to 100" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "dayNumber must be an integer from 1 to 365" }, { status: 400 });
   }
 
   try {

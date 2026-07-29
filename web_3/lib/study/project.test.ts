@@ -14,6 +14,7 @@ import {
   isFreshStudyPreview,
   resolveStudyOverlayFontPath,
   studyAudioWeekStatusForRights,
+  StudyWeekCreateSchema,
   StudyVideoCreateSchema,
   weekNumberForDay,
 } from "./project";
@@ -37,15 +38,22 @@ describe("study project helpers", () => {
     [1, 1],
     [7, 1],
     [8, 2],
-    [98, 14],
-    [100, 15],
+    [364, 52],
+    [365, 53],
   ])("maps day %i to week %i", (dayNumber, weekNumber) => {
     expect(weekNumberForDay(dayNumber)).toBe(weekNumber);
   });
 
-  it("rejects day numbers outside the 100-day challenge", () => {
+  it("accepts the 365-day and 53-week boundaries", () => {
+    expect(StudyVideoCreateSchema.safeParse({ dayNumber: 365 }).success).toBe(true);
+    expect(StudyWeekCreateSchema.safeParse({ weekNumber: 53 }).success).toBe(true);
+  });
+
+  it("rejects challenge numbers outside the supported range", () => {
     expect(StudyVideoCreateSchema.safeParse({ dayNumber: 0 }).success).toBe(false);
-    expect(StudyVideoCreateSchema.safeParse({ dayNumber: 101 }).success).toBe(false);
+    expect(StudyVideoCreateSchema.safeParse({ dayNumber: 366 }).success).toBe(false);
+    expect(StudyWeekCreateSchema.safeParse({ weekNumber: 0 }).success).toBe(false);
+    expect(StudyWeekCreateSchema.safeParse({ weekNumber: 54 }).success).toBe(false);
     expect(() => weekNumberForDay(1.5)).toThrow();
   });
 

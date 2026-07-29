@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 
 import { z } from "zod";
 
-export const STUDY_TOTAL_DAYS = 100;
+export const STUDY_TOTAL_DAYS = 365;
 export const STUDY_DAYS_PER_WEEK = 7;
 export const STUDY_MAX_WEEKS = Math.ceil(STUDY_TOTAL_DAYS / STUDY_DAYS_PER_WEEK);
 export const STUDY_TRACKS_PER_WEEK = 20;

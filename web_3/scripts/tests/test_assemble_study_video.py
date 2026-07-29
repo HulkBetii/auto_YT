@@ -164,9 +164,10 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(week_number_for_day(1), 1)
         self.assertEqual(week_number_for_day(7), 1)
         self.assertEqual(week_number_for_day(8), 2)
-        self.assertEqual(week_number_for_day(100), 15)
+        self.assertEqual(week_number_for_day(364), 52)
+        self.assertEqual(week_number_for_day(365), 53)
         with self.assertRaises(AssemblyError):
-            week_number_for_day(101)
+            week_number_for_day(366)
 
     def test_aspect_ratio_tolerance(self) -> None:
         self.assertTrue(is_supported_aspect_ratio(1920, 1080))
