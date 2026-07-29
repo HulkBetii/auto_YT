@@ -39,6 +39,18 @@ vi.mock("node:child_process", () => ({ spawn: mocks.spawn }));
 import { POST as generateMusic } from "./weeks/[id]/generate/route";
 
 const originalApiKey = process.env.SUNO_API_KEY;
+const legacyPhases = [
+  "First light setup",
+  "Morning momentum",
+  "Clear desk flow",
+  "Deep work warmth",
+  "Late-morning concentration",
+  "Midday reset",
+  "Quiet persistence",
+  "Afternoon clarity",
+  "Steady finish",
+  "Golden-hour closure",
+] as const;
 
 function request(): Request {
   const secret = process.env.DASHBOARD_SECRET;
@@ -195,7 +207,7 @@ describe("study music generation API", () => {
       }],
       slots: Array.from({ length: 20 }, (_, index) => ({
         slotNumber: index + 1,
-        phase: "First light setup",
+        phase: legacyPhases[Math.floor(index / 2)],
         status: index === 0 ? "downloaded" as const : "pending" as const,
         ...(index === 0 ? { fileName: "01.mp3" } : {}),
       })),
@@ -212,7 +224,18 @@ describe("study music generation API", () => {
     const response = await generateMusic(request(), { params: Promise.resolve({ id: "1" }) });
     expect(response.status).toBe(202);
     expect(await response.json()).toMatchObject({ mode: "resume", progress: 1, taskCount: 1 });
-    expect(mocks.claim.mock.calls[0][0].generationManifest.tasks).toEqual(generationManifest.tasks);
+    const claimedManifest = mocks.claim.mock.calls[0][0].generationManifest;
+    expect(claimedManifest.tasks).toEqual([{
+      submissionIndex: 1,
+      taskIndex: 1,
+      status: "done",
+      providerTaskId: "task-1",
+      submittedAt: "2026-07-26T00:00:00.000Z",
+    }]);
+    expect(claimedManifest.slots.map((slot: { taskIndex: number }) => slot.taskIndex)).toEqual(
+      Array.from({ length: 20 }, (_, index) => Math.floor(index / 2) + 1),
+    );
+    expect(claimedManifest.slots.every((slot: Record<string, unknown>) => !("phase" in slot))).toBe(true);
   });
 
   it("rejects unmanaged files during resume", async () => {

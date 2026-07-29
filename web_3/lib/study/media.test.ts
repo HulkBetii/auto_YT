@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   createStudyInputSignature,
+  createStudyMasterSignature,
   isSixteenByNine,
   naturalSort,
   parseFrameRate,
@@ -74,10 +75,19 @@ describe("study media helpers", () => {
       createStudyInputSignature({ ...base, trackSha256s: ["d", "c"] }),
     );
     expect(createStudyInputSignature(base)).toBe(
-      "4eeb8138cbd0addca0959929d0eeb2a520aff646b7c49d97a240ff4ca7faad1c",
+      "f0b66dbc55c264c538d0e41f22487920ff510c700a8964bc6a1fa2b1202e052d",
     );
     expect(createStudyInputSignature(base)).not.toBe(
-      createStudyInputSignature(base, "study-pomodoro-v2"),
+      createStudyInputSignature(base, "study-pomodoro-v1"),
+    );
+  });
+
+  it("creates a footage-only master signature", () => {
+    expect(createStudyMasterSignature(["a", "b"])).toBe(
+      "140dc15e96f1ec21d05deee5a876e7118ef1b3fa498bb45a6d52daaedcf78dc3",
+    );
+    expect(createStudyMasterSignature(["a", "b"])).not.toBe(
+      createStudyMasterSignature(["b", "a"]),
     );
   });
 

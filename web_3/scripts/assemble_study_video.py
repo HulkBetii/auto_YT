@@ -37,7 +37,8 @@ MIN_FREE_SPACE_MULTIPLIER = 2.5
 EXPECTED_TRACK_COUNT = 20
 OUTPUT_DURATION_TOLERANCE_SEC = 2.0
 LOUDNORM_FILTER = "loudnorm=I=-16:TP=-1.5:LRA=11"
-STUDY_ASSEMBLY_PROFILE = "study-pomodoro-v1"
+STUDY_MASTER_PROFILE = "study-master-v1"
+STUDY_ASSEMBLY_PROFILE = "study-pomodoro-v2"
 POMODORO_FOCUS_SEC = 50 * 60
 POMODORO_BREAK_SEC = 5 * 60
 POMODORO_MARGIN_PX = 48
@@ -95,6 +96,16 @@ class OutputInfo:
     frame_rate: float
     video_codec: str
     audio_codec: str
+
+
+@dataclass(frozen=True)
+class SilentMasterInfo:
+    duration_sec: float
+    width: int
+    height: int
+    frame_rate: float
+    video_codec: str
+    pixel_format: str
 
 
 @dataclass(frozen=True)
@@ -269,6 +280,18 @@ def compute_input_signature(
     return hashlib.sha256(encoded).hexdigest()
 
 
+def compute_master_signature(
+    footage_sha256s: Sequence[str],
+    master_profile: str = STUDY_MASTER_PROFILE,
+) -> str:
+    payload = {
+        "masterProfile": master_profile,
+        "footageSha256s": list(footage_sha256s),
+    }
+    encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def encoder_args(use_nvenc: bool) -> list[str]:
     if use_nvenc:
         return [
@@ -375,7 +398,7 @@ def _probe(path: Path) -> dict[str, Any]:
         [
             "ffprobe", "-v", "error",
             "-show_entries",
-            "format=duration:stream=codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels",
+            "format=duration:stream=codec_type,codec_name,width,height,pix_fmt,avg_frame_rate,r_frame_rate,sample_rate,channels",
             "-of", "json",
             str(path),
         ]
@@ -603,16 +626,12 @@ def _drawtext_filter(
     )
 
 
-def _video_filter(
+def _normalized_video_filter(
     footage_count: int,
-    focus_duration_sec: int = POMODORO_FOCUS_SEC,
-    break_duration_sec: int = POMODORO_BREAK_SEC,
-    font_path: Path | None = None,
+    output_label: str = "outv",
 ) -> str:
     if footage_count <= 0:
         raise AssemblyError("At least one footage input is required.")
-    if focus_duration_sec <= 0 or break_duration_sec <= 0:
-        raise AssemblyError("Pomodoro phase durations must be greater than zero.")
 
     parts: list[str] = []
     labels: list[str] = []
@@ -625,7 +644,20 @@ def _video_filter(
             f"fps={TARGET_FPS:g},setsar=1,settb=AVTB,setpts=PTS-STARTPTS[{label}]"
         )
         labels.append(f"[{label}]")
-    parts.append(f"{''.join(labels)}concat=n={footage_count}:v=1:a=0[normalized_video]")
+    parts.append(f"{''.join(labels)}concat=n={footage_count}:v=1:a=0[{output_label}]")
+    return ";".join(parts)
+
+
+def _pomodoro_video_filter(
+    input_label: str = "0:v:0",
+    output_label: str = "outv",
+    focus_duration_sec: int = POMODORO_FOCUS_SEC,
+    break_duration_sec: int = POMODORO_BREAK_SEC,
+    font_path: Path | None = None,
+) -> str:
+    if focus_duration_sec <= 0 or break_duration_sec <= 0:
+        raise AssemblyError("Pomodoro phase durations must be greater than zero.")
+
     cycle_duration_sec = focus_duration_sec + break_duration_sec
     font = font_path or _resolve_timer_font()
     focus_enable = f"lt(mod(t\\,{cycle_duration_sec:g})\\,{focus_duration_sec:g})"
@@ -642,45 +674,55 @@ def _video_filter(
         _countdown_text("BREAK", cycle_duration_sec, cycle_duration_sec),
         font,
     )
-    parts.append(
-        f"[normalized_video]{focus_drawtext}[focus_timer]"
+    return (
+        f"[{input_label}]setpts=PTS-STARTPTS,{focus_drawtext}[focus_timer];"
+        f"[focus_timer]{break_drawtext}[{output_label}]"
     )
-    parts.append(
-        f"[focus_timer]{break_drawtext}[outv]"
-    )
-    return ";".join(parts)
 
 
-def _render_normalized_video(
+def _video_filter(
+    footage_count: int,
+    focus_duration_sec: int = POMODORO_FOCUS_SEC,
+    break_duration_sec: int = POMODORO_BREAK_SEC,
+    font_path: Path | None = None,
+) -> str:
+    normalized = _normalized_video_filter(footage_count, "normalized_video")
+    timer = _pomodoro_video_filter(
+        "normalized_video",
+        "outv",
+        focus_duration_sec,
+        break_duration_sec,
+        font_path,
+    )
+    return f"{normalized};{timer}"
+
+
+def _render_silent_master(
     footage: Sequence[FootageInfo],
     destination: Path,
     use_nvenc: bool,
-    focus_duration_sec: int = POMODORO_FOCUS_SEC,
-    break_duration_sec: int = POMODORO_BREAK_SEC,
 ) -> None:
     command = ["ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats"]
     for item in footage:
         command += ["-i", str(item.path)]
     command += [
-        "-filter_complex", _video_filter(len(footage), focus_duration_sec, break_duration_sec),
+        "-filter_complex", _normalized_video_filter(len(footage)),
         "-map", "[outv]", "-an",
         *encoder_args(use_nvenc),
         "-movflags", "+faststart",
         str(destination),
     ]
     try:
-        _run_media_command(command, "Normalizing and concatenating footage")
+        _run_media_command(command, "Building silent footage master")
     except AssemblyError:
         if not use_nvenc:
             raise
         destination.unlink(missing_ok=True)
-        print("NVENC render failed; retrying with libx264.")
-        _render_normalized_video(
+        print("NVENC master render failed; retrying with libx264.")
+        _render_silent_master(
             footage,
             destination,
             use_nvenc=False,
-            focus_duration_sec=focus_duration_sec,
-            break_duration_sec=break_duration_sec,
         )
 
 
@@ -805,17 +847,86 @@ def _render_audio(
     _run_media_command(command, "Building weekly audio playlist")
 
 
-def _mux(video: Path, audio: Path, destination: Path, duration_sec: float) -> None:
+def _render_final_from_master(
+    master: Path,
+    audio: Path,
+    destination: Path,
+    duration_sec: float,
+    use_nvenc: bool,
+    focus_duration_sec: int = POMODORO_FOCUS_SEC,
+    break_duration_sec: int = POMODORO_BREAK_SEC,
+) -> None:
     command = [
         "ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "warning", "-stats",
-        "-i", str(video), "-i", str(audio),
-        "-map", "0:v:0", "-map", "1:a:0",
-        "-c:v", "copy", "-c:a", "copy",
+        "-i", str(master), "-i", str(audio),
+        "-filter_complex",
+        _pomodoro_video_filter(
+            focus_duration_sec=focus_duration_sec,
+            break_duration_sec=break_duration_sec,
+        ),
+        "-map", "[outv]", "-map", "1:a:0",
+        *encoder_args(use_nvenc),
+        "-c:a", "copy",
         "-t", f"{duration_sec:.6f}", "-shortest",
         "-movflags", "+faststart",
         str(destination),
     ]
-    _run_media_command(command, "Muxing final Study video")
+    try:
+        _run_media_command(command, "Rendering Pomodoro overlay and final Study video")
+    except AssemblyError:
+        if not use_nvenc:
+            raise
+        destination.unlink(missing_ok=True)
+        print("NVENC final render failed; retrying with libx264.")
+        _render_final_from_master(
+            master,
+            audio,
+            destination,
+            duration_sec,
+            use_nvenc=False,
+            focus_duration_sec=focus_duration_sec,
+            break_duration_sec=break_duration_sec,
+        )
+
+
+def probe_silent_master(path: Path) -> SilentMasterInfo:
+    probe = _probe(path)
+    streams = probe.get("streams", [])
+    videos = [stream for stream in streams if stream.get("codec_type") == "video"]
+    audios = [stream for stream in streams if stream.get("codec_type") == "audio"]
+    if len(videos) != 1 or audios:
+        raise AssemblyError("Silent master must contain exactly one video stream and no audio.")
+    video = videos[0]
+    return SilentMasterInfo(
+        duration_sec=_duration(probe, path),
+        width=int(video.get("width") or 0),
+        height=int(video.get("height") or 0),
+        frame_rate=_frame_rate(video.get("avg_frame_rate") or video.get("r_frame_rate")),
+        video_codec=str(video.get("codec_name") or ""),
+        pixel_format=str(video.get("pix_fmt") or ""),
+    )
+
+
+def _validate_silent_master(master: SilentMasterInfo, expected_duration_sec: float) -> None:
+    if master.width != TARGET_WIDTH or master.height != TARGET_HEIGHT:
+        raise AssemblyError(
+            f"Unexpected silent master resolution: {master.width}x{master.height}."
+        )
+    if abs(master.frame_rate - TARGET_FPS) > 0.01:
+        raise AssemblyError(
+            f"Unexpected silent master frame rate: {master.frame_rate:g} fps."
+        )
+    if master.video_codec != "h264" or master.pixel_format != "yuv420p":
+        raise AssemblyError(
+            "Unexpected silent master format: "
+            f"codec={master.video_codec}, pixel_format={master.pixel_format}."
+        )
+    difference = abs(master.duration_sec - expected_duration_sec)
+    if difference > OUTPUT_DURATION_TOLERANCE_SEC:
+        raise AssemblyError(
+            f"Silent master duration differs from source by {difference:.3f}s "
+            f"(allowed {OUTPUT_DURATION_TOLERANCE_SEC:g}s)."
+        )
 
 
 def probe_output(path: Path) -> OutputInfo:
@@ -854,6 +965,56 @@ def _validate_output(output: OutputInfo, expected_duration_sec: float) -> None:
         )
 
 
+def assemble_from_master(
+    master_path: Path,
+    tracks: Sequence[AudioTrackInfo],
+    day_number: int,
+    final_path: Path,
+    target_duration_sec: float,
+    *,
+    crossfade_sec: float = CROSSFADE_SEC,
+    prefer_nvenc: bool = True,
+    pomodoro_focus_sec: int = POMODORO_FOCUS_SEC,
+    pomodoro_break_sec: int = POMODORO_BREAK_SEC,
+) -> OutputInfo:
+    if len(tracks) != EXPECTED_TRACK_COUNT:
+        raise AssemblyError(f"Expected {EXPECTED_TRACK_COUNT} audio tracks, got {len(tracks)}.")
+    _validate_silent_master(probe_silent_master(master_path), target_duration_sec)
+
+    sequence = build_audio_sequence(tracks, day_number, target_duration_sec, crossfade_sec)
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_dir = Path(tempfile.mkdtemp(prefix=".assembly-", dir=final_path.parent))
+    assembled_audio = temp_dir / "assembled_audio.m4a"
+    temporary_final = temp_dir / "final_video.mp4"
+    try:
+        use_nvenc = prefer_nvenc and nvenc_runtime_available()
+        print(f"Video encoder: {'h264_nvenc' if use_nvenc else 'libx264'}")
+        _render_audio(
+            sequence,
+            assembled_audio,
+            target_duration_sec,
+            crossfade_sec,
+            pomodoro_focus_sec,
+            pomodoro_break_sec,
+        )
+        _render_final_from_master(
+            master_path,
+            assembled_audio,
+            temporary_final,
+            target_duration_sec,
+            use_nvenc,
+            pomodoro_focus_sec,
+            pomodoro_break_sec,
+        )
+        output = probe_output(temporary_final)
+        _validate_output(output, target_duration_sec)
+        os.replace(temporary_final, final_path)
+        return output
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def assemble_media(
     footage: Sequence[FootageInfo],
     tracks: Sequence[AudioTrackInfo],
@@ -868,42 +1029,28 @@ def assemble_media(
 ) -> OutputInfo:
     if not footage:
         raise AssemblyError("No footage was provided.")
-    if len(tracks) != EXPECTED_TRACK_COUNT:
-        raise AssemblyError(f"Expected {EXPECTED_TRACK_COUNT} audio tracks, got {len(tracks)}.")
-
     target_duration = sum(item.duration_sec for item in footage)
-    sequence = build_audio_sequence(tracks, day_number, target_duration, crossfade_sec)
     final_path.parent.mkdir(parents=True, exist_ok=True)
     if check_disk:
         _assert_disk_space(final_path.parent, sum(item.size_bytes for item in footage))
 
-    temp_dir = Path(tempfile.mkdtemp(prefix=".assembly-", dir=final_path.parent))
-    normalized_video = temp_dir / "normalized_video.mp4"
-    assembled_audio = temp_dir / "assembled_audio.m4a"
-    temporary_final = temp_dir / "final_video.mp4"
+    temp_dir = Path(tempfile.mkdtemp(prefix=".master-", dir=final_path.parent))
+    master_path = temp_dir / "master_silent.mp4"
     try:
         use_nvenc = prefer_nvenc and nvenc_runtime_available()
-        print(f"Video encoder: {'h264_nvenc' if use_nvenc else 'libx264'}")
-        _render_normalized_video(
-            footage,
-            normalized_video,
-            use_nvenc,
-            pomodoro_focus_sec,
-            pomodoro_break_sec,
-        )
-        _render_audio(
-            sequence,
-            assembled_audio,
+        _render_silent_master(footage, master_path, use_nvenc)
+        _validate_silent_master(probe_silent_master(master_path), target_duration)
+        return assemble_from_master(
+            master_path,
+            tracks,
+            day_number,
+            final_path,
             target_duration,
-            crossfade_sec,
-            pomodoro_focus_sec,
-            pomodoro_break_sec,
+            crossfade_sec=crossfade_sec,
+            prefer_nvenc=prefer_nvenc,
+            pomodoro_focus_sec=pomodoro_focus_sec,
+            pomodoro_break_sec=pomodoro_break_sec,
         )
-        _mux(normalized_video, assembled_audio, temporary_final, target_duration)
-        output = probe_output(temporary_final)
-        _validate_output(output, target_duration)
-        os.replace(temporary_final, final_path)
-        return output
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -928,6 +1075,9 @@ async def _load_video_context(video_id: int) -> dict[str, Any]:
                 v.status,
                 v.footage_manifest,
                 v.input_signature,
+                v.master_signature,
+                v.master_path,
+                v.master_created_at,
                 v.assembly_started_at,
                 w.week_number,
                 w.status AS week_status,
@@ -944,6 +1094,62 @@ async def _load_video_context(video_id: int) -> dict[str, Any]:
     if row is None:
         raise AssemblyError(f"Study daily video #{video_id} was not found.")
     return dict(row)
+
+
+async def _mark_master_ready(
+    video_id: int,
+    master_signature: str,
+    master_relative_path: str,
+    master_created_at: Any,
+    assembly_started_at: Any,
+    candidate_path: Path,
+    master_path: Path,
+) -> None:
+    conn = await _connect()
+    try:
+        async with conn.transaction():
+            owner = await conn.fetchrow(
+                """
+                SELECT status, assembly_started_at
+                FROM study_daily_videos
+                WHERE id = $1
+                FOR UPDATE
+                """,
+                video_id,
+            )
+            if (
+                owner is None
+                or owner["status"] != "assembling"
+                or owner["assembly_started_at"] != assembly_started_at
+            ):
+                raise AssemblyError(
+                    "This assembly attempt is stale and cannot update the footage master."
+                )
+
+            os.replace(candidate_path, master_path)
+            result = await conn.execute(
+                """
+                UPDATE study_daily_videos
+                SET master_signature = $1,
+                    master_path = $2,
+                    master_created_at = $3,
+                    updated_at = NOW()
+                WHERE id = $4
+                  AND status = 'assembling'
+                  AND assembly_started_at = $5
+                """,
+                master_signature,
+                master_relative_path,
+                master_created_at,
+                video_id,
+                assembly_started_at,
+            )
+            if result != "UPDATE 1":
+                raise AssemblyError(
+                    "This assembly attempt lost its lease while saving the footage master."
+                )
+    finally:
+        await conn.close()
 
 
 async def _used_footage_hashes(video_id: int) -> dict[str, tuple[int, int]]:
@@ -1058,6 +1264,52 @@ async def _mark_failed(video_id: int, message: str, assembly_started_at: Any) ->
         )
 
 
+async def _ensure_silent_master(
+    video_id: int,
+    context: dict[str, Any],
+    footage: Sequence[FootageInfo],
+    master_path: Path,
+    master_relative_path: str,
+    target_duration_sec: float,
+    assembly_started_at: Any,
+) -> Path:
+    master_signature = compute_master_signature([item.sha256 for item in footage])
+    cached_path = context.get("master_path")
+    if (
+        context.get("master_signature") == master_signature
+        and cached_path == master_relative_path
+        and master_path.is_file()
+    ):
+        try:
+            _validate_silent_master(probe_silent_master(master_path), target_duration_sec)
+            print(f"Reusing silent footage master: {master_path}")
+            return master_path
+        except AssemblyError as exc:
+            print(f"Silent master cache invalid; rebuilding: {exc}")
+
+    # Only touch the server-derived path. Never trust a persisted path for file operations.
+    master_path.unlink(missing_ok=True)
+    master_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path = master_path.parent / f".master_silent-{uuid.uuid4().hex}.mp4"
+    try:
+        use_nvenc = nvenc_runtime_available()
+        print(f"Master video encoder: {'h264_nvenc' if use_nvenc else 'libx264'}")
+        _render_silent_master(footage, candidate_path, use_nvenc)
+        _validate_silent_master(probe_silent_master(candidate_path), target_duration_sec)
+        await _mark_master_ready(
+            video_id,
+            master_signature,
+            master_relative_path,
+            datetime.now(timezone.utc),
+            assembly_started_at,
+            candidate_path,
+            master_path,
+        )
+        return master_path
+    finally:
+        candidate_path.unlink(missing_ok=True)
+
+
 async def assemble_video_id(video_id: int) -> Path:
     context = await _load_video_context(video_id)
     if context["status"] == "assembling" and context["assembly_started_at"] is not None:
@@ -1082,9 +1334,13 @@ async def assemble_video_id(video_id: int) -> Path:
     media_root = _media_root().resolve()
     source_dir = media_root / "daily" / f"day-{day_number:03d}" / "source"
     audio_dir = media_root / "audio" / f"week-{week_number:03d}"
+    work_dir = media_root / "daily" / f"day-{day_number:03d}" / "work"
     output_dir = media_root / "daily" / f"day-{day_number:03d}" / "output"
+    master_path = work_dir / "master_silent.mp4"
     final_path = output_dir / "final_video.mp4"
     attempt_path = output_dir / f".final_video-{uuid.uuid4().hex}.mp4"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     footage = scan_footage(source_dir, media_root)
     _assert_unique_current_footage(footage)
@@ -1125,8 +1381,26 @@ async def assemble_video_id(video_id: int) -> Path:
         raise AssemblyError(
             "The claimed input signature does not match the current footage and audio manifests."
         )
+    target_duration = sum(item.duration_sec for item in footage)
+    _assert_disk_space(output_dir, sum(item.size_bytes for item in footage))
+    master_relative_path = master_path.relative_to(media_root).as_posix()
     try:
-        output = assemble_media(footage, tracks, day_number, attempt_path)
+        await _ensure_silent_master(
+            video_id,
+            context,
+            footage,
+            master_path,
+            master_relative_path,
+            target_duration,
+            assembly_started_at,
+        )
+        output = assemble_from_master(
+            master_path,
+            tracks,
+            day_number,
+            attempt_path,
+            target_duration,
+        )
         relative_output = final_path.relative_to(media_root).as_posix()
         await _mark_done(
             video_id,

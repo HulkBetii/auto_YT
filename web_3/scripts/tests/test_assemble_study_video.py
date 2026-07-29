@@ -9,6 +9,7 @@ import unittest
 from array import array
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -16,12 +17,18 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from assemble_study_video import (  # noqa: E402
     AssemblyError,
     AudioTrackInfo,
+    FootageInfo,
+    SilentMasterInfo,
     _audio_filter,
+    _normalized_video_filter,
+    _pomodoro_video_filter,
+    _validate_silent_master,
     _video_filter,
     build_audio_sequence,
     build_pomodoro_cue_schedule,
     build_pomodoro_duck_windows,
     compute_input_signature,
+    compute_master_signature,
     encoder_args,
     is_supported_aspect_ratio,
     natural_sort_key,
@@ -32,6 +39,7 @@ from assemble_study_video import (  # noqa: E402
     scan_footage,
     assemble_media,
     week_number_for_day,
+    _ensure_silent_master,
 )
 
 
@@ -45,6 +53,21 @@ def make_track(index: int, duration_sec: float = 10.0) -> AudioTrackInfo:
         codec_name="mp3",
         sample_rate=44100,
         channels=2,
+    )
+
+
+def make_footage(index: int = 1, duration_sec: float = 120.0) -> FootageInfo:
+    return FootageInfo(
+        path=Path(f"clip{index}.mp4"),
+        relative_path=f"daily/day-001/source/clip{index}.mp4",
+        sha256=f"footage-{index}",
+        size_bytes=1000,
+        duration_sec=duration_sec,
+        width=1920,
+        height=1080,
+        frame_rate=30.0,
+        codec_name="h264",
+        has_audio=False,
     )
 
 
@@ -127,7 +150,7 @@ class HelperTests(unittest.TestCase):
         self.assertNotEqual(first, reordered)
         self.assertEqual(
             first,
-            "4eeb8138cbd0addca0959929d0eeb2a520aff646b7c49d97a240ff4ca7faad1c",
+            "f0b66dbc55c264c538d0e41f22487920ff510c700a8964bc6a1fa2b1202e052d",
         )
         self.assertNotEqual(
             first,
@@ -136,8 +159,18 @@ class HelperTests(unittest.TestCase):
                 1,
                 ["a", "b"],
                 ["c", "d"],
-                assembly_profile="study-pomodoro-v2",
+                assembly_profile="study-pomodoro-v1",
             ),
+        )
+
+    def test_master_signature_is_footage_only_and_order_sensitive(self) -> None:
+        self.assertEqual(
+            compute_master_signature(["a", "b"]),
+            "140dc15e96f1ec21d05deee5a876e7118ef1b3fa498bb45a6d52daaedcf78dc3",
+        )
+        self.assertNotEqual(
+            compute_master_signature(["a", "b"]),
+            compute_master_signature(["b", "a"]),
         )
 
     def test_pomodoro_phase_boundaries(self) -> None:
@@ -172,6 +205,18 @@ class HelperTests(unittest.TestCase):
         )
 
     def test_pomodoro_filter_graph_contains_locked_style_and_cues(self) -> None:
+        normalized_filter = _normalized_video_filter(1)
+        self.assertIn("scale=1920:1080", normalized_filter)
+        self.assertNotIn("drawtext", normalized_filter)
+
+        timer_filter = _pomodoro_video_filter(
+            focus_duration_sec=4,
+            break_duration_sec=2,
+            font_path=Path("C:/Windows/Fonts/consolab.ttf"),
+        )
+        self.assertNotIn("scale=1920:1080", timer_filter)
+        self.assertIn("drawtext", timer_filter)
+
         video_filter = _video_filter(1, 4, 2, Path("C:/Windows/Fonts/consolab.ttf"))
         self.assertIn("fontcolor=0x67E8F9", video_filter)
         self.assertIn("fontcolor=0xF59E0B", video_filter)
@@ -188,9 +233,92 @@ class HelperTests(unittest.TestCase):
         self.assertIn("volume=volume=0.630957", audio_filter)
         self.assertIn("alimiter=limit=0.891251", audio_filter)
 
+    def test_silent_master_validation(self) -> None:
+        valid = SilentMasterInfo(
+            duration_sec=120.0,
+            width=1920,
+            height=1080,
+            frame_rate=30.0,
+            video_codec="h264",
+            pixel_format="yuv420p",
+        )
+        _validate_silent_master(valid, 120.0)
+        invalid_cases = [
+            replace(valid, width=1280),
+            replace(valid, frame_rate=25.0),
+            replace(valid, video_codec="hevc"),
+            replace(valid, pixel_format="yuv444p"),
+            replace(valid, duration_sec=123.0),
+        ]
+        for invalid in invalid_cases:
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(AssemblyError):
+                    _validate_silent_master(invalid, 120.0)
+
     def test_encoder_arguments(self) -> None:
         self.assertIn("h264_nvenc", encoder_args(True))
         self.assertIn("libx264", encoder_args(False))
+
+
+class MasterCacheTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cache_hit_skips_master_render(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            master = Path(temp) / "master_silent.mp4"
+            master.write_bytes(b"cached")
+            footage = [make_footage()]
+            signature = compute_master_signature([footage[0].sha256])
+            context = {"master_signature": signature, "master_path": "daily/day-001/work/master_silent.mp4"}
+            valid = SilentMasterInfo(120.0, 1920, 1080, 30.0, "h264", "yuv420p")
+            with (
+                patch("assemble_study_video.probe_silent_master", return_value=valid),
+                patch("assemble_study_video._render_silent_master") as render,
+                patch("assemble_study_video._mark_master_ready", new_callable=AsyncMock) as mark,
+            ):
+                result = await _ensure_silent_master(
+                    1,
+                    context,
+                    footage,
+                    master,
+                    "daily/day-001/work/master_silent.mp4",
+                    120.0,
+                    "lease",
+                )
+            self.assertEqual(result, master)
+            render.assert_not_called()
+            mark.assert_not_awaited()
+
+    async def test_cache_miss_rebuilds_and_promotes_master(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            master = Path(temp) / "master_silent.mp4"
+            master.write_bytes(b"stale")
+            footage = [make_footage()]
+            valid = SilentMasterInfo(120.0, 1920, 1080, 30.0, "h264", "yuv420p")
+
+            def render(_footage, destination, _use_nvenc):
+                destination.write_bytes(b"fresh")
+
+            async def promote(_video_id, _signature, _relative, _created, _lease, candidate, destination):
+                os.replace(candidate, destination)
+
+            with (
+                patch("assemble_study_video.nvenc_runtime_available", return_value=False),
+                patch("assemble_study_video.probe_silent_master", return_value=valid),
+                patch("assemble_study_video._render_silent_master", side_effect=render) as render_mock,
+                patch("assemble_study_video._mark_master_ready", new_callable=AsyncMock, side_effect=promote) as mark,
+            ):
+                result = await _ensure_silent_master(
+                    1,
+                    {"master_signature": "old", "master_path": "old/path"},
+                    footage,
+                    master,
+                    "daily/day-001/work/master_silent.mp4",
+                    120.0,
+                    "lease",
+                )
+            self.assertEqual(result, master)
+            self.assertEqual(master.read_bytes(), b"fresh")
+            render_mock.assert_called_once()
+            mark.assert_awaited_once()
 
 
 @unittest.skipUnless(

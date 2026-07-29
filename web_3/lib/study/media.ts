@@ -20,7 +20,8 @@ const execFileAsync = promisify(execFile);
 const TARGET_ASPECT_RATIO = 16 / 9;
 const ASPECT_RATIO_TOLERANCE = 0.02;
 const REQUIRED_FREE_SPACE_MULTIPLIER = 2.5;
-export const STUDY_ASSEMBLY_PROFILE = "study-pomodoro-v1";
+export const STUDY_MASTER_PROFILE = "study-master-v1";
+export const STUDY_ASSEMBLY_PROFILE = "study-pomodoro-v2";
 
 interface FfprobeStream {
   codec_type?: string;
@@ -109,6 +110,17 @@ export function createStudyInputSignature(
     weekNumber: input.weekNumber,
     footageSha256s: input.footageSha256s,
     trackSha256s: input.trackSha256s,
+  };
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+export function createStudyMasterSignature(
+  footageSha256s: string[],
+  masterProfile = STUDY_MASTER_PROFILE,
+): string {
+  const payload = {
+    masterProfile,
+    footageSha256s,
   };
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }

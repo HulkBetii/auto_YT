@@ -45,6 +45,10 @@ describe("study project helpers", () => {
     expect(day.sourceDir).toBe(
       path.join(path.resolve("test-study-root"), "daily", "day-009", "source"),
     );
+    expect(day.workDir).toBe(
+      path.join(path.resolve("test-study-root"), "daily", "day-009", "work"),
+    );
+    expect(day.masterVideoPath).toBe(path.join(day.workDir, "master_silent.mp4"));
     expect(day.finalVideoPath).toBe(path.join(day.outputDir, "final_video.mp4"));
   });
 

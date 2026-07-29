@@ -75,12 +75,15 @@ export function getStudyDayPaths(dayNumber: number) {
   const mediaRoot = getStudyMediaRoot();
   const dayDir = path.join(mediaRoot, "daily", `day-${paddedNumber(dayNumber)}`);
   const sourceDir = path.join(dayDir, "source");
+  const workDir = path.join(dayDir, "work");
   const outputDir = path.join(dayDir, "output");
   return {
     mediaRoot,
     dayDir,
     sourceDir,
+    workDir,
     outputDir,
+    masterVideoPath: path.join(workDir, "master_silent.mp4"),
     finalVideoPath: path.join(outputDir, "final_video.mp4"),
     logPath: path.join(outputDir, "assembly.log"),
   };
@@ -96,6 +99,7 @@ export async function ensureStudyDayDirs(dayNumber: number) {
   const paths = getStudyDayPaths(dayNumber);
   await Promise.all([
     mkdir(paths.sourceDir, { recursive: true }),
+    mkdir(paths.workDir, { recursive: true }),
     mkdir(paths.outputDir, { recursive: true }),
   ]);
   return paths;

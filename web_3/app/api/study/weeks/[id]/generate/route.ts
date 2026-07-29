@@ -25,6 +25,18 @@ export const runtime = "nodejs";
 
 const PROMPT_VERSION = "study-organic-focus-v1";
 const MAX_PROVIDER_TASKS = 20;
+const LEGACY_PHASE_TASK_INDEX: Readonly<Record<string, number>> = {
+  "First light setup": 1,
+  "Morning momentum": 2,
+  "Clear desk flow": 3,
+  "Deep work warmth": 4,
+  "Late-morning concentration": 5,
+  "Midday reset": 6,
+  "Quiet persistence": 7,
+  "Afternoon clarity": 8,
+  "Steady finish": 9,
+  "Golden-hour closure": 10,
+};
 
 function workerScriptPath(): string {
   return path.join(process.cwd(), "scripts", "generate_study_music.py");
@@ -52,6 +64,47 @@ function createGenerationManifest(now: Date): StudyMusicGenerationManifest {
     lastKnownCredits: null,
     updatedAt: now.toISOString(),
   };
+}
+
+function resolveTaskIndex(
+  record: { taskIndex?: number; phase?: string },
+  label: string,
+): number {
+  const taskIndex = record.taskIndex;
+  const legacyTaskIndex = record.phase ? LEGACY_PHASE_TASK_INDEX[record.phase] : undefined;
+  if (taskIndex !== undefined && (!Number.isInteger(taskIndex) || taskIndex < 1 || taskIndex > 10)) {
+    throw new Error(`${label} has an invalid taskIndex`);
+  }
+  if (record.phase !== undefined && legacyTaskIndex === undefined) {
+    throw new Error(`${label} has an invalid legacy phase`);
+  }
+  if (taskIndex !== undefined && legacyTaskIndex !== undefined && taskIndex !== legacyTaskIndex) {
+    throw new Error(`${label} has conflicting taskIndex and phase`);
+  }
+  const resolved = taskIndex ?? legacyTaskIndex;
+  if (resolved === undefined) throw new Error(`${label} must define taskIndex or legacy phase`);
+  return resolved;
+}
+
+function normalizeGenerationManifestForClaim(
+  manifest: StudyMusicGenerationManifest,
+  now: Date,
+): StudyMusicGenerationManifest {
+  const tasks = manifest.tasks.map((task) => {
+    const taskIndex = resolveTaskIndex(task, `Task #${task.submissionIndex}`);
+    const { phase: _phase, taskIndex: _taskIndex, ...rest } = task;
+    return { ...rest, taskIndex };
+  });
+  const slots = manifest.slots.map((slot) => {
+    const taskIndex = resolveTaskIndex(slot, `Slot #${slot.slotNumber}`);
+    const expectedTaskIndex = Math.floor((slot.slotNumber - 1) / 2) + 1;
+    if (taskIndex !== expectedTaskIndex) {
+      throw new Error(`Slot #${slot.slotNumber} has an invalid taskIndex`);
+    }
+    const { phase: _phase, taskIndex: _taskIndex, ...rest } = slot;
+    return { ...rest, taskIndex };
+  });
+  return { ...manifest, tasks, slots, updatedAt: now.toISOString() };
 }
 
 function generationProgress(manifest: StudyMusicGenerationManifest): number {
@@ -150,7 +203,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await mkdir(generationDir, { recursive: true });
     await assertGenerationFilesAreManaged(paths.audioDir, week.generationManifest);
     const generationManifest = week.generationManifest
-      ? { ...week.generationManifest, updatedAt: now.toISOString() }
+      ? normalizeGenerationManifestForClaim(week.generationManifest, now)
       : createGenerationManifest(now);
     const claimed = await claimStudyAudioWeekForGeneration({
       id: week.id,
