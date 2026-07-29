@@ -186,6 +186,8 @@ export function CreateDayForm({
           value={dayNumber}
           onChange={(event) => setDayNumber(Number(event.target.value))}
           aria-label="Day number"
+          aria-describedby="study-day-number-help"
+          title="Completed-video sequence, not the calendar day"
           className="w-24"
           required
         />
@@ -198,6 +200,9 @@ export function CreateDayForm({
           Create day
         </Button>
       </div>
+      <p id="study-day-number-help" className="text-[11px] text-[var(--text-muted)]">
+        Day number is the completed-video sequence, not the calendar day. Skipping a day does not advance it.
+      </p>
       <InlineError message={error} />
     </form>
   );
