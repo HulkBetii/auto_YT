@@ -44,6 +44,7 @@ interface StudyMusicGenerationTaskBase {
   finishedAt?: string;
   errorMessage?: string;
   creditCost?: number;
+  targetSlot?: number;
 }
 
 type StudyMusicGenerationIdentity =
@@ -72,6 +73,31 @@ interface StudyMusicGenerationSlotBase {
 export type StudyMusicGenerationSlot = StudyMusicGenerationSlotBase &
   StudyMusicGenerationIdentity;
 
+export type StudyTrackRegenerationState =
+  | "claimed"
+  | "submitting"
+  | "polling"
+  | "staged"
+  | "backed_up"
+  | "promoted"
+  | "failed";
+
+export interface StudyTrackRegenerationJournal {
+  runId: string;
+  targetSlot: number;
+  previousStatus: "ready" | "awaiting_rights";
+  previousRightsVerifiedAt: string | null;
+  state: StudyTrackRegenerationState;
+  originalSlot: StudyMusicGenerationSlot;
+  originalTrack: StudyAudioTrackFile;
+  submissionIndex?: number;
+  stagedRelativePath?: string;
+  backupRelativePath?: string;
+  startedAt: string;
+  updatedAt: string;
+  errorMessage?: string;
+}
+
 export interface StudyMusicGenerationManifest {
   promptVersion: string;
   provider: "ai33.pro";
@@ -80,6 +106,7 @@ export interface StudyMusicGenerationManifest {
   slots: StudyMusicGenerationSlot[];
   lastKnownCredits: number | null;
   updatedAt: string;
+  activeRegeneration?: StudyTrackRegenerationJournal;
 }
 
 export interface StudyFootageFile {

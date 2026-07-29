@@ -45,6 +45,12 @@ interface GenerationProgress {
   maxProviderTasks: number | null;
   lastKnownCredits: number | null;
   latestError: string | null;
+  activeRegenerationSlot: number | null;
+  tracks: Array<{
+    slotNumber: number;
+    status: string;
+    durationSec: number | null;
+  }>;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -64,6 +70,17 @@ function generationProgress(value: unknown): GenerationProgress {
     .find((error): error is string => typeof error === "string" && error.trim().length > 0) ?? null;
   const maxProviderTasks = manifest?.maxProviderTasks;
   const lastKnownCredits = manifest?.lastKnownCredits;
+  const activeRegeneration = asRecord(manifest?.activeRegeneration);
+  const activeRegenerationSlot = activeRegeneration?.targetSlot;
+  const tracks = slots.flatMap((value) => {
+    const slot = asRecord(value);
+    if (!slot || typeof slot.slotNumber !== "number") return [];
+    return [{
+      slotNumber: slot.slotNumber,
+      status: typeof slot.status === "string" ? slot.status : "pending",
+      durationSec: typeof slot.durationSec === "number" ? slot.durationSec : null,
+    }];
+  });
 
   return {
     downloadedSlots,
@@ -72,6 +89,10 @@ function generationProgress(value: unknown): GenerationProgress {
     maxProviderTasks: typeof maxProviderTasks === "number" ? maxProviderTasks : null,
     lastKnownCredits: typeof lastKnownCredits === "number" ? lastKnownCredits : null,
     latestError,
+    activeRegenerationSlot: typeof activeRegenerationSlot === "number"
+      ? activeRegenerationSlot
+      : null,
+    tracks,
   };
 }
 
@@ -188,6 +209,7 @@ export function StudyWeekActions({
   const [rightsConfirmed, setRightsConfirmed] = useState(isReady);
   const [isScanning, setIsScanning] = useState(false);
   const [isGeneratingRequest, setIsGeneratingRequest] = useState(false);
+  const [regeneratingSlot, setRegeneratingSlot] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function generateTracks() {
@@ -215,6 +237,19 @@ export function StudyWeekActions({
       setError(err instanceof Error ? err.message : "Cannot scan audio.");
     } finally {
       setIsScanning(false);
+    }
+  }
+
+  async function regenerateTrack(slotNumber: number) {
+    setError(null);
+    setRegeneratingSlot(slotNumber);
+    try {
+      await postJson(`/api/study/weeks/${weekId}/tracks/${slotNumber}/regenerate`, {});
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot regenerate track.");
+    } finally {
+      setRegeneratingSlot(null);
     }
   }
 
@@ -302,6 +337,47 @@ export function StudyWeekActions({
               <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
               {progress.latestError}
             </p>
+          )}
+          {progress.tracks.length === 20 && (
+            <div className="grid gap-1 pt-1 sm:grid-cols-2">
+              {progress.tracks.map((track) => {
+                const isActive = progress.activeRegenerationSlot === track.slotNumber;
+                const isRequesting = regeneratingSlot === track.slotNumber;
+                const quotaReached = progress.maxProviderTasks !== null
+                  && progress.tasksUsed >= progress.maxProviderTasks;
+                return (
+                  <div
+                    key={track.slotNumber}
+                    className="flex items-center justify-between gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1.5"
+                  >
+                    <span className="text-[11px] text-[var(--text-secondary)]">
+                      {String(track.slotNumber).padStart(2, "0")}.mp3
+                      {track.durationSec === null ? "" : ` / ${Math.round(track.durationSec)}s`}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => regenerateTrack(track.slotNumber)}
+                      disabled={
+                        isGenerating
+                        || regeneratingSlot !== null
+                        || quotaReached
+                        || track.status !== "downloaded"
+                      }
+                      className="h-6 gap-1 px-2 text-[10px]"
+                    >
+                      {(isActive && isGenerating) || isRequesting ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      {isActive && isGenerating ? "Regenerating" : "Regenerate"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

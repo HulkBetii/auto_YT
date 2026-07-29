@@ -98,6 +98,92 @@ export async function claimStudyAudioWeekForGeneration(input: {
   return claimed ?? null;
 }
 
+export async function claimStudyAudioWeekTrackRegeneration(input: {
+  id: number;
+  runId: string;
+  generationManifest: StudyMusicGenerationManifest;
+  expectedUpdatedAt: Date;
+  staleBefore: Date;
+}) {
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({
+        status: studyAudioWeeks.status,
+        updatedAt: studyAudioWeeks.updatedAt,
+        generationHeartbeatAt: studyAudioWeeks.generationHeartbeatAt,
+      })
+      .from(studyAudioWeeks)
+      .where(eq(studyAudioWeeks.id, input.id))
+      .limit(1)
+      .for("update");
+    if (!current || current.updatedAt.getTime() !== input.expectedUpdatedAt.getTime()) return null;
+
+    const canClaimCompletedAlbum = inArray(
+      studyAudioWeeks.status,
+      ["ready", "awaiting_rights"],
+    );
+    const canResumeStaleRegeneration = and(
+      eq(studyAudioWeeks.status, "generating"),
+      or(
+        isNull(studyAudioWeeks.generationHeartbeatAt),
+        lt(studyAudioWeeks.generationHeartbeatAt, input.staleBefore),
+      ),
+    );
+    const now = new Date();
+    const [claimed] = await tx
+      .update(studyAudioWeeks)
+      .set({
+        status: "generating",
+        generationManifest: input.generationManifest,
+        generationRunId: input.runId,
+        generationStartedAt: now,
+        generationHeartbeatAt: now,
+        generationFinishedAt: null,
+        errorMessage: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(studyAudioWeeks.id, input.id),
+          eq(studyAudioWeeks.updatedAt, input.expectedUpdatedAt),
+          or(canClaimCompletedAlbum, canResumeStaleRegeneration),
+        ),
+      )
+      .returning();
+    return claimed ?? null;
+  });
+}
+
+export async function restoreStudyAudioWeekAfterRegenerationLaunchFailure(input: {
+  id: number;
+  runId: string;
+  status: "ready" | "awaiting_rights";
+  rightsVerifiedAt: Date | null;
+  generationManifest: StudyMusicGenerationManifest;
+  errorMessage: string;
+}) {
+  const now = new Date();
+  const [updated] = await db
+    .update(studyAudioWeeks)
+    .set({
+      status: input.status,
+      rightsVerifiedAt: input.rightsVerifiedAt,
+      generationManifest: input.generationManifest,
+      generationFinishedAt: now,
+      errorMessage: input.errorMessage,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(studyAudioWeeks.id, input.id),
+        eq(studyAudioWeeks.status, "generating"),
+        eq(studyAudioWeeks.generationRunId, input.runId),
+      ),
+    )
+    .returning();
+  return updated ?? null;
+}
+
 export async function markStudyAudioWeekGenerationFailed(input: {
   id: number;
   runId: string;
