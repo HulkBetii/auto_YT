@@ -1,4 +1,4 @@
-﻿import { sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -62,6 +62,15 @@ export const koJpVideos = pgTable(
     finalScriptJp: text("final_script_jp"),
     finalScriptKo: text("final_script_ko"),
     finalScriptPath: text("final_script_path"),
+    titleJp: text("title_jp"),
+    descriptionJp: text("description_jp"),
+    thumbnailText: text("thumbnail_text"),
+    thumbnailOptions: jsonb("thumbnail_options"),
+    thumbnailImageUrl: text("thumbnail_image_url"),
+    conversationUrl: text("conversation_url"),
+    audioUrl: text("audio_url"),
+    audioPath: text("audio_path"),
+    audioDuration: integer("audio_duration"),
     fidelityReview: jsonb("fidelity_review"),
     status: text("status").notNull().default("source_pending"),
     sourceAuditPromptVersionId: integer("source_audit_prompt_version_id").references(

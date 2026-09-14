@@ -1,0 +1,1 @@
+ALTER TABLE "ko_jp_videos" ADD COLUMN "thumbnail_image_url" text;

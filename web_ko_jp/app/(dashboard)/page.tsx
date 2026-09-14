@@ -1,7 +1,8 @@
-﻿import React from "react";
+import React from "react";
 import { listKoJpVideos } from "@/lib/db/repo/videos";
 import { listRecentKoJpJobs } from "@/lib/db/repo/jobs";
 import type { KoJpVideo, KoJpJob } from "@/lib/db/schema";
+import { YouTubeDramaCard } from "./YouTubeDramaCard";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,9 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* 1-Click YouTube to Japanese Drama Script Card */}
+      <YouTubeDramaCard />
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -192,11 +196,34 @@ export default async function DashboardPage() {
                     {videos.map((v) => (
                       <tr key={v.id} className="hover:bg-[#121923]">
                         <td className="py-2.5 mono text-[#26D9FF]">#{v.id}</td>
-                        <td className="py-2.5 max-w-[220px] truncate">
-                          <div className="font-medium text-[#F7FAFF] truncate">
-                            {v.sourceTitle || v.sourceUrl}
+                        <td className="py-2.5 max-w-[320px]">
+                          <div className="flex items-center gap-2.5">
+                            {v.thumbnailImageUrl ? (
+                              <img
+                                src={v.thumbnailImageUrl}
+                                alt="Thumb"
+                                className="w-16 h-9 object-cover rounded border border-[#344254] flex-shrink-0 shadow-sm"
+                              />
+                            ) : null}
+                            <div className="truncate min-w-0">
+                              <div className="font-medium text-[#F7FAFF] truncate" title={v.titleJp || v.sourceTitle || v.sourceUrl}>
+                                {v.titleJp || v.sourceTitle || v.sourceUrl}
+                              </div>
+                              <div className="text-[10px] text-[#95A3B5] truncate flex items-center gap-2">
+                                <span>{v.sourceTitle ? `${v.sourceTitle} • ` : ""}{v.sourceUrl}</span>
+                                {v.audioUrl && (
+                                  <a
+                                    href={v.audioUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-1.5 py-0.5 rounded bg-[#26D9FF]/20 text-[#26D9FF] hover:underline font-mono text-[9px] shrink-0"
+                                  >
+                                    ▶ Audio WAV
+                                  </a>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-[#95A3B5] truncate">{v.sourceUrl}</div>
                         </td>
                         <td className="py-2.5">
                           <span className="px-1.5 py-0.5 rounded bg-[#101821] border border-[#344254] text-[#C3CEDB] uppercase">
