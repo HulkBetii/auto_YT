@@ -58,7 +58,6 @@ async function main() {
   console.log("\nSeeding channel config defaults...");
   await setAhConfigValue("voice_id", "");
   await setAhConfigValue("web2_url", process.env.WEB2_URL ?? "http://localhost:3001");
-  await setAhConfigValue("openai_model", "gpt-4o-mini");
   console.log("  ✓ channel_config defaults");
 
   console.log("\nSeed complete.");

@@ -18,7 +18,7 @@ SKIPPED_DIRECTORY_NAMES = {
 
 
 def _code_files():
-    for folder in ("src", "tests", "web", "web_2", "web_3"):
+    for folder in ("src", "tests", "web", "web_2", "web_3", "web_ko"):
         for root, directories, filenames in os.walk(PROJECT_ROOT / folder):
             directories[:] = [
                 name
@@ -56,7 +56,9 @@ def test_javascript_openai_dependency_is_embeddings_only() -> None:
     web_package = json.loads((PROJECT_ROOT / "web/package.json").read_text(encoding="utf-8"))
     web2_package = json.loads((PROJECT_ROOT / "web_2/package.json").read_text(encoding="utf-8"))
     web3_package = json.loads((PROJECT_ROOT / "web_3/package.json").read_text(encoding="utf-8"))
+    web_ko_package = json.loads((PROJECT_ROOT / "web_ko/package.json").read_text(encoding="utf-8"))
 
     assert "openai" in web_package["dependencies"]
     assert "openai" not in web2_package["dependencies"]
     assert "openai" not in web3_package["dependencies"]
+    assert "openai" not in web_ko_package["dependencies"]

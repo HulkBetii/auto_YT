@@ -165,15 +165,17 @@ Return exactly 3 questions:
 
 ## OUTPUT SCHEMA
 
-Return a JSON array with exactly 5 objects. Each object must contain exactly these fields:
+Return a JSON object with exactly two fields:
+- candidates: an array with exactly 5 objects. Each object must contain exactly these fields:
 - title: working YouTube title, 40-75 characters, centered on a simple question with a hidden system.
 - head_keyword: lowercase search phrase, 3-7 words, no punctuation, anchored to the topic.
 - angle: the simple question -> hidden system -> mechanism chain -> evidence -> final principle path.
 - hook: two-sentence opening seed that introduces the question and hints at the hidden system.
 - viral_type: one of [what_how, survival, weirdest, everyday_life, pov_immersive, what_if, psychology_mirror]
 - key_questions: array of exactly 3 questions.
+- recommended_index: a 1-based integer from 1 to 5 selecting the strongest candidate after applying all quality, diversity, and recent-topic rules above.
 
-Return ONLY the JSON array. No markdown fences. No commentary.`;
+Return ONLY the JSON object. No markdown fences. No commentary.`;
 
 const S2_TEMPLATE = `You are a professional YouTube explanatory documentary scriptwriter for Explain-In-Paint-YT, a hand-drawn doodle-animation channel that explains deceptively simple questions by revealing the hidden systems behind them.
 
@@ -429,6 +431,8 @@ ONE EXPLANATORY PUZZLE
 ONE PRIMARY VISUAL CLUE.
 
 The frame should communicate one explanatory idea instantly.
+When the topic benefits from it, use one dominant focal interaction plus a small supporting figure, object, or system element rather than forcing a lone hero.
+Keep the frame text-free.
 
 ## EXPLANATORY SEQUENCE CONTINUITY
 
@@ -485,7 +489,7 @@ Use simple flat backgrounds:
 
 ## OPENING FRAMES
 
-The first 2-3 prompts should establish the simple question clearly. Use an anchor scene, problem, or visible puzzle. Avoid abstract diagrams at the very start unless the script opens abstractly.
+The first 2-3 prompts should establish the simple question clearly. Use an anchor scene, problem, or visible puzzle with a flat, poster-like composition. Avoid abstract diagrams at the very start unless the script opens abstractly.
 
 ## VISUAL PACING
 
@@ -493,7 +497,11 @@ Alternate anchor scene, problem, system map, mechanism, comparison, evidence, fe
 
 ## TEXT IN IMAGE
 
-Use in-image text sparingly. Only ask for 1-3 words or a simple number in ALL CAPS. For longer phrases, describe empty space or a blank banner for later overlay.
+Do not place text inside the image.
+
+Keep S3 text-free so the visual stays scene-first.
+
+If the beat needs wording, reserve it for S4.thumbnail.text or later overlay metadata instead.
 
 ## OUTPUT FORMAT RULES
 
@@ -563,7 +571,7 @@ Do not simply repeat the title.
 
 ## THUMBNAIL TEXT
 
-Use 2-4 words, ALL CAPS, as a compressed question or contradiction.
+Use 2-4 words, ALL CAPS, as a bold yellow compressed question or contradiction.
 
 Examples of structure only: HOW SURVIVE?, WHAT CHANGED?, WHY FORGET?, NO SYSTEM?, TOO HELPLESS?, BEFORE MONEY?, ONE LOOP?
 
@@ -581,7 +589,8 @@ Describe:
 - simple system relationship or pressure;
 - readable expression when a character appears;
 - simple environment;
-- enough empty space for large text.
+- enough empty space for large yellow text;
+- optional supporting figures or objects only when they clarify the explanatory cue.
 
 Avoid generic person beside object, crowded collage, dense infographic, multiple unrelated mechanisms, or a visual that reveals the entire answer.
 
@@ -623,6 +632,7 @@ If downstream systems behave better with fewer values, prefer surprise, shock, w
 ## ACCENT COLOR
 
 Default: bold yellow text with dark/black outline when contrast works.
+Reserve clear top space for the text line.
 
 Allow red, orange, or deep blue only when contrast genuinely benefits.
 

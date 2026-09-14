@@ -38,12 +38,9 @@ export interface NewBatchResult {
  * would both waste prompt-credits and confuse anti-duplication (which scopes
  * to "recent videos", not "videos from completed batches").
  *
- * Extracted out of /api/cron/generate-topics (which runs weekly per
- * vercel.json — "0 0 * * 1") so the dashboard's "Chạy pipeline ngay" button
- * (/api/jobs/process-now) can ALSO try to start a fresh batch on demand:
- * when nothing is in flight, the operator can manually kick off the next
- * 5-video batch right away instead of waiting up to a week for the cron.
- * Single source of truth, shared by both entry points.
+ * Shared by the scheduled generate-topics route and the dashboard's explicit,
+ * confirmed `/api/jobs/start-batch` action. Advancing existing jobs never calls
+ * this function.
  */
 export async function maybeStartNewBatch(): Promise<NewBatchResult> {
   if ((await getConfigValue("new_batch_paused")) === "true") {

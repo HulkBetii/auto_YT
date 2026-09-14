@@ -19,7 +19,7 @@ function requireAuth(request: Request): NextResponse | null {
  * P1 batch if (and only if) nothing is currently in flight — see
  * lib/pipeline/batch.ts `maybeStartNewBatch` for the actual guard + insert
  * logic, shared with the dashboard's manual "Chạy pipeline ngay" button
- * (/api/jobs/process-now), which also calls maybeStartNewBatch so operators
+ * (/api/jobs/start-batch), which also calls maybeStartNewBatch so operators
  * can start a fresh batch on demand without waiting up to a week.
  */
 export async function GET(request: Request) {

@@ -473,8 +473,3 @@ async def restore_session(cookies: list[dict], page) -> dict:
 
     return {"success": True, "cookies": await context.cookies(), "user": verify["user"]}
 
-
-# TODO: Cáº¥u trÃºc thÆ° má»¥c lÆ°u trá»¯ local (vd chrome_user_data/PROFILE_X) â€” paths.py Ä‘Ã£ cÃ³ gpt_profile_dir()
-
-
-

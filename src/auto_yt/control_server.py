@@ -38,6 +38,7 @@ WORKER_CWD = str(PROJECT_ROOT / "src")
 RENDER_WORKER_CMD = [sys.executable, "-m", "auto_yt.render_worker"]
 RENDER_WORKER_CWD = str(PROJECT_ROOT)
 WEB_ENV_PATH = PROJECT_ROOT / "web" / ".env.local"
+WEB_PIPELINE_URL = "http://localhost:3000"
 
 APP_CMD = [sys.executable, str(PROJECT_ROOT / "run_app.py")]
 APP_CWD = str(PROJECT_ROOT)
@@ -83,7 +84,7 @@ def _is_render_running() -> bool:
     return True
 
 
-def _render_environment() -> dict[str, str]:
+def _web_environment() -> dict[str, str]:
     env = os.environ.copy()
     if WEB_ENV_PATH.exists():
         for raw_line in WEB_ENV_PATH.read_text(encoding="utf-8").splitlines():
@@ -94,9 +95,17 @@ def _render_environment() -> dict[str, str]:
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
                 value = value[1:-1]
-            env.setdefault(key.strip(), value)
+            env[key.strip()] = value
     env["PYTHONPATH"] = str(PROJECT_ROOT / "src")
     return env
+
+def _worker_environment() -> dict[str, str]:
+    env = _web_environment()
+    env["PIPELINE_WEB_URL"] = WEB_PIPELINE_URL
+    return env
+
+def _render_environment() -> dict[str, str]:
+    return _web_environment()
 
 
 def _clear_singleton_locks() -> None:
@@ -198,6 +207,7 @@ def start_worker() -> dict:
         _proc = subprocess.Popen(
             WORKER_CMD,
             cwd=WORKER_CWD,
+            env=_worker_environment(),
             stdout=open(PROJECT_ROOT / "worker.log", "a"),
             stderr=subprocess.STDOUT,
         )

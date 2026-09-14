@@ -1,10 +1,21 @@
 import Link from "next/link";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+} from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getConfigValue } from "@/lib/db/repo/channel-config";
 import { getLatestAnalytics } from "@/lib/db/repo/video-analytics";
 import { jobs, promptVersions, videos } from "@/lib/db/schema";
 import { formatDateTime } from "@/lib/ui/format";
+import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/render/state";
 import { YoutubeIdInline } from "../videos/[id]/YoutubeIdInline";
 import { AnalyticsForm } from "./AnalyticsForm";
 import { RetryJobButton } from "./RetryJobButton";
@@ -53,6 +64,69 @@ async function getHardFailedJobs() {
     .where(eq(jobs.status, "failed"))
     .orderBy(desc(jobs.createdAt));
 }
+async function getTerminalRenderFailures() {
+  return db
+    .select({
+      id: videos.id,
+      title: videos.title,
+      renderError: videos.renderError,
+      renderAttemptCount: videos.renderAttemptCount,
+      renderFinishedAt: videos.renderFinishedAt,
+    })
+    .from(videos)
+    .where(
+      and(
+        eq(videos.renderStatus, "failed"),
+        or(
+          gte(videos.renderAttemptCount, MAX_RENDER_ATTEMPTS),
+          isNull(videos.renderNextAttemptAt),
+        ),
+      ),
+    )
+    .orderBy(desc(videos.renderFinishedAt));
+}
+async function getMissingTtsText() {
+  return db
+    .select({ id: videos.id, title: videos.title })
+    .from(videos)
+    .where(and(isNotNull(videos.audioUrl), isNull(videos.ttsText)))
+    .orderBy(desc(videos.id));
+}
+async function getMissingVoiceMappings() {
+  const [candidates, getTtsStatus] = await Promise.all([
+    db
+      .select({
+        id: videos.id,
+        title: videos.title,
+        featuredPerson: videos.featuredPerson,
+        audioUrl: videos.audioUrl,
+        ttsTaskId: videos.ttsTaskId,
+        ttsSubmittedAt: videos.ttsSubmittedAt,
+      })
+      .from(videos)
+      .where(
+        and(
+          inArray(videos.status, [
+            "ready_to_publish",
+            "published",
+            "analyzed",
+          ]),
+          isNull(videos.audioUrl),
+        ),
+      )
+      .orderBy(desc(videos.id)),
+    buildTTSStatusChecker(),
+  ]);
+  return candidates.filter(
+    (video) =>
+      getTtsStatus({
+        featuredPerson: video.featuredPerson,
+        audioUrl: video.audioUrl,
+        ttsTaskId: video.ttsTaskId,
+        ttsSubmittedAt: video.ttsSubmittedAt,
+      }) === "no_mapping",
+  );
+}
 async function getFlaggedPromptVersions() {
   const paused = await getConfigValue("auto_update_paused");
   if (paused !== "true") return [];
@@ -91,12 +165,22 @@ function EmptyRow({ children }: { children: React.ReactNode }) {
   );
 }
 export default async function NeedsAttentionPage() {
-  const [missingYoutubeId, missingAnalytics, failedJobs, flaggedPrompts] =
-    await Promise.all([
+  const [
+    missingYoutubeId,
+    missingAnalytics,
+    failedJobs,
+    flaggedPrompts,
+    renderFailures,
+    missingTtsText,
+    missingVoiceMappings,
+  ] = await Promise.all([
       getMissingYoutubeId(),
       getMissingManualAnalytics(),
       getHardFailedJobs(),
       getFlaggedPromptVersions(),
+      getTerminalRenderFailures(),
+      getMissingTtsText(),
+      getMissingVoiceMappings(),
     ]);
   return (
     <div className="flex flex-col gap-10">
@@ -171,9 +255,71 @@ export default async function NeedsAttentionPage() {
           )}
         </div>
       </Section>
+      <Section title="Render lỗi terminal" count={renderFailures.length}>
+        <div className="flex flex-col gap-3">
+          {renderFailures.map((video) => (
+            <div
+              key={video.id}
+              className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-4"
+            >
+              <Link
+                href={`/videos/${video.id}`}
+                className="font-medium text-[var(--text-primary)] hover:underline"
+              >
+                #{video.id} {video.title}
+              </Link>
+              <p className="mt-1 text-[13px] text-[var(--danger)]">
+                Attempt {video.renderAttemptCount} / {MAX_RENDER_ATTEMPTS}: {video.renderError ?? "Không rõ lỗi"}
+              </p>
+            </div>
+          ))}
+          {renderFailures.length === 0 && (
+            <EmptyRow>Không có render lỗi terminal.</EmptyRow>
+          )}
+        </div>
+      </Section>
+      <Section title="Có audio nhưng thiếu text TTS" count={missingTtsText.length}>
+        <div className="flex flex-col gap-3">
+          {missingTtsText.map((video) => (
+            <Link
+              key={video.id}
+              href={`/videos/${video.id}`}
+              className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-4 font-medium text-[var(--text-primary)] hover:underline"
+            >
+              #{video.id} {video.title}
+            </Link>
+          ))}
+          {missingTtsText.length === 0 && (
+            <EmptyRow>Không có video bị chặn vì thiếu text TTS.</EmptyRow>
+          )}
+        </div>
+      </Section>
+      <Section title="TTS thiếu voice mapping" count={missingVoiceMappings.length}>
+        <div className="flex flex-col gap-3">
+          {missingVoiceMappings.map((video) => (
+            <div
+              key={video.id}
+              className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4"
+            >
+              <Link
+                href={`/videos/${video.id}`}
+                className="font-medium text-[var(--text-primary)] hover:underline"
+              >
+                #{video.id} {video.title}
+              </Link>
+              <p className="mt-1 text-[13px] text-[var(--warning)]">
+                Persona: {video.featuredPerson ?? "chưa xác định"}. Thêm mapping tại Cài đặt.
+              </p>
+            </div>
+          ))}
+          {missingVoiceMappings.length === 0 && (
+            <EmptyRow>Không có TTS bị chặn vì thiếu voice mapping.</EmptyRow>
+          )}
+        </div>
+      </Section>
       <Section title="Job lỗi cứng (hard-failed)" count={failedJobs.length}>
-        <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] ">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] ">
+          <table className="min-w-[860px] w-full text-sm">
             <thead className="bg-[var(--surface-subtle)] text-left text-xs uppercase text-[var(--text-muted)] ">
               <tr>
                 <th className="px-4 py-2">Giai đoạn</th>

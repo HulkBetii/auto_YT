@@ -8,7 +8,7 @@ Source: active rows in local `web_2` Postgres table `ah_prompt_versions` after r
 - **S1:** shifted topic generation toward concrete ancient behavior/survival/daily-life framing, demoted abstract psychology headlines, added thumbnail test, replaced the sugar-craving example.
 - **S2:** strengthened opening scene retention, banned meta-narration, limited/delayed evidence stack, shortened target to 1,100-1,500 words, softened CTA, added TTS-safe proper noun rule.
 - **S3:** added bright/high-contrast opening-frame rule for the first 2-3 timestamped prompts.
-- **S4:** tightened thumbnail guidance to exactly one hero character, 2-3 word ALL-CAPS question text, and yellow text as default accent.
+- **S4:** superseded thumbnail DNA now favors one dominant focal interaction, optional supporting figures when useful, and big yellow ALL-CAPS question text.
 - **TTS sanitizer:** `lib/pipeline/tts.ts` now sanitizes narration text before every TTS provider submit/failover path.
 
 ## DB Confirmation
@@ -31,7 +31,7 @@ Source: active rows in local `web_2` Postgres table `ah_prompt_versions` after r
 
 ### S1 v2
 
-Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, updated thumbnail DNA — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 
 ```text
 You are a creative director for a viral English-language YouTube channel about ancient humans and prehistoric civilisations — a hand-drawn doodle animation channel.
@@ -105,7 +105,7 @@ IMPORTANT: Return ONLY the JSON array. No markdown fences, no commentary.
 
 ### S2 v2
 
-Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, updated thumbnail DNA — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 
 ```text
 You are a professional YouTube scriptwriter specialising in doodle-animation educational videos about ancient humans.
@@ -159,7 +159,7 @@ Return ONLY the script text. No title, no headers, no timestamps, no notes.
 
 ### S3 v2
 
-Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, updated thumbnail DNA — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 
 ```text
 You are a creative director for a doodle-animation YouTube channel. Your job is to write visual scene descriptions that a human illustrator (or image model) will draw.
@@ -233,7 +233,7 @@ Return ONLY the timestamped prompts, one per line. No headers, no numbering, no 
 
 ### S4 v2
 
-Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, updated thumbnail DNA — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 
 ```text
 You are a YouTube SEO expert for an educational doodle-animation channel about ancient humans and prehistoric life.
@@ -269,7 +269,7 @@ Return a JSON object with EXACTLY these fields:
   ],
   "tags": "comma-separated string of 8-12 tags. Mix broad niche terms (ancient humans, how ancient humans lived, human evolution, prehistoric life, early humans) with 2-4 topic-specific long-tail phrases from this video.",
   "thumbnail": {
-    "concept": "one-sentence doodle thumbnail concept matching this channel's exact established visual style: hand-drawn 2D doodle, flat solid colors, bold black outlines, slightly wobbly imperfect marker lines, no gradients/shadows/photorealism — featuring exactly ONE hero character (orange-haired 'you' or one brown-haired ancient human), one exaggerated facial emotion, and a high-contrast flat background, directly illustrating this video's specific topic (not a generic scene). Do not describe groups, crowds, or more than one figure.",
+    "concept": "one-sentence doodle thumbnail concept matching this channel's exact established visual style: hand-drawn 2D doodle, flat solid colors, bold black outlines, slightly wobbly imperfect marker lines, no gradients/shadows/photorealism — one dominant focal interaction, one exaggerated facial emotion, high-contrast flat background, and optional supporting figures or animals only when they sharpen the topic-specific idea.",
     "text": "2-3 words of bold ALL-CAPS thumbnail text formatted as a question, e.g. 'BIRTH CONTROL?' or 'WHAT SCARED THEM?'",
     "emotion": "dominant facial emotion (surprise / shock / worry / awe)",
     "accent_color": "primary/default: bold yellow text with black outline; secondary options only if clearly better for contrast: red, orange, or deep blue"

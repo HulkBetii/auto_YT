@@ -129,6 +129,7 @@ export function smartBucketTranscript(transcript: string): string {
 const TTS_BASE_URL = "https://api.ai33.pro";
 const TTS_TASK_PREFIX = "tts_task:";
 const TTS_TASK_VOICE_MARKER = ":voice:";
+const TTS_TASK_STARTED_MARKER = ":started:";
 
 function normalizeProviderVoiceId(voiceId: string): string {
   const normalized = voiceId
@@ -150,16 +151,19 @@ const TTS_SUBMITTING = "tts_submitting";
 // If stuck in tts_submitting for > 2 min (crashed mid-submit), reset and retry
 const MAX_SUBMITTING_MS = 2 * 60 * 1000;
 const TTS_PROVIDER_MODE_AUTO = "auto";
+const TTS_PROVIDER_MODE_AI33_ONLY = "ai33_only";
 const TTS_PROVIDER_MODE_AI33_BACKUP = "ai33_backup";
 const TTS_PROVIDER_MODE_GENMAX = "genmax";
 const TTS_PROVIDER_MODES = new Set<string>([
   TTS_PROVIDER_MODE_AUTO,
+  TTS_PROVIDER_MODE_AI33_ONLY,
   TTS_PROVIDER_MODE_AI33_BACKUP,
   TTS_PROVIDER_MODE_GENMAX,
 ]);
 
 type TtsProviderMode =
   | typeof TTS_PROVIDER_MODE_AUTO
+  | typeof TTS_PROVIDER_MODE_AI33_ONLY
   | typeof TTS_PROVIDER_MODE_AI33_BACKUP
   | typeof TTS_PROVIDER_MODE_GENMAX;
 
@@ -172,6 +176,7 @@ async function getTtsProviderMode(): Promise<TtsProviderMode> {
 }
 
 function describeTtsProviderMode(mode: TtsProviderMode): string {
+  if (mode === TTS_PROVIDER_MODE_AI33_ONLY) return "AI33 ElevenLabs only";
   if (mode === TTS_PROVIDER_MODE_AI33_BACKUP) return "AI33 backup MiniMax";
   if (mode === TTS_PROVIDER_MODE_GENMAX) return "Genmax";
   return "Auto";
@@ -189,17 +194,19 @@ export async function describePendingTtsWait(): Promise<string | null> {
   const video = videos.find((v) => v.status === "tts_pending") ?? null;
   if (!video?.audioUrl) return null;
 
-  const ageMinutes = Math.max(0, Math.round((Date.now() - new Date(video.updatedAt).getTime()) / 60000));
   const mode = await getTtsProviderMode();
   const modeText = describeTtsProviderMode(mode);
   if (video.audioUrl === TTS_SUBMITTING) {
+    const ageMinutes = Math.max(0, Math.round((Date.now() - new Date(video.updatedAt).getTime()) / 60000));
     return `Video #${video.id} is submitting TTS (${modeText}, ${ageMinutes}m).`;
   }
   if (video.audioUrl.startsWith(TTS_TASK_PREFIX)) {
-    const { taskId } = parseTTSTaskMarker(video.audioUrl);
+    const { taskId, startedAtMs } = parseTTSTaskMarker(video.audioUrl);
+    const ageMinutes = Math.max(0, Math.round(getTaskAgeMs(video.updatedAt, startedAtMs) / 60000));
     return `Video #${video.id} is waiting on AI33 task ${taskId} (${modeText}, ${ageMinutes}m).`;
   }
   if (video.audioUrl.startsWith(TTS_TASK_GX_PREFIX)) {
+    const ageMinutes = Math.max(0, Math.round((Date.now() - new Date(video.updatedAt).getTime()) / 60000));
     return `Video #${video.id} is waiting on Genmax task ${video.audioUrl.slice(TTS_TASK_GX_PREFIX.length)} (${modeText}, ${ageMinutes}m).`;
   }
   if (!video.whisperTranscript) {
@@ -368,8 +375,8 @@ async function submitAndSaveGenmax(videoId: number, script: string, voiceId: str
 
 // ── AI33.PRO uses "doing" for in-progress tasks ────────────────────────────
 const TTS_RUNNING_STATUSES = new Set(["pending", "processing", "doing", "queued"]);
-// Failover after this many ms — covers ~3 cron cycles at 5-min interval
-const MAX_TTS_AGE_MS = 10 * 60 * 1000;
+// Long 20-minute narrations can take AI33/ElevenLabs more than 10 minutes.
+const MAX_TTS_AGE_MS = 30 * 60 * 1000;
 
 type TtsTaskResult =
   | { status: "done"; audioUrl: string }
@@ -395,6 +402,10 @@ async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 429) {
+      console.warn(`[tts] AI33 task poll rate-limited for ${taskId} — waiting for next cycle`);
+      return { status: "running" };
+    }
     return { status: "error", message: `[tts] HTTP ${res.status}: ${body}` };
   }
 
@@ -422,19 +433,42 @@ async function checkTTSTask(taskId: string): Promise<TtsTaskResult> {
 async function submitAndSaveTTSTask(videoId: number, script: string, voiceId: string): Promise<void> {
   const taskId = await submitTTS(script, voiceId);
   await updateAhVideoFields(videoId, {
-    audioUrl: `${TTS_TASK_PREFIX}${taskId}${TTS_TASK_VOICE_MARKER}${encodeURIComponent(voiceId)}`,
+    audioUrl: buildTTSTaskMarker(taskId, voiceId),
   });
   console.log(`[tts] Video #${videoId} TTS submitted → task ${taskId} (voice: ${voiceId})`);
 }
 
-function parseTTSTaskMarker(audioUrl: string): { taskId: string; voiceId?: string } {
+export function buildTTSTaskMarker(
+  taskId: string,
+  voiceId: string,
+  startedAtMs = Date.now(),
+): string {
+  return `${TTS_TASK_PREFIX}${taskId}${TTS_TASK_VOICE_MARKER}${encodeURIComponent(voiceId)}${TTS_TASK_STARTED_MARKER}${startedAtMs}`;
+}
+
+export function parseTTSTaskMarker(audioUrl: string): { taskId: string; voiceId?: string; startedAtMs?: number } {
   const value = audioUrl.slice(TTS_TASK_PREFIX.length);
-  const voiceMarkerIndex = value.lastIndexOf(TTS_TASK_VOICE_MARKER);
-  if (voiceMarkerIndex === -1) return { taskId: value };
+  const startedMarkerIndex = value.lastIndexOf(TTS_TASK_STARTED_MARKER);
+  const valueWithoutStarted = startedMarkerIndex === -1 ? value : value.slice(0, startedMarkerIndex);
+  const startedValue = startedMarkerIndex === -1
+    ? null
+    : value.slice(startedMarkerIndex + TTS_TASK_STARTED_MARKER.length);
+  const startedAtMs =
+    startedValue && /^\d+$/.test(startedValue) ? Number(startedValue) : undefined;
+  const voiceMarkerIndex = valueWithoutStarted.lastIndexOf(TTS_TASK_VOICE_MARKER);
+  if (voiceMarkerIndex === -1) return { taskId: valueWithoutStarted, startedAtMs };
   return {
-    taskId: value.slice(0, voiceMarkerIndex),
-    voiceId: decodeURIComponent(value.slice(voiceMarkerIndex + TTS_TASK_VOICE_MARKER.length)),
+    taskId: valueWithoutStarted.slice(0, voiceMarkerIndex),
+    voiceId: decodeURIComponent(valueWithoutStarted.slice(voiceMarkerIndex + TTS_TASK_VOICE_MARKER.length)),
+    startedAtMs,
   };
+}
+
+function getTaskAgeMs(videoUpdatedAt: Date | string, startedAtMs: number | undefined): number {
+  const startMs = startedAtMs !== undefined && Number.isFinite(startedAtMs)
+    ? startedAtMs
+    : new Date(videoUpdatedAt).getTime();
+  return Date.now() - startMs;
 }
 
 async function trySubmitBackupTTSTask(
@@ -487,6 +521,10 @@ async function submitTtsForMode(
     await submitAndSaveTTSTask(videoId, ttsScript, voiceId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (mode === TTS_PROVIDER_MODE_AI33_ONLY) {
+      await updateAhVideoFields(videoId, { audioUrl: null });
+      throw new Error(`AI33 ElevenLabs TTS failed: ${msg}`);
+    }
     console.warn(`[tts] AI33.PRO primary submit failed — trying backup voice: ${msg}`);
     await updateAhVideoFields(videoId, { audioUrl: null });
     try {
@@ -519,6 +557,10 @@ async function failoverFromAI33Task(
 ): Promise<void> {
   await updateAhVideoFields(videoId, { audioUrl: null });
   const ttsScript = sanitizeTtsNarrationForSubmit(videoId, script);
+
+  if (mode === TTS_PROVIDER_MODE_AI33_ONLY) {
+    throw new Error(`AI33 ElevenLabs TTS failed (${cause}); fallback is disabled.`);
+  }
 
   if (mode === TTS_PROVIDER_MODE_AI33_BACKUP) {
     throw new Error(`AI33 backup TTS failed (${cause}). Switch TTS Provider Mode to Genmax if AI33 is overloaded.`);
@@ -626,7 +668,7 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
 
     // ── Phase 2a: poll AI33 task ────────────────────────────────────────────
     if (video.audioUrl.startsWith(TTS_TASK_PREFIX)) {
-      const { taskId, voiceId: taskVoiceId } = parseTTSTaskMarker(video.audioUrl);
+      const { taskId, voiceId: taskVoiceId, startedAtMs } = parseTTSTaskMarker(video.audioUrl);
 
       if (providerMode === TTS_PROVIDER_MODE_GENMAX) {
         console.warn(`[tts] Video #${videoId} switching AI33 task ${taskId} → Genmax by tts_provider_mode`);
@@ -634,6 +676,17 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
         await updateAhVideoFields(videoId, { audioUrl: null });
         await submitTtsForMode(videoId, video.script!, video.voiceId, providerMode);
         return true;
+      }
+
+      if (providerMode === TTS_PROVIDER_MODE_AI33_ONLY) {
+        const primaryVoiceId = await getAhVoiceId(video.voiceId);
+        if (!isSameVoiceId(taskVoiceId, primaryVoiceId)) {
+          console.warn(`[tts] Video #${videoId} switching AI33 task ${taskId} → primary ElevenLabs by tts_provider_mode`);
+          await cancelTTSTask(taskId);
+          await updateAhVideoFields(videoId, { audioUrl: null });
+          await submitTtsForMode(videoId, video.script!, video.voiceId, providerMode);
+          return true;
+        }
       }
 
       if (providerMode === TTS_PROVIDER_MODE_AI33_BACKUP) {
@@ -650,7 +703,7 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
       const result = await checkTTSTask(taskId);
 
       if (result.status === "running") {
-        const ageMs = Date.now() - new Date(video.updatedAt).getTime();
+        const ageMs = getTaskAgeMs(video.updatedAt, startedAtMs);
         if (ageMs > MAX_TTS_AGE_MS) {
           console.warn(`[tts] Video #${videoId} AI33 task ${taskId} stuck for ${Math.round(ageMs / 60000)}min — failing over`);
           await cancelTTSTask(taskId);
@@ -683,6 +736,14 @@ export async function runTTSAndWhisperForPendingVideo(): Promise<boolean> {
     // ── Phase 2b: poll Genmax task ──────────────────────────────────────────
     if (video.audioUrl.startsWith(TTS_TASK_GX_PREFIX)) {
       const taskId = video.audioUrl.slice(TTS_TASK_GX_PREFIX.length);
+
+      if (providerMode === TTS_PROVIDER_MODE_AI33_ONLY) {
+        console.warn(`[tts-gx] Video #${videoId} switching Genmax task ${taskId} → AI33 ElevenLabs by tts_provider_mode`);
+        await cancelGenmax(taskId);
+        await updateAhVideoFields(videoId, { audioUrl: null });
+        await submitTtsForMode(videoId, video.script!, video.voiceId, providerMode);
+        return true;
+      }
 
       if (providerMode === TTS_PROVIDER_MODE_AI33_BACKUP) {
         console.warn(`[tts-gx] Video #${videoId} switching Genmax task ${taskId} → AI33 backup by tts_provider_mode`);

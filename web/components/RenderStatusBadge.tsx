@@ -1,36 +1,37 @@
+import {
+  deriveRenderUiState,
+  RENDER_STATE_PRESENTATION,
+} from "@/lib/ui/operations";
+
 type RenderStatusBadgeProps = {
   audioUrl: string | null;
+  ttsText?: string | null;
   renderStatus: string;
+  renderAttemptCount?: number;
+  renderNextAttemptAt?: string | Date | null;
+  outputAvailable?: boolean;
+  outputCurrent?: boolean;
 };
 
 export function RenderStatusBadge({
   audioUrl,
+  ttsText,
   renderStatus,
+  renderAttemptCount,
+  renderNextAttemptAt,
+  outputAvailable,
+  outputCurrent,
 }: RenderStatusBadgeProps) {
-  const state = !audioUrl ? "waiting_audio" : renderStatus;
-  const presentation: Record<string, { label: string; className: string }> = {
-    waiting_audio: {
-      label: "Chờ audio",
-      className: "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
-    },
-    not_started: {
-      label: "Đang chờ",
-      className: "bg-[var(--warning-soft)] text-[var(--warning)]",
-    },
-    rendering: {
-      label: "Đang render",
-      className: "bg-[var(--accent-cyan-soft)] text-[var(--accent-cyan)]",
-    },
-    done: {
-      label: "Hoàn tất",
-      className: "bg-[var(--success-soft)] text-[var(--success)]",
-    },
-    failed: {
-      label: "Thất bại",
-      className: "bg-[var(--danger-soft)] text-[var(--danger)]",
-    },
-  };
-  const item = presentation[state] ?? presentation.waiting_audio;
+  const state = deriveRenderUiState({
+    audioUrl,
+    ttsText,
+    renderStatus,
+    renderAttemptCount,
+    renderNextAttemptAt,
+    outputAvailable,
+    outputCurrent,
+  });
+  const item = RENDER_STATE_PRESENTATION[state];
 
   return (
     <span

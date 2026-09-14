@@ -193,7 +193,7 @@ def _dedupe_candidates(candidates: list[_Candidate]) -> list[_Candidate]:
 
 
 def _limit_specs(specs: list[ChapterSpec], duration: float) -> list[ChapterSpec]:
-    max_count = int(duration // MIN_CHAPTER_GAP_SECONDS) + 1
+    max_count = int(duration // MIN_CHAPTER_GAP_SECONDS)
     if max_count < 3:
         return []
     if len(specs) <= max_count:
@@ -217,8 +217,8 @@ def _fallback_sequence(
             seconds = 0.0
         else:
             minimum = resolved[-1].seconds + MIN_CHAPTER_GAP_SECONDS
-            remaining_chapters = len(specs) - index - 1
-            maximum = duration - MIN_CHAPTER_GAP_SECONDS * remaining_chapters
+            remaining_segments = len(specs) - index
+            maximum = duration - MIN_CHAPTER_GAP_SECONDS * remaining_segments
             seconds = _nearest_cue(cards, base_seconds, minimum, maximum)
         resolved.append(
             ResolvedChapter(
@@ -276,8 +276,8 @@ def resolve_chapters(
             continue
 
         minimum = index * MIN_CHAPTER_GAP_SECONDS
-        remaining_chapters = len(specs) - index - 1
-        maximum = duration - MIN_CHAPTER_GAP_SECONDS * remaining_chapters
+        remaining_segments = len(specs) - index
+        maximum = duration - MIN_CHAPTER_GAP_SECONDS * remaining_segments
         candidates: list[_Candidate] = []
         if spec.anchor:
             candidates.extend(

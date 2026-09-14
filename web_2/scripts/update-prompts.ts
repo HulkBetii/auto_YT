@@ -175,15 +175,17 @@ Return exactly 3 key questions. They should move from:
 
 ## OUTPUT SCHEMA
 
-Return a JSON array with exactly 5 objects. Each object must contain exactly these fields:
+Return a JSON object with exactly two fields:
+- candidates: an array with exactly 5 objects. Each object must contain exactly these fields:
 - title: working YouTube title, 40-70 characters, clear, clickable, and faithful to a real explainable topic.
 - head_keyword: lowercase search phrase, 3-7 words, no punctuation, anchored to the concrete topic.
 - angle: the surprising explanation path, including the evidence clue, mechanism or trade-off, and modern mirror.
 - hook: two-sentence opening seed using direct address, self-observation, prehistoric immersion, or ancient-modern contrast.
 - viral_type: one of [what_how, survival, weirdest, everyday_life, pov_immersive, what_if, psychology_mirror]
 - key_questions: array of exactly 3 questions the video will answer.
+- recommended_index: a 1-based integer from 1 to 5 selecting the strongest candidate after applying all quality, diversity, and recent-topic rules above.
 
-Return ONLY the JSON array. No markdown fences. No commentary.`;
+Return ONLY the JSON object. No markdown fences. No commentary.`;
 
 const S2_TEMPLATE = `You are a professional YouTube documentary scriptwriter for The Ancient You, a hand-drawn doodle-animation channel about familiar modern human life explained through hidden ancient origins, evolutionary pressures, archaeology, biology, and cultural history.
 
@@ -479,7 +481,7 @@ Use simple flat backgrounds by semantic purpose:
 
 ## OPENING FRAME RULE
 
-The first 2-3 timestamped prompts must be bright, readable, and high contrast. They need one clear action or visual question.
+The first 2-3 timestamped prompts must be bright, readable, and high contrast. They need one clear action or visual question with a flat poster-like composition.
 
 Do NOT open with dark silhouettes, empty concept-only frames, dense maps, or ambiguous symbols. Dark/night frames are acceptable later after the viewer is retained.
 
@@ -492,7 +494,10 @@ Each prompt should have:
 - one clear action, contrast, clue, or mechanism;
 - simple background;
 - readable facial/body expression when people appear;
-- enough empty space for later text overlay when useful.
+- one dominant focal interaction when the topic benefits from a human, animal, object, or foil;
+- small supporting figures or animals only when they strengthen the main tension;
+- enough empty space for clean composition;
+- no in-image text or lettering.
 
 Avoid crowded collage, multiple unrelated objects, dense infographic, and generic caveperson staring at camera.
 
@@ -509,14 +514,11 @@ Do not overuse concept text frames. Do not overuse campfires. Do not overuse gen
 
 ## IN-IMAGE TEXT
 
-Use in-image text sparingly.
+Do not place text inside the image.
 
-Only ask for text inside the image when:
-- it is 1-3 words or a simple number;
-- it is central to the visual idea;
-- it can be rendered in bold ALL-CAPS.
+Keep S3 text-free so the visual stays scene-first.
 
-For longer phrases, describe an empty banner or blank space where a caption can be added later.
+If the beat needs wording, reserve it for S4.thumbnail.text or later overlay metadata instead.
 
 ## OUTPUT FORMAT RULES
 
@@ -624,14 +626,17 @@ ONE PRIMARY CURIOSITY QUESTION.
 NO COMPETING SUBPLOT.
 
 Thumbnail composition may use one protagonist, two contrasted humans, human plus animal, human plus threat, protagonist plus small social group, simple timeline comparison, or before/after contrast.
+Supporting figures or animals are welcome when they make the focal interaction clearer.
 
 The number of figures is secondary. The question must remain instantly readable.
 
 ## TITLE + THUMBNAIL DIVISION OF LABOR
 
 The thumbnail text should create a SECOND CURIOSITY LAYER.
+It should feel like a big bold yellow ALL-CAPS question or contradiction, like the thumbnails in the attached reference set.
 
 Do not merely paraphrase the title.
+Keep enough empty top space for the big yellow text line.
 
 Example logic:
 Title: When Did Ancient Humans Start Smoking?
@@ -649,7 +654,7 @@ The thumbnail should make the viewer ask a related emotional or provocative sub-
 Preferred:
 2-4 words
 ALL CAPS
-question or highly compressed contradiction
+big yellow question or highly compressed contradiction
 
 topic-specific, not copied from examples.
 
@@ -665,7 +670,8 @@ Describe:
 - exaggerated readable expression when appropriate;
 - simple environment;
 - strong topic-specific visual clue;
-- enough empty space for large text.
+- enough empty space for large yellow text;
+- optional supporting figures or animals only when they sharpen the main idea.
 
 Avoid generic caveperson staring at camera, meaningless fire background, crowded collage, multiple unrelated objects, detailed infographic, or repeating the entire title visually.
 

@@ -49,15 +49,10 @@ const FIELDS = [
       "Production URL for this dashboard (used for worker callbacks)",
     placeholder: "https://your-domain.vercel.app",
   },
-  {
-    key: AH_CONFIG_KEYS.openaiModel,
-    label: "OpenAI Model",
-    description: "Model used for topic ranking (default: gpt-4o-mini)",
-    placeholder: "gpt-4o-mini",
-  },
 ] as const;
 const TTS_PROVIDER_MODE_OPTIONS = [
   { value: "auto", label: "Auto: AI33 primary -> AI33 backup -> Genmax" },
+  { value: "ai33_only", label: "AI33 ElevenLabs only: no backup" },
   { value: "ai33_backup", label: "AI33 backup only: MiniMax voice ID 2" },
   { value: "genmax", label: "Genmax only: voice ID Genmax" },
 ] as const;

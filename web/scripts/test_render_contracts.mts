@@ -98,6 +98,9 @@ const statusRouteSource = await readFile(
 );
 assert(statusRouteSource.includes("subtitleAvailable"));
 assert(statusRouteSource.includes("renderedSubtitleExists(videoId)"));
+assert(statusRouteSource.includes("chaptersAvailable"));
+assert(statusRouteSource.includes("chapterLines"));
+assert(statusRouteSource.includes("readResolvedChapterLines(videoId)"));
 
 const descriptionBuilderSource = await readFile(
   new URL("../lib/pipeline/descriptionBuilder.ts", import.meta.url),
@@ -114,6 +117,9 @@ const renderPanelSource = await readFile(
 );
 assert(renderPanelSource.includes("snapshot.subtitleAvailable"));
 assert(renderPanelSource.includes("Tải SRT"));
+assert(renderPanelSource.includes("snapshot.chaptersAvailable"));
+assert(renderPanelSource.includes("CHAPTER THỰC TẾ"));
+assert(renderPanelSource.includes("navigator.clipboard.writeText"));
 
 const videoTableSource = await readFile(
   new URL("../app/(dashboard)/videos/VideosTable.tsx", import.meta.url),

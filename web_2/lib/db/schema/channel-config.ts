@@ -17,7 +17,6 @@ export const AH_CONFIG_KEYS = {
   voiceIdExplainInPaintYt: "voice_id_2_3_explain_in_paint_yt",
   ttsProviderMode: "tts_provider_mode",
   web2Url: "web2_url",
-  openaiModel: "openai_model",
   pipelinePaused: "pipeline_paused",
   cronLastRunAt: "cron_last_run_at",
   workerLastSeen: "worker_last_seen",

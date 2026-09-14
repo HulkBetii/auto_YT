@@ -44,12 +44,13 @@ async def trigger_chain_cycle(web_url: str, dashboard_secret: str) -> None:
     Non-fatal: logs a warning on failure and returns — the pipeline will still
     make progress next time the operator presses 'Chạy pipeline'.
     """
-    if not web_url or not dashboard_secret:
+    if not web_url:
         return
     url = web_url.rstrip("/") + "/api/cron/process-jobs"
     try:
+        headers = {"Authorization": f"Bearer {dashboard_secret}"} if dashboard_secret else {}
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url, headers={"Authorization": f"Bearer {dashboard_secret}"})
+            r = await client.get(url, headers=headers)
         if r.status_code == 200:
             logger.info("Chain cycle triggered (%s)", url)
         else:
@@ -220,11 +221,11 @@ async def _hit_url(url: str, secret: str) -> None:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(url, headers=headers)
         if r.status_code == 200:
-            logger.info("AH callback triggered (%s)", url)
+            logger.info("Callback triggered (%s)", url)
         else:
-            logger.warning("AH callback returned HTTP %s from %s", r.status_code, url)
+            logger.warning("Callback returned HTTP %s from %s", r.status_code, url)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("AH callback failed (non-fatal): %s", exc)
+        logger.warning("Callback failed (non-fatal): %s", exc)
 
 
 async def claim_next_ah_job(dsn: str) -> dict | None:

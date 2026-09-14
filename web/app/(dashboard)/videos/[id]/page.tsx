@@ -14,10 +14,12 @@ import {
 import { getVideo } from "@/lib/db/repo/videos";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
 import {
+  readResolvedChapterLines,
   renderedSubtitleExists,
   renderedVideoExists,
 } from "@/lib/render/files";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TtsStatusBadge } from "@/components/TtsStatusBadge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -52,6 +54,7 @@ export default async function VideoDetailPage({
     ttsStatusFn,
     outputAvailable,
     subtitleAvailable,
+    chapterText,
   ] = await Promise.all([
     db
       .select()
@@ -71,8 +74,14 @@ export default async function VideoDetailPage({
     buildTTSStatusChecker(),
     renderedVideoExists(videoId),
     renderedSubtitleExists(videoId),
+    readResolvedChapterLines(videoId),
   ]);
-  const ttsStatus = ttsStatusFn(video.featuredPerson, video.audioUrl);
+  const ttsStatus = ttsStatusFn({
+    featuredPerson: video.featuredPerson,
+    audioUrl: video.audioUrl,
+    ttsTaskId: video.ttsTaskId,
+    ttsSubmittedAt: video.ttsSubmittedAt,
+  });
   const personaStatus = getPersonaUiStatus(video.featuredPerson);
   const personaMeta = (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -226,8 +235,8 @@ export default async function VideoDetailPage({
             <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
               JOBS
             </p>
-            <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] ">
-              <Table>
+            <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] ">
+              <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow className="border-[var(--border-subtle)] hover:bg-transparent ">
                     {[
@@ -306,8 +315,8 @@ export default async function VideoDetailPage({
               <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
                 ANALYTICS SNAPSHOTS
               </p>
-              <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] ">
-                <Table>
+              <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] ">
+                <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow className="border-[var(--border-subtle)] hover:bg-transparent ">
                       {[
@@ -365,13 +374,21 @@ export default async function VideoDetailPage({
           {/* Audio section */}
           {showAudio && (
             <section>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
+                  TTS
+                </p>
+                <TtsStatusBadge status={ttsStatus} />
+              </div>
               {ttsStatus === "done" && video.audioUrl ? (
                 <AudioCard
                   src={video.audioUrl}
                   persona={video.featuredPerson}
                   title={video.title}
                 />
-              ) : ttsStatus === "pending" ? (
+              ) : ttsStatus === "waiting_submit" ||
+                ttsStatus === "submitted" ||
+                ttsStatus === "running" ? (
                 <AudioCardPending />
               ) : ttsStatus === "no_mapping" ? (
                 <AudioCardNoMapping featuredPerson={video.featuredPerson} />
@@ -392,6 +409,8 @@ export default async function VideoDetailPage({
               renderHeartbeatAt: video.renderHeartbeatAt,
               outputAvailable,
               subtitleAvailable,
+              chaptersAvailable: Boolean(chapterText),
+              chapterLines: chapterText?.split("\n") ?? [],
               outputCurrent:
                 outputAvailable &&
                 video.renderStatus === "done" &&

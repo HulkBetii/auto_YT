@@ -9,7 +9,6 @@
 import {
   getAhVideo,
   listAhVideos,
-  listRecentAhTopicSummaries,
   updateAhVideoFields,
   updateAhVideoStatus,
 } from "@/lib/db/repo/videos";
@@ -27,7 +26,7 @@ import {
   parseWhisperSegments,
 } from "./descriptionBuilder";
 import { enqueueAhStage } from "./createJob";
-import { rankTopics, type AhTopic } from "./rank";
+import { parseS1Selection, selectS1Topic } from "./rank";
 import { describePendingTtsWait, runTTSAndWhisperForPendingVideo, smartBucketTranscript } from "./tts";
 import { formatImagePrompts, formatThumbnailConcept } from "./visualStyle";
 import { runBgmForPendingVideos } from "./bgm";
@@ -46,18 +45,13 @@ export interface AhChainCycleResult {
   staleReset: number;
 }
 
-async function handleS1Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
+export async function handleS1Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
   const videoId = job.videoId!;
-  const candidates = extractJson<AhTopic[]>(job.result ?? "[]");
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    throw new Error("S1 output did not contain any topic candidates.");
-  }
-
-  const recentTopics = await listRecentAhTopicSummaries(30, videoId);
-  const chosenTopic = await rankTopics(candidates, recentTopics);
+  const selection = parseS1Selection(job.result ?? "[]");
+  const chosenTopic = selectS1Topic(selection);
 
   await updateAhVideoFields(videoId, {
-    topicCandidates: candidates as unknown as Record<string, unknown>[],
+    topicCandidates: selection.candidates as unknown as Record<string, unknown>[],
     chosenTopic: chosenTopic as unknown as Record<string, unknown>,
   });
   await updateAhVideoStatus(videoId, "s2_pending");
@@ -76,9 +70,29 @@ async function handleS1Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJ
   });
 }
 
-async function handleS2Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
+const LEADING_CHATGPT_UI_ARTIFACTS = new Set(["edit", "copy", "share"]);
+
+export function sanitizeS2ScriptOutput(raw: string): string {
+  let script = raw.replace(/^\uFEFF/, "").trim();
+  const lines = script.split(/\r?\n/);
+
+  while (
+    lines.length > 1 &&
+    LEADING_CHATGPT_UI_ARTIFACTS.has(lines[0].trim().toLowerCase())
+  ) {
+    lines.shift();
+    while (lines.length > 0 && lines[0].trim() === "") {
+      lines.shift();
+    }
+  }
+
+  script = lines.join("\n").trim();
+  return script;
+}
+
+export async function handleS2Done(job: Awaited<ReturnType<typeof listUnconsumedDoneAhJobs>>[number]) {
   const videoId = job.videoId!;
-  const script = (job.result ?? "").trim();
+  const script = sanitizeS2ScriptOutput(job.result ?? "");
 
   // Derive a slug from the first line of the script (the opening hook)
   const firstLine = script.split("\n").find((l) => l.trim()) ?? "";

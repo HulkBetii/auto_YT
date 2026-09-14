@@ -7,9 +7,13 @@ import { eq } from "drizzle-orm";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SettingField } from "./SettingField";
+import { BooleanSettingField } from "./BooleanSettingField";
 import { VoiceMapEditor } from "./VoiceMapEditor";
 export const dynamic = "force-dynamic"; // Fields rendered as plain key/value inputs (excludes tts_voice_map which gets a custom UI)
-const PLAIN_FIELDS = SETTINGS_FIELDS.filter((f) => f.key !== "tts_voice_map");
+const PLAIN_FIELDS = SETTINGS_FIELDS.filter(
+  (field) =>
+    field.key !== "tts_voice_map" && field.key !== "new_batch_paused",
+);
 export default async function SettingsPage() {
   const [values, [heartbeat]] = await Promise.all([
     Promise.all(
@@ -59,6 +63,12 @@ export default async function SettingsPage() {
           PIPELINE
         </p>
         <div className="flex flex-col gap-3">
+          <BooleanSettingField
+            fieldKey="new_batch_paused"
+            label="Tạm dừng tạo lô mới"
+            description="Khóa riêng thao tác tạo P1 mới; các job cũ, TTS, P5/P6 và render vẫn tiếp tục."
+            initialValue={valueMap["new_batch_paused"] === "true"}
+          />
           {PLAIN_FIELDS.filter((f) => f.key !== "tts_default_voice").map(
             (field) => (
               <SettingField

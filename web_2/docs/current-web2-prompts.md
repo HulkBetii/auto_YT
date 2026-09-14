@@ -5,15 +5,15 @@ Source: active rows in local `web_2` Postgres table `ah_prompt_versions` (`DATAB
 
 ## Active Prompt Summary
 
-- **S1:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.019Z)
-- **S2:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.029Z)
-- **S3:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.035Z)
-- **S4:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.041Z)
+- **S1:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors one dominant focal interaction plus small supporting figures when useful — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.019Z)
+- **S2:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors one dominant focal interaction plus small supporting figures when useful — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.029Z)
+- **S3:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors one dominant focal interaction plus small supporting figures when useful — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.035Z)
+- **S4:** active v2 — retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors big yellow ALL-CAPS text plus one dominant focal interaction — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics (2026-07-01T08:13:05.041Z)
 
 ## S1 Active Prompt
 
 - Version: 2
-- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors big yellow ALL-CAPS text plus one dominant focal interaction — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 - Created at: 2026-07-01T08:13:05.019Z
 
 ```text
@@ -89,7 +89,7 @@ IMPORTANT: Return ONLY the JSON array. No markdown fences, no commentary.
 ## S2 Active Prompt
 
 - Version: 2
-- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors one dominant focal interaction plus small supporting figures when useful — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 - Created at: 2026-07-01T08:13:05.029Z
 
 ```text
@@ -145,7 +145,7 @@ Return ONLY the script text. No title, no headers, no timestamps, no notes.
 ## S3 Active Prompt
 
 - Version: 2
-- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors one dominant focal interaction plus small supporting figures when useful — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 - Created at: 2026-07-01T08:13:05.035Z
 
 ```text
@@ -221,7 +221,7 @@ Return ONLY the timestamped prompts, one per line. No headers, no numbering, no 
 ## S4 Active Prompt
 
 - Version: 2
-- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, single-hero thumbnails — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
+- Change reason: retention-first rewrite: concrete-topic framing, shorter/tighter hook, TTS-safe proper nouns, thumbnail DNA now favors big yellow ALL-CAPS text plus one dominant focal interaction — based on competitor benchmark (Mack/Stickly/Explain In Paint) + own video 1-2 analytics
 - Created at: 2026-07-01T08:13:05.041Z
 
 ```text
@@ -258,7 +258,7 @@ Return a JSON object with EXACTLY these fields:
   ],
   "tags": "comma-separated string of 8-12 tags. Mix broad niche terms (ancient humans, how ancient humans lived, human evolution, prehistoric life, early humans) with 2-4 topic-specific long-tail phrases from this video.",
   "thumbnail": {
-    "concept": "one-sentence doodle thumbnail concept matching this channel's exact established visual style: hand-drawn 2D doodle, flat solid colors, bold black outlines, slightly wobbly imperfect marker lines, no gradients/shadows/photorealism — featuring exactly ONE hero character (orange-haired 'you' or one brown-haired ancient human), one exaggerated facial emotion, and a high-contrast flat background, directly illustrating this video's specific topic (not a generic scene). Do not describe groups, crowds, or more than one figure.",
+    "concept": "one-sentence doodle thumbnail concept matching this channel's exact established visual style: hand-drawn 2D doodle, flat solid colors, bold black outlines, slightly wobbly imperfect marker lines, no gradients/shadows/photorealism — one dominant focal interaction, one exaggerated facial emotion, high-contrast flat background, and optional supporting figures or animals only when they sharpen the topic-specific idea.",
     "text": "2-3 words of bold ALL-CAPS thumbnail text formatted as a question, e.g. 'BIRTH CONTROL?' or 'WHAT SCARED THEM?'",
     "emotion": "dominant facial emotion (surprise / shock / worry / awe)",
     "accent_color": "primary/default: bold yellow text with black outline; secondary options only if clearly better for contrast: red, orange, or deep blue"

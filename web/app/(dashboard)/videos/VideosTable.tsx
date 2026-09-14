@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 
 import { StatusBadge } from "@/components/StatusBadge";
 import { RenderStatusBadge } from "@/components/RenderStatusBadge";
+import { TtsStatusBadge } from "@/components/TtsStatusBadge";
 import {
   Table,
   TableBody,
@@ -22,6 +23,7 @@ import {
   getPersonaUiStatus,
 } from "@/lib/ui/fixedPersona";
 import { formatDateTime, scoreColorClass } from "@/lib/ui/format";
+import type { TtsUiState } from "@/lib/ui/operations";
 
 type VideoRow = {
   id: number;
@@ -36,9 +38,15 @@ type VideoRow = {
   status: string;
   score: number | null;
   audioUrl: string | null;
+  ttsText: string | null;
+  ttsStatus: TtsUiState;
   renderStatus: string;
+  renderAttemptCount: number;
+  renderNextAttemptAt: Date | null;
+  renderedAudioUrl: string | null;
   videoPath: string | null;
   outputAvailable: boolean;
+  outputCurrent: boolean;
   subtitleAvailable: boolean;
   createdAt: Date | null;
 };
@@ -48,6 +56,10 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [isPending, startTransition] = useTransition();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<{
+    tone: "success" | "warning" | "danger";
+    text: string;
+  } | null>(null);
 
   const allIds = rows.map((r) => r.id);
   const allChecked =
@@ -78,21 +90,44 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
     if (!confirmed) return;
 
     setIsDeleting(true);
+    setDeleteMessage(null);
     try {
       const res = await fetch("/api/videos/bulk-delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: [...selected] }),
       });
+      const result = await res.json().catch(() => null);
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`Lỗi: ${err.error ?? res.statusText}`);
+        const renderingIds = Array.isArray(result?.ids)
+          ? result.ids.join(", #")
+          : null;
+        setDeleteMessage({
+          tone: "danger",
+          text:
+            res.status === 409 && renderingIds
+              ? `Không thể xóa video đang render: #${renderingIds}.`
+              : `Xóa thất bại: ${result?.error ?? res.statusText}`,
+        });
         return;
       }
-      const { deleted } = await res.json();
+      const cleanupWarnings = Array.isArray(result?.cleanupWarnings)
+        ? result.cleanupWarnings
+        : [];
+      const warningIds = cleanupWarnings
+        .map((warning: { id?: unknown }) => Number(warning.id))
+        .filter((id: number) => Number.isSafeInteger(id))
+        .map((id: number) => `#${id}`)
+        .join(", ");
       setSelected(new Set());
+      setDeleteMessage({
+        tone: cleanupWarnings.length > 0 ? "warning" : "success",
+        text:
+          cleanupWarnings.length > 0
+            ? `Đã xóa ${result?.deleted ?? 0} video khỏi DB, nhưng chưa dọn được artifact của ${warningIds || `${cleanupWarnings.length} video`}.`
+            : `Đã xóa ${result?.deleted ?? 0} video và artifact liên quan.`,
+      });
       startTransition(() => router.refresh());
-      console.log(`[delete] Deleted ${deleted} video(s)`);
     } finally {
       setIsDeleting(false);
     }
@@ -103,7 +138,7 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
   return (
     <>
       {selected.size > 0 && (
-        <div className="flex items-center justify-between rounded-xl border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-2.5">
           <span className="text-[14px] font-medium text-[var(--danger)]">
             {selected.size} video được chọn
           </span>
@@ -126,8 +161,23 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]">
-        <Table>
+      {deleteMessage && (
+        <p
+          className={[
+            "rounded-lg px-3 py-2 text-[13px]",
+            deleteMessage.tone === "danger"
+              ? "bg-[var(--danger-soft)] text-[var(--danger)]"
+              : deleteMessage.tone === "warning"
+                ? "bg-[var(--warning-soft)] text-[var(--warning)]"
+                : "bg-[var(--success-soft)] text-[var(--success)]",
+          ].join(" ")}
+        >
+          {deleteMessage.text}
+        </p>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]">
+        <Table className="min-w-[1180px]">
           <TableHeader>
             <TableRow className="border-[var(--border-subtle)] hover:bg-transparent">
               <TableHead className="w-10">
@@ -289,19 +339,18 @@ export function VideosTable({ rows }: { rows: VideoRow[] }) {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {video.audioUrl ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--success-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--success)]">
-                        ♪ Audio
-                      </span>
-                    ) : (
-                      <span className="text-[var(--text-secondary)]">—</span>
-                    )}
+                    <TtsStatusBadge status={video.ttsStatus} />
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <RenderStatusBadge
                         audioUrl={video.audioUrl}
+                        ttsText={video.ttsText}
                         renderStatus={video.renderStatus}
+                        renderAttemptCount={video.renderAttemptCount}
+                        renderNextAttemptAt={video.renderNextAttemptAt}
+                        outputAvailable={video.outputAvailable}
+                        outputCurrent={video.outputCurrent}
                       />
                       {video.outputAvailable && (
                         <a

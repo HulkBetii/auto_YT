@@ -177,15 +177,17 @@ Return exactly 3 questions:
 
 ## OUTPUT SCHEMA
 
-Return a JSON array with exactly 5 objects. Each object must contain exactly these fields:
+Return a JSON object with exactly two fields:
+- candidates: an array with exactly 5 objects. Each object must contain exactly these fields:
 - title: working YouTube title, 40-75 characters, centered on observable behavior or condition.
 - head_keyword: lowercase search phrase, 3-7 words, no punctuation, anchored to the topic.
 - angle: the expectation -> contradiction -> layered explanation -> reframe path.
 - hook: two-sentence opening seed with a concrete familiar situation and contradiction.
 - viral_type: one of [what_how, survival, weirdest, everyday_life, pov_immersive, what_if, psychology_mirror]
 - key_questions: array of exactly 3 questions.
+- recommended_index: a 1-based integer from 1 to 5 selecting the strongest candidate after applying all quality, diversity, and recent-topic rules above.
 
-Return ONLY the JSON array. No markdown fences. No commentary.`;
+Return ONLY the JSON object. No markdown fences. No commentary.`;
 
 const S2_TEMPLATE = `You are a professional YouTube behavioral documentary scriptwriter for Stickly-YT, a hand-drawn doodle-animation channel about familiar human situations, animal behavior, evolutionary biology, ecology, neuroscience, and ancient-life conditions.
 
@@ -517,7 +519,7 @@ Use simple flat backgrounds:
 
 ## OPENING FRAMES
 
-The first 2-3 prompts must be bright/readable unless the opening specifically requires night. If night is required, include a clear lit subject, moon, fire, or strong contrast.
+The first 2-3 prompts must be bright/readable unless the opening specifically requires night. If night is required, include a clear lit subject, moon, fire, or strong contrast with a flat poster-like composition.
 
 Avoid abstract mechanism diagrams at the start.
 
@@ -525,7 +527,9 @@ Avoid abstract mechanism diagrams at the start.
 
 ONE FOCAL INTERACTION OR ONE CLEAR BEHAVIORAL PROPOSITION PER FRAME.
 
-Each prompt should include one main subject/relationship, one clear behavior or tension, simple background, readable expression/body language, and enough empty space for text overlay when useful.
+Each prompt should include one main subject/relationship, one clear behavior or tension, simple background, readable expression/body language, one dominant focal interaction, enough empty space for clean composition, and no in-image text or lettering.
+
+Use small supporting figures or animals only when they help the behavioral tension read faster.
 
 Avoid crowded collage, many unrelated species, dense infographic, generic caveperson, generic campfire, or decorative animal portrait with no behavior.
 
@@ -543,7 +547,11 @@ Maintain continuity inside a sequence.
 
 ## IN-IMAGE TEXT
 
-Use in-image text sparingly. Only ask for 1-3 words or a simple number in ALL CAPS. For longer phrases, describe empty space or a blank banner for later overlay.
+Do not place text inside the image.
+
+Keep S3 text-free so the visual stays scene-first.
+
+If the beat needs wording, reserve it for S4.thumbnail.text or later overlay metadata instead.
 
 ## OUTPUT FORMAT RULES
 
@@ -633,7 +641,7 @@ The number of figures is secondary. Readability of the focal interaction is prim
 
 ## THUMBNAIL TEXT
 
-Use 2-4 words, ALL CAPS, as a question or compressed contradiction.
+Use 2-4 words, ALL CAPS, as a bold yellow question or compressed contradiction.
 
 It should express emotional interpretation, not just repeat the observable title.
 
@@ -654,7 +662,8 @@ Describe:
 - gaze, distance, posture, movement direction, or barrier;
 - readable human/animal expression or body language;
 - simple environment;
-- enough empty space for large text.
+- enough empty space for large yellow text;
+- optional supporting figures or animals only if they clarify the tension.
 
 Avoid generic animal portrait, generic caveperson, crowded collage, multiple unrelated species, dense infographic, or visual claims not supported by the script.
 
@@ -667,6 +676,7 @@ If downstream systems behave better with fewer values, prefer surprise, shock, w
 ## ACCENT COLOR
 
 Default: bold yellow text with dark/black outline when contrast works.
+Reserve clear top space for the text line.
 
 Allow red, orange, or deep blue only when contrast genuinely benefits.
 

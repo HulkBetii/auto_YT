@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeTtsNarrationText, smartBucketTranscript } from "./tts";
+import {
+  buildTTSTaskMarker,
+  parseTTSTaskMarker,
+  sanitizeTtsNarrationText,
+  smartBucketTranscript,
+} from "./tts";
 
 const MIN_DURATION = 4;
 const MAX_DURATION = 12;
@@ -29,6 +34,30 @@ describe("sanitizeTtsNarrationText", () => {
 
     expect(output).toBe("A hunter tracker follows bone tools through dust.");
     expect(output).not.toContain("/");
+  });
+});
+
+describe("TTS task markers", () => {
+  it("round-trips task id, provider voice id, and submit timestamp", () => {
+    const marker = buildTTSTaskMarker(
+      "task-123",
+      "elevenlabs_JBFqnCBsd6RMkjVDRZzb",
+      1_700_000_000_000,
+    );
+
+    expect(parseTTSTaskMarker(marker)).toEqual({
+      taskId: "task-123",
+      voiceId: "elevenlabs_JBFqnCBsd6RMkjVDRZzb",
+      startedAtMs: 1_700_000_000_000,
+    });
+  });
+
+  it("parses legacy task markers without submit timestamps", () => {
+    expect(parseTTSTaskMarker("tts_task:task-123:voice:elevenlabs_old")).toEqual({
+      taskId: "task-123",
+      voiceId: "elevenlabs_old",
+      startedAtMs: undefined,
+    });
   });
 });
 

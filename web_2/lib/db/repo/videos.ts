@@ -155,6 +155,15 @@ export async function updateVideoProgress(
   const current = await getAhVideo(videoId);
   if (!current) return;
 
+  const assemblyProgressStatuses = new Set<AhVideoStatus>([
+    "image_gen_pending",
+    "assembly_pending",
+    "assembly_done",
+  ]);
+  if (assemblyProgressStatuses.has(update.status) && !current.imagePrompts?.trim()) {
+    return;
+  }
+
   const nextImageCount = update.imageCount ?? current.imageCount;
   const nextImageCountExpected = update.imageCountExpected ?? current.imageCountExpected;
   const nextVideoPath = update.videoPath ?? current.videoPath;

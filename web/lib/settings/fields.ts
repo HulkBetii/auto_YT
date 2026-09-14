@@ -27,6 +27,13 @@ const decimalString = (min: number, max: number) =>
  */
 export const SETTINGS_FIELDS = [
   {
+    key: "new_batch_paused",
+    label: "Tạm dừng tạo lô mới",
+    description:
+      "Khi bật, endpoint tạo lô mới và nút Tạo lô mới đều bị khóa. Tiếp tục pipeline cũ vẫn hoạt động.",
+    schema: z.enum(["true", "false"]),
+  },
+  {
     key: "contact_email",
     label: "Email liên hệ",
     description: "Hiển thị trong phần ⚠️ 免責事項 của mô tả video YouTube.",

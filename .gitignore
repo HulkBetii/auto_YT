@@ -47,6 +47,7 @@ data/db_config.json
 data/account.json
 data/session*.json
 data/chrome_user_data/
+data/ko/
 **/db_config.json
 **/account.json
 **/session*.json
@@ -70,3 +71,8 @@ Thumbs.db
 # Legacy root files
 test_config.json
 session_chatgpt.json
+
+tmp/
+**/output/
+**/renders/
+

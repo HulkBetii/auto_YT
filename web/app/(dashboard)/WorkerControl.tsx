@@ -1,4 +1,5 @@
 "use client";
+import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 const LOCAL_URL = "http://localhost:4242";
 const WORKER_HEARTBEAT_STALE_MS = 2 * 60 * 1000;
@@ -15,7 +16,16 @@ async function callEndpoint(
     method: "POST",
     signal: AbortSignal.timeout(timeout),
   });
-  return res.json();
+  const data = (await res.json().catch(() => null)) as {
+    ok?: boolean;
+    reason?: string;
+    error?: string;
+  } | null;
+  if (!data) throw new Error(`Control server trả phản hồi rỗng (${res.status}).`);
+  return {
+    ok: Boolean(res.ok && data.ok),
+    reason: data.reason ?? data.error ?? (!res.ok ? `HTTP ${res.status}` : undefined),
+  };
 }
 function StatusDot({ state, label }: { state: ProcState; label: string }) {
   const color =
@@ -42,19 +52,31 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
   const [busyRender, setBusyRender] = useState(false);
   const [busyApp, setBusyApp] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [controlMessage, setControlMessage] = useState<string | null>(null);
   const poll = useCallback(async () => {
     try {
       const res = await fetch(`${LOCAL_URL}/status`, {
         signal: AbortSignal.timeout(2000),
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.reason ?? data?.error ?? `HTTP ${res.status}`);
+      }
       setWorkerState(data.running ? "running" : "stopped");
       setRenderState(data.render_running ? "running" : "stopped");
       setAppState(data.app_running ? "running" : "stopped");
-    } catch {
+      if (data.reason || data.error) {
+        setControlMessage(data.reason ?? data.error);
+      }
+    } catch (error) {
       setWorkerState("offline");
       setRenderState("offline");
       setAppState("offline");
+      setControlMessage(
+        error instanceof Error
+          ? error.message
+          : "Không kết nối được control server.",
+      );
     }
     try {
       const res = await fetch("/api/jobs/worker-heartbeat", {
@@ -83,6 +105,7 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
   }, [poll]);
   async function toggleWorker() {
     setBusyWorker(true);
+    setControlMessage(null);
     try {
       const path = workerState === "running" ? "/stop" : "/start";
       const data = await callEndpoint(
@@ -94,8 +117,12 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
       if (data.ok || data.reason === "not_running") {
         if (path === "/stop") setWorkerState("stopped");
       }
-    } catch {
+      if (!data.ok && data.reason) setControlMessage(data.reason);
+    } catch (error) {
       setWorkerState("offline");
+      setControlMessage(
+        error instanceof Error ? error.message : "Không điều khiển được worker.",
+      );
     } finally {
       setBusyWorker(false);
       setTimeout(poll, 800);
@@ -103,13 +130,18 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
   }
   async function toggleApp() {
     setBusyApp(true);
+    setControlMessage(null);
     try {
       const path = appState === "running" ? "/app/stop" : "/app/start";
       const data = await callEndpoint(path);
       if (data.ok || data.reason === "already_running") setAppState("running");
       if (data.ok && path === "/app/stop") setAppState("stopped");
-    } catch {
+      if (!data.ok && data.reason) setControlMessage(data.reason);
+    } catch (error) {
       setAppState("offline");
+      setControlMessage(
+        error instanceof Error ? error.message : "Không điều khiển được Auto Login.",
+      );
     } finally {
       setBusyApp(false);
       setTimeout(poll, 800);
@@ -117,6 +149,7 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
   }
   async function toggleRender() {
     setBusyRender(true);
+    setControlMessage(null);
     try {
       const path = renderState === "running" ? "/render/stop" : "/render/start";
       const data = await callEndpoint(path, path.endsWith("/stop") ? 25000 : 5000);
@@ -124,8 +157,12 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
       if ((data.ok || data.reason === "not_running") && path.endsWith("/stop")) {
         setRenderState("stopped");
       }
-    } catch {
+      if (!data.ok && data.reason) setControlMessage(data.reason);
+    } catch (error) {
       setRenderState("offline");
+      setControlMessage(
+        error instanceof Error ? error.message : "Không điều khiển được render worker.",
+      );
     } finally {
       setBusyRender(false);
       setTimeout(poll, 800);
@@ -251,11 +288,12 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
       )}
       {/* Timestamp + refresh */}
       <button
-        onClick={poll}
-        className="rounded-lg px-2 py-1.5 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] transition-colors"
+        onClick={() => void poll()}
+        className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] transition-colors"
         title="Làm mới"
+        aria-label="Làm mới trạng thái worker"
       >
-        ↻
+        <RefreshCw className="h-4 w-4" />
       </button>
       {lastChecked && (
         <span className="text-[12px] text-[var(--text-secondary)]">
@@ -264,6 +302,11 @@ export function WorkerControl({ heartbeat }: { heartbeat: WorkerHeartbeat }) {
             minute: "2-digit",
             second: "2-digit",
           })}
+        </span>
+      )}
+      {controlMessage && (
+        <span className="w-full text-right text-[12px] text-[var(--danger)]">
+          {controlMessage}
         </span>
       )}
     </div>

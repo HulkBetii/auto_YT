@@ -12,6 +12,7 @@ Run manually on the Mac when you want the pipeline to make progress:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -68,8 +69,8 @@ async def claim_optional_queue(label: str, claim_fn, dsn: str) -> dict | None:
     """Claim from a queue if that table exists in this database."""
     try:
         return await claim_fn(dsn)
-    except asyncpg.UndefinedTableError:
-        logger.debug("Skipping %s queue because its table does not exist in this database.", label)
+    except (asyncpg.UndefinedTableError, asyncpg.UndefinedObjectError):
+        logger.debug("Skipping %s queue because its table/type does not exist in this database.", label)
         return None
 
 
@@ -92,25 +93,27 @@ def load_chain_config() -> tuple[str, str]:
     """Return (web_url, dashboard_secret) for triggering the chain cycle.
 
     Reads from env vars first, then falls back to db_config.json under the
-    keys PIPELINE_WEB_URL / DASHBOARD_SECRET. Returns ("", "") if neither is
-    available â€” trigger_chain_cycle will silently skip in that case.
+    keys PIPELINE_WEB_URL / DASHBOARD_SECRET. A blank DASHBOARD_SECRET is valid
+    for local dashboards, where cron routes intentionally do not require auth.
     """
+    has_env_web_url = "PIPELINE_WEB_URL" in os.environ
+    has_env_secret = "DASHBOARD_SECRET" in os.environ
     web_url = os.getenv("PIPELINE_WEB_URL", "").strip()
     secret = os.getenv("DASHBOARD_SECRET", "").strip()
-    if web_url and secret:
-        return web_url, secret
     if DB_CONFIG_PATH.exists():
         try:
             data = json.loads(DB_CONFIG_PATH.read_text(encoding="utf-8"))
-            web_url = web_url or str(data.get("PIPELINE_WEB_URL") or "").strip()
-            secret = secret or str(data.get("DASHBOARD_SECRET") or "").strip()
+            if not has_env_web_url:
+                web_url = str(data.get("PIPELINE_WEB_URL") or "").strip()
+            if not has_env_secret:
+                secret = str(data.get("DASHBOARD_SECRET") or "").strip()
         except Exception:
             pass
-    if not web_url or not secret:
+    if not web_url:
         logger.warning(
-            "PIPELINE_WEB_URL / DASHBOARD_SECRET not set â€” "
+            "PIPELINE_WEB_URL not set â€” "
             "chain cycle will not be auto-triggered after each job. "
-            "Add both to data/db_config.json or env to fix."
+            "Add it to data/db_config.json or env to fix."
         )
     return web_url, secret
 
@@ -571,15 +574,20 @@ class TabManager:
 
 
 async def record_heartbeat(dsn: str, status: str) -> None:
-    """Write heartbeat to both web/ channel_config and web_2/ ah_channel_config.
-    Failures are silently swallowed â€” a heartbeat miss must never crash the poll loop.
-    """
-    from auto_yt.services.job_queue import _sanitize_dsn
+    """Write heartbeat to whichever dashboard tables exist in the active DB."""
+
+    async def _try_execute(conn, sql_text: str, *args) -> None:
+        try:
+            await conn.execute(sql_text, *args)
+        except asyncpg.UndefinedTableError:
+            return
+
     try:
         from auto_yt.services.job_queue import _connect
         conn = await _connect(dsn)
         try:
-            await conn.execute(
+            await _try_execute(
+                conn,
                 """
                 INSERT INTO channel_config (key, worker_last_seen_at, worker_last_status, updated_at)
                 VALUES ('worker_heartbeat', NOW(), $1::worker_status, NOW())
@@ -588,14 +596,16 @@ async def record_heartbeat(dsn: str, status: str) -> None:
                 """,
                 status,
             )
-            await conn.execute(
+            await _try_execute(
+                conn,
                 """
                 INSERT INTO ah_channel_config (key, value, updated_at)
                 VALUES ('worker_last_seen', NOW()::text, NOW())
                 ON CONFLICT (key) DO UPDATE SET value = NOW()::text, updated_at = NOW()
                 """,
             )
-            await conn.execute(
+            await _try_execute(
+                conn,
                 """
                 INSERT INTO dr_channel_config (key, value, updated_at)
                 VALUES ('worker_last_seen', NOW()::text, NOW())
@@ -606,6 +616,23 @@ async def record_heartbeat(dsn: str, status: str) -> None:
             await conn.close()
     except Exception as exc:  # noqa: BLE001
         logger.warning("Heartbeat failed (non-fatal): %s", exc)
+
+
+async def send_prompt_with_heartbeat(prompt_text: str, page, dsn: str) -> str:
+    """Keep dashboard heartbeat fresh while ChatGPT is generating a long response."""
+
+    async def heartbeat_loop() -> None:
+        while True:
+            await record_heartbeat(dsn, "running")
+            await asyncio.sleep(POLL_INTERVAL_S)
+
+    heartbeat_task = asyncio.create_task(heartbeat_loop())
+    try:
+        return await send_prompt(prompt_text, page, timeout_s=PROMPT_TIMEOUT_S)
+    finally:
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
 
 
 async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") -> None:
@@ -619,7 +646,7 @@ async def process_ah_job(page, dsn: str, job: dict, *, web2_secret: str = "") ->
 
     logger.info("Running ah_job id=%s stage=%s (prompt %d chars)", job_id, stage, len(prompt_text))
     try:
-        response = await send_prompt(prompt_text, page, timeout_s=PROMPT_TIMEOUT_S)
+        response = await send_prompt_with_heartbeat(prompt_text, page, dsn)
     except ChatGPTResponseError as exc:
         next_retry = retry_count + 1
         if next_retry <= MAX_TRANSIENT_RETRIES:
@@ -655,7 +682,7 @@ async def process_dr_job(page, dsn: str, job: dict, *, web3_secret: str = "") ->
 
     logger.info("Running dr_job id=%s stage=%s (prompt %d chars)", job_id, stage, len(prompt_text))
     try:
-        response = await send_prompt(prompt_text, page, timeout_s=PROMPT_TIMEOUT_S)
+        response = await send_prompt_with_heartbeat(prompt_text, page, dsn)
     except ChatGPTResponseError as exc:
         next_retry = retry_count + 1
         if next_retry <= MAX_TRANSIENT_RETRIES:
@@ -692,7 +719,7 @@ async def process_job(page, dsn: str, job: dict, *, web_url: str = "", dashboard
 
     logger.info("Running job id=%s stage=%s (prompt %d chars)", job_id, stage, len(prompt_text))
     try:
-        response = await send_prompt(prompt_text, page, timeout_s=PROMPT_TIMEOUT_S)
+        response = await send_prompt_with_heartbeat(prompt_text, page, dsn)
     except ChatGPTResponseError as exc:
         next_retry = retry_count + 1
         if next_retry <= MAX_TRANSIENT_RETRIES:

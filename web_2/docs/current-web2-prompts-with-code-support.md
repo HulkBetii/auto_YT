@@ -31,9 +31,9 @@ All are selectable prompt sets. None replaces `current` unless a video is explic
 - Only prompt sets with active `S1/S2/S3/S4` rows are available in the creation dropdown.
 - S1 output must parse as an array with expected fields: `title`, `head_keyword`, `angle`, `hook`, `viral_type`, `key_questions`.
 - S2 output is saved as plain script text and passed to TTS/Whisper.
-- S3 output is line-formatted, sanitized, and wrapped by `lib/pipeline/visualStyle.ts`.
+- S3 output is line-formatted, sanitized, text-free, and wrapped by `lib/pipeline/visualStyle.ts`.
 - S4 output must satisfy `parseS4Variable`: `title`, `url_slug`, `hook_paragraph`, `discover_bullets`, `chapter_titles`, `tags`, `thumbnail` with `concept`, `text`, `emotion`, `accent_color`.
-- Code computes real chapter timestamps, builds the final description, normalizes tags, and wraps `thumbnail.concept` before storing it.
+- Code computes real chapter timestamps, builds the final description, normalizes tags, wraps `thumbnail.concept`, and treats `thumbnail.text` as the big yellow ALL-CAPS overlay layer.
 
 ## `2.1-Mack-YT`
 
@@ -43,7 +43,7 @@ Prompt-guided Mack behavior includes:
 - S1: familiar modern thing + hidden question + ancient/evolutionary/history explanation + strong visual packaging.
 - S2: 2,800-3,500 words, mixed POV, modular documentary structure, evidence anchors, evidence ladder, research discipline, retention mechanics, and TTS readability.
 - S3: coherent visual documentary sequence with historical reconstruction, human problem, evidence visualization, mechanism explanation, comparison, timeline/migration, modern analogy, and uncertainty frames.
-- S4: title/thumbnail division of labor and one dominant visual proposition rather than exactly one hero character.
+- S4: title/thumbnail division of labor with one dominant visual proposition, big yellow thumbnail text, and optional supporting figures when they sharpen the idea.
 
 ## `2.2-Stickly-YT`
 
@@ -57,7 +57,7 @@ Prompt-guided Stickly behavior includes:
 - S2: 2,900-3,600 words, aim 3,200-3,400, with adaptive modes Behavior Paradox, Ancient Condition, and Human Urge Mechanism.
 - S2 epistemic discipline: separate behavior, interpretation, evidence, inference, speculation; distinguish mechanism plausibility from demonstrated outcome.
 - S3 prioritizes interaction geometry, species specificity, gaze, movement direction, relative distance, behavioral sequence continuity, animal body language, and mechanism visualization.
-- S4 uses ONE FOCAL INTERACTION + ONE BEHAVIORAL TENSION, where title usually states observable behavior/condition and thumbnail text adds emotional interpretation or contradiction.
+- S4 uses ONE FOCAL INTERACTION + ONE BEHAVIORAL TENSION, where title usually states observable behavior/condition and thumbnail text adds a big yellow emotional interpretation or contradiction.
 
 ## `2.3-Explain-In-Paint-YT`
 
@@ -86,7 +86,7 @@ Do not treat these as validators unless code is added later:
 - consensus calibration;
 - mechanism correctness;
 - visual ladder or interaction geometry quality;
-- thumbnail originality, title uniqueness, or visual readability;
+- thumbnail originality, title uniqueness, visual readability, and readable big-yellow text contrast;
 - absence of padding beyond basic output sanitation.
 
 ## Runtime Support Outside Prompts

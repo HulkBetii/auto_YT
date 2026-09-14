@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { videos } from "@/lib/db/schema";
 import {
+  readResolvedChapterLines,
   renderedSubtitleExists,
   renderedVideoExists,
 } from "@/lib/render/files";
@@ -41,15 +42,18 @@ export async function GET(
     return NextResponse.json({ error: "Video not found" }, { status: 404 });
   }
 
-  const [outputAvailable, subtitleAvailable] = await Promise.all([
+  const [outputAvailable, subtitleAvailable, chapterText] = await Promise.all([
     renderedVideoExists(videoId),
     renderedSubtitleExists(videoId),
+    readResolvedChapterLines(videoId),
   ]);
   const { ttsText, ...status } = video;
   return NextResponse.json({
     ...status,
     outputAvailable,
     subtitleAvailable,
+    chaptersAvailable: Boolean(chapterText),
+    chapterLines: chapterText?.split("\n") ?? [],
     outputCurrent:
       outputAvailable &&
       video.renderStatus === "done" &&

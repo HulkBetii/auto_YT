@@ -99,3 +99,14 @@ Use Puppeteer to search Official Docs or StackOverflow ONLY when:
 - Start an app from its folder with `pnpm db:up`, `pnpm db:migrate`, then `pnpm local:dev`.
 - `DASHBOARD_SECRET` is intentionally blank in local `.env.local` files so local dashboards open without password.
 - Neon/Vercel are fallback/reference only; old Neon data can be recovered later only when Neon quota allows backup/export.
+
+## 10. Playwright Chrome Profile
+- Every Playwright persistent Chromium context MUST use `D:\VibeCoding\auto_YT\data\chrome_user_data\PROFILE_GPT_1` via `auto_yt.paths.gpt_profile_dir()`.
+- Do not create temporary profiles, select another profile, or add environment/config overrides for this path.
+- If the profile is locked, report the conflict or clear stale singleton locks; never fall back to a different profile.
+
+## 11. Playwright-First AI Policy
+- All text generation, evaluation, ranking, and reasoning MUST run through the Playwright ChatGPT job queues.
+- OpenAI API usage is allowed only for semantic embeddings and Whisper transcription with timestamps.
+- Do not use OpenAI Chat Completions, Responses, or TTS APIs in production code, tests, or utility scripts.
+- Any new OpenAI API use requires an explicit policy change approved by the user; never add an automatic OpenAI fallback for Playwright jobs.

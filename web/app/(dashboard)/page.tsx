@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { channelConfig, jobs, videoContent, videos } from "@/lib/db/schema";
+import { jobs, videoContent, videos } from "@/lib/db/schema";
+import { getConfigValue } from "@/lib/db/repo/channel-config";
 import { formatAdaptiveLabel, formatListCount } from "@/lib/ui/adaptive";
 import {
   FIXED_PERSONA_NAME,
@@ -11,6 +12,11 @@ import {
 } from "@/lib/ui/fixedPersona";
 import { formatDuration, formatRelative } from "@/lib/ui/format";
 import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
+import { getWorkerHeartbeatSnapshot } from "@/lib/pipeline/workerHeartbeat";
+import { renderedVideoExists } from "@/lib/render/files";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/render/state";
+import { RenderStatusBadge } from "@/components/RenderStatusBadge";
+import { TtsStatusBadge } from "@/components/TtsStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -24,18 +30,6 @@ import {
 import { RunPipelineButton } from "./RunPipelineButton";
 import { WorkerControl } from "./WorkerControl";
 export const dynamic = "force-dynamic";
-async function getVideoStatusCounts() {
-  return db
-    .select({ status: videos.status, count: sql<number>`count(*)::int` })
-    .from(videos)
-    .groupBy(videos.status);
-}
-async function getJobStatusCounts() {
-  return db
-    .select({ status: jobs.status, count: sql<number>`count(*)::int` })
-    .from(jobs)
-    .groupBy(jobs.status);
-}
 async function getAvgStageDuration() {
   return db
     .select({
@@ -62,22 +56,32 @@ async function getRecentActivity() {
     .limit(12);
 }
 
-// Pipeline statuses + ready_to_publish (TTS pending) — filtered in JS below
-const IN_FLIGHT_STATUSES = [
+const ACTIVE_PIPELINE_STATUSES = new Set<string>([
   "topic",
   "outline",
   "scripted",
   "seo_done",
   "scoring",
   "needs_retry",
+] as const);
+const POST_SCORE_STATUSES = new Set<string>([
   "ready_to_publish",
-] as const;
+  "published",
+  "analyzed",
+] as const);
 
-// Stage order for the mini-stepper (P1→P2→P3→P4→Score→TTS)
-const PIPELINE_STEPS = ["P1", "P2", "P3", "P4", "Score", "TTS"] as const;
+const PIPELINE_STEPS = [
+  "P1",
+  "P2",
+  "P3",
+  "P4",
+  "Score",
+  "Desc",
+  "TTS",
+  "Render",
+] as const;
 type PipelineStep = (typeof PIPELINE_STEPS)[number];
 
-// Map video status → how many steps are "done" (green)
 const STATUS_DONE_STEPS: Record<string, number> = {
   topic: 1,
   outline: 2,
@@ -85,10 +89,11 @@ const STATUS_DONE_STEPS: Record<string, number> = {
   seo_done: 4,
   scoring: 4,
   needs_retry: 2,
-  ready_to_publish: 5,
+  ready_to_publish: 6,
+  published: 6,
+  analyzed: 6,
 };
 
-// Map video status → which step is currently "running" (pulse)
 const STATUS_RUNNING_STEP: Record<string, PipelineStep | null> = {
   topic: "P2",
   outline: "P3",
@@ -97,9 +102,12 @@ const STATUS_RUNNING_STEP: Record<string, PipelineStep | null> = {
   scoring: "Score",
   needs_retry: "P3",
   ready_to_publish: "TTS",
+  published: "TTS",
+  analyzed: "TTS",
 };
-async function getInFlightVideos() {
-  const inFlight = await db
+
+async function getDashboardVideos() {
+  const rows = await db
     .select({
       id: videos.id,
       title: videos.title,
@@ -111,14 +119,53 @@ async function getInFlightVideos() {
       corePromise: videos.corePromise,
       status: videos.status,
       audioUrl: videos.audioUrl,
+      ttsText: videos.ttsText,
+      ttsTaskId: videos.ttsTaskId,
+      ttsSubmittedAt: videos.ttsSubmittedAt,
+      renderStatus: videos.renderStatus,
+      renderAttemptCount: videos.renderAttemptCount,
+      renderNextAttemptAt: videos.renderNextAttemptAt,
+      renderedAudioUrl: videos.renderedAudioUrl,
     })
     .from(videos)
-    .where(inArray(videos.status, [...IN_FLIGHT_STATUSES]))
     .orderBy(videos.id);
 
-  const filtered = inFlight.filter(
-    (v) => v.status !== "ready_to_publish" || v.audioUrl === null,
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      outputAvailable: await renderedVideoExists(row.id),
+    })),
   );
+}
+
+type DashboardVideo = Awaited<ReturnType<typeof getDashboardVideos>>[number];
+
+function isCurrentRenderComplete(video: DashboardVideo) {
+  return (
+    video.outputAvailable &&
+    video.renderStatus === "done" &&
+    video.audioUrl !== null &&
+    video.audioUrl === video.renderedAudioUrl
+  );
+}
+
+function isTerminalRenderFailure(video: DashboardVideo) {
+  return (
+    video.renderStatus === "failed" &&
+    (video.renderAttemptCount >= MAX_RENDER_ATTEMPTS ||
+      video.renderNextAttemptAt === null)
+  );
+}
+
+function shouldShowInFlight(video: DashboardVideo) {
+  if (ACTIVE_PIPELINE_STATUSES.has(video.status)) return true;
+  if (!POST_SCORE_STATUSES.has(video.status)) return false;
+  if (!video.audioUrl || !video.ttsText) return true;
+  return !isCurrentRenderComplete(video) && !isTerminalRenderFailure(video);
+}
+
+async function attachRunningJobs(rows: DashboardVideo[]) {
+  const filtered = rows.filter(shouldShowInFlight);
   if (filtered.length === 0) return [];
 
   const videoIds = filtered.map((v) => v.id);
@@ -145,74 +192,76 @@ async function getInFlightVideos() {
     runningJob: latestJobByVideo.get(v.id) ?? null,
   }));
 }
-async function getTTSRows() {
-  return db
-    .select({
-      featuredPerson: videos.featuredPerson,
-      audioUrl: videos.audioUrl,
-    })
-    .from(videos)
-    .where(
-      sql`${videos.status} in ('ready_to_publish', 'published', 'analyzed')`,
-    );
-}
-async function getWorkerHeartbeat() {
-  const [row] = await db
-    .select({
-      workerLastSeenAt: channelConfig.workerLastSeenAt,
-      workerLastStatus: channelConfig.workerLastStatus,
-    })
-    .from(channelConfig)
-    .where(eq(channelConfig.key, "worker_heartbeat"))
-    .limit(1);
 
-  return {
-    workerLastSeenAt: row?.workerLastSeenAt?.toISOString() ?? null,
-    workerLastStatus: row?.workerLastStatus ?? null,
-  };
+function getPipelineProgress(video: DashboardVideo) {
+  let doneCount = STATUS_DONE_STEPS[video.status] ?? 0;
+  let runningStep = STATUS_RUNNING_STEP[video.status] ?? null;
+  if (doneCount < 6) return { doneCount, runningStep };
+  if (!video.audioUrl) return { doneCount, runningStep: "TTS" as const };
+  doneCount = 7;
+  runningStep = "Render";
+  if (isCurrentRenderComplete(video)) {
+    doneCount = 8;
+    runningStep = null;
+  }
+  return { doneCount, runningStep };
 }
+
 export default async function DashboardPage() {
   const [
-    videoCounts,
-    jobCounts,
     avgDurations,
     recentActivity,
-    ttsRows,
     ttsStatusFn,
-    inFlightVideos,
+    dashboardVideos,
     workerHeartbeat,
+    newBatchPaused,
   ] = await Promise.all([
-    getVideoStatusCounts(),
-    getJobStatusCounts(),
     getAvgStageDuration(),
     getRecentActivity(),
-    getTTSRows(),
     buildTTSStatusChecker(),
-    getInFlightVideos(),
-    getWorkerHeartbeat(),
+    getDashboardVideos(),
+    getWorkerHeartbeatSnapshot(),
+    getConfigValue("new_batch_paused"),
   ]);
-  const ttsStats = ttsRows.reduce(
-    (acc, r) => {
-      const s = ttsStatusFn(r.featuredPerson, r.audioUrl);
-      acc[s] = (acc[s] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
+  const inFlightVideos = await attachRunningJobs(dashboardVideos);
+  const audioCount = dashboardVideos.filter((video) => video.audioUrl).length;
+  const renderDoneCount = dashboardVideos.filter(
+    (video) => video.renderStatus === "done" && video.outputAvailable,
+  ).length;
+  const renderCurrentCount = dashboardVideos.filter(isCurrentRenderComplete).length;
+  const needsActionIds = new Set(
+    dashboardVideos
+      .filter((video) => {
+        const ttsStatus = ttsStatusFn({
+          featuredPerson: video.featuredPerson,
+          audioUrl: video.audioUrl,
+          ttsTaskId: video.ttsTaskId,
+          ttsSubmittedAt: video.ttsSubmittedAt,
+        });
+        return (
+          video.status === "needs_attention" ||
+          isTerminalRenderFailure(video) ||
+          Boolean(video.audioUrl && !video.ttsText) ||
+          (POST_SCORE_STATUSES.has(video.status) &&
+            ttsStatus === "no_mapping")
+        );
+      })
+      .map((video) => video.id),
   );
-  const readyCount =
-    videoCounts.find((r) => r.status === "ready_to_publish")?.count ?? 0;
-  const jobsDoneCount = jobCounts.find((r) => r.status === "done")?.count ?? 0;
-  const audioCount = ttsStats["done"] ?? 0;
   const statCards = [
-    { label: "READY TO PUBLISH", value: readyCount },
+    { label: "VIDEO ĐANG CHẠY", value: inFlightVideos.length },
     { label: "AUDIO DONE", value: audioCount },
-    { label: "JOBS DONE", value: jobsDoneCount },
+    {
+      label: "RENDER CURRENT / DONE",
+      value: `${renderCurrentCount} / ${renderDoneCount}`,
+    },
+    { label: "CẦN XỬ LÝ", value: needsActionIds.size },
   ];
   return (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[28px] font-semibold tracking-tight text-[var(--text-primary)] ">
             Tổng quan
           </h1>
@@ -224,8 +273,17 @@ export default async function DashboardPage() {
             Persona: {FIXED_PERSONA_NAME}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <WorkerControl heartbeat={workerHeartbeat} /> <RunPipelineButton />
+        <div className="flex flex-wrap items-start justify-end gap-3">
+          <WorkerControl
+            heartbeat={{
+              workerLastSeenAt: workerHeartbeat.lastSeenAt,
+              workerLastStatus: workerHeartbeat.status,
+            }}
+          />
+          <RunPipelineButton
+            newBatchPaused={newBatchPaused === "true"}
+            initialWorker={workerHeartbeat}
+          />
         </div>
       </div>
       {/* Stat cards */}
@@ -233,7 +291,7 @@ export default async function DashboardPage() {
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
           PIPELINE STATUS
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           {statCards.map((card) => (
             <Card
               key={card.label}
@@ -260,16 +318,21 @@ export default async function DashboardPage() {
           <Card className="border-[var(--border-subtle)] shadow-none rounded-xl ">
             <CardContent className="p-0 divide-y divide-[var(--border-subtle)] ">
               {inFlightVideos.map((v) => {
-                const doneCount = STATUS_DONE_STEPS[v.status] ?? 0;
-                const runningStep = STATUS_RUNNING_STEP[v.status] ?? null;
+                const { doneCount, runningStep } = getPipelineProgress(v);
                 const personaStatus = getPersonaUiStatus(v.featuredPerson);
+                const ttsStatus = ttsStatusFn({
+                  featuredPerson: v.featuredPerson,
+                  audioUrl: v.audioUrl,
+                  ttsTaskId: v.ttsTaskId,
+                  ttsSubmittedAt: v.ttsSubmittedAt,
+                });
                 return (
                   <div
                     key={v.id}
                     className="flex flex-wrap items-center gap-3 px-4 py-3"
                   >
                     {/* Mini stepper */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex max-w-full shrink-0 items-center gap-1 overflow-x-auto pb-1">
                       {PIPELINE_STEPS.map((step, i) => {
                         const isDone = i < doneCount;
                         const isRunning = step === runningStep;
@@ -372,6 +435,18 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     {/* Running job badge */}
+                    {doneCount >= 6 && <TtsStatusBadge status={ttsStatus} />}
+                    {v.audioUrl && (
+                      <RenderStatusBadge
+                        audioUrl={v.audioUrl}
+                        ttsText={v.ttsText}
+                        renderStatus={v.renderStatus}
+                        renderAttemptCount={v.renderAttemptCount}
+                        renderNextAttemptAt={v.renderNextAttemptAt}
+                        outputAvailable={v.outputAvailable}
+                        outputCurrent={isCurrentRenderComplete(v)}
+                      />
+                    )}
                     {v.runningJob && (
                       <Badge
                         className={[
@@ -400,8 +475,8 @@ export default async function DashboardPage() {
           <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
             PROCESSING TIME
           </p>
-          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] ">
-            <Table>
+          <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] ">
+            <Table className="min-w-[520px]">
               <TableHeader>
                 <TableRow className="border-[var(--border-subtle)] hover:bg-transparent ">
                   <TableHead className="text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">

@@ -74,7 +74,7 @@ def test_legacy_chapters_are_monotonic_and_inside_duration() -> None:
     assert format_chapter_lines(resolved).startswith("00:00 静かな導入")
 
 
-def test_short_video_can_keep_three_chapters_with_ten_second_gaps() -> None:
+def test_short_video_rejects_a_final_chapter_under_ten_seconds() -> None:
     specs = parse_chapter_specs(
         """■ チャプター設計
 00:00 導入
@@ -90,7 +90,7 @@ def test_short_video_can_keep_three_chapters_with_ten_second_gaps() -> None:
 
     resolved = resolve_chapters(specs, cards)
 
-    assert [chapter.seconds for chapter in resolved] == [0.0, 10.0, 20.0]
+    assert resolved == []
 
 
 def test_duration_override_keeps_chapters_inside_rendered_video() -> None:
@@ -108,9 +108,10 @@ def test_duration_override_keeps_chapters_inside_rendered_video() -> None:
         Card(26.0, 30.0, ["音声だけ長い末尾"]),
     ]
 
-    resolved = resolve_chapters(specs, cards, duration_seconds=21.0)
+    resolved = resolve_chapters(specs, cards, duration_seconds=31.0)
 
     assert resolved[-1].seconds <= 21.0
+    assert 31.0 - resolved[-1].seconds >= MIN_CHAPTER_GAP_SECONDS
 
 
 def test_description_replacement_preserves_other_sections() -> None:

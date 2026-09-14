@@ -1,6 +1,13 @@
 "use client";
 
-import { Captions, Download, Film, RefreshCw, RotateCcw } from "lucide-react";
+import {
+  Captions,
+  Copy,
+  Download,
+  Film,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { RenderStatusBadge } from "@/components/RenderStatusBadge";
@@ -19,6 +26,8 @@ type RenderSnapshot = {
   renderHeartbeatAt: string | Date | null;
   outputAvailable: boolean;
   subtitleAvailable: boolean;
+  chaptersAvailable: boolean;
+  chapterLines: string[];
   outputCurrent: boolean;
   waitingForAudio?: boolean;
   missingTtsText?: boolean;
@@ -82,6 +91,15 @@ export function RenderPanel({
     }
   }
 
+  async function copyChapters() {
+    try {
+      await navigator.clipboard.writeText(snapshot.chapterLines.join("\n"));
+      setMessage("Đã copy chapter thực tế.");
+    } catch {
+      setMessage("Không thể copy chapter vào clipboard.");
+    }
+  }
+
   const retryScheduled =
     snapshot.renderStatus === "failed" &&
     snapshot.renderAttemptCount < MAX_RENDER_ATTEMPTS &&
@@ -96,7 +114,12 @@ export function RenderPanel({
         </p>
         <RenderStatusBadge
           audioUrl={snapshot.audioUrl}
+          ttsText={snapshot.missingTtsText ? null : undefined}
           renderStatus={snapshot.renderStatus}
+          renderAttemptCount={snapshot.renderAttemptCount}
+          renderNextAttemptAt={snapshot.renderNextAttemptAt}
+          outputAvailable={snapshot.outputAvailable}
+          outputCurrent={snapshot.outputCurrent}
         />
       </div>
 
@@ -164,6 +187,27 @@ export function RenderPanel({
                 : "—"}
             </span>
           </div>
+
+          {snapshot.chaptersAvailable && snapshot.chapterLines.length > 0 && (
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--dashboard-bg)] p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-medium uppercase text-[var(--text-secondary)]">
+                  CHAPTER THỰC TẾ
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void copyChapters()}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--accent-cyan)] hover:text-[var(--accent-cyan-hover)]"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy
+                </button>
+              </div>
+              <pre className="whitespace-pre-wrap text-[13px] leading-6 text-[var(--text-primary)]">
+                {snapshot.chapterLines.join("\n")}
+              </pre>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             {snapshot.outputAvailable && (

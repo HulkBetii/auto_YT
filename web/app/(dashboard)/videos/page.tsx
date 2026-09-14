@@ -5,6 +5,7 @@ import {
   renderedSubtitleExists,
   renderedVideoExists,
 } from "@/lib/render/files";
+import { buildTTSStatusChecker } from "@/lib/pipeline/ttsVoiceMap";
 import { StatusTabs } from "./StatusTabs";
 import { VideosTable } from "./VideosTable";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function VideosPage({
     ? (status as StatusFilter)
     : ALL;
   const videosList = await getVideos(filter);
+  const ttsStatusFn = await buildTTSStatusChecker();
   const rows = await Promise.all(
     videosList.map(async (video) => {
       const [outputAvailable, subtitleAvailable] = await Promise.all([
@@ -43,6 +45,16 @@ export default async function VideosPage({
         ...video,
         outputAvailable,
         subtitleAvailable,
+        outputCurrent:
+          outputAvailable &&
+          video.renderStatus === "done" &&
+          video.audioUrl === video.renderedAudioUrl,
+        ttsStatus: ttsStatusFn({
+          featuredPerson: video.featuredPerson,
+          audioUrl: video.audioUrl,
+          ttsTaskId: video.ttsTaskId,
+          ttsSubmittedAt: video.ttsSubmittedAt,
+        }),
       };
     }),
   );
