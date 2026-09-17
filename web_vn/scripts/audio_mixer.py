@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Audio Mixer & BGM Sidechain Ducking Engine (48kHz Broadcast Standard)
-Concatenates chunk WAVs and mixes background music with automatic EBU R128 loudness normalization and audio ducking.
+Concatenates chunk WAVs with snappy conversational pacing (0.18s/0.28s),
+dead silence trimming, EBU R128 loudness normalization, and audio ducking.
 """
 
 import sys
@@ -9,6 +10,9 @@ import os
 import subprocess
 import json
 import logging
+import soundfile as sf
+import numpy as np
+import librosa
 from pathlib import Path
 from typing import List, Optional
 
@@ -29,11 +33,27 @@ def create_silence_wav(duration_sec: float, output_path: Path, sample_rate: int 
     ]
     subprocess.run(cmd, check=True, capture_output=True)
 
+def trim_dead_silence(input_wav: Path, output_wav: Path, top_db: float = 25, buffer_sec: float = 0.05):
+    """Trims trailing/leading dead air silence with a natural acoustic buffer."""
+    y, sr = sf.read(input_wav)
+    trimmed_y, index = librosa.effects.trim(y, top_db=top_db)
+    
+    buf_samples = int(buffer_sec * sr)
+    start_idx = max(0, index[0] - buf_samples)
+    end_idx = min(len(y), index[1] + buf_samples)
+    final_y = y[start_idx:end_idx]
+    
+    output_wav.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(output_wav, final_y, sr)
+
 def normalize_audio_chunk(input_wav: Path, output_wav: Path, sample_rate: int = 48000):
-    """Normalize individual audio chunk to EBU R128 -16 LUFS."""
+    """Trims dead silence and normalizes individual chunk to EBU R128 -16 LUFS."""
+    temp_trimmed = output_wav.parent / f"trim_{output_wav.name}"
+    trim_dead_silence(input_wav, temp_trimmed)
+
     cmd = [
         "ffmpeg", "-y",
-        "-i", str(input_wav),
+        "-i", str(temp_trimmed),
         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-ar", str(sample_rate),
         "-ac", "1",
@@ -41,6 +61,8 @@ def normalize_audio_chunk(input_wav: Path, output_wav: Path, sample_rate: int = 
         str(output_wav)
     ]
     subprocess.run(cmd, check=True, capture_output=True)
+    if temp_trimmed.exists():
+        temp_trimmed.unlink()
 
 def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path, sample_rate: int = 48000) -> Path:
     if not manifest_path.exists():
@@ -50,13 +72,14 @@ def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path,
     temp_dir = output_wav.parent / "temp_concat"
     temp_dir.mkdir(parents=True, exist_ok=True)
 
-    silence_short = temp_dir / "silence_0.35s.wav"
-    silence_change = temp_dir / "silence_0.65s.wav"
-    silence_chapter = temp_dir / "silence_1.2s.wav"
+    # Snappy, natural pacing micro-pauses
+    silence_short = temp_dir / "silence_0.18s.wav"
+    silence_change = temp_dir / "silence_0.28s.wav"
+    silence_chapter = temp_dir / "silence_0.80s.wav"
 
-    create_silence_wav(0.35, silence_short, sample_rate=sample_rate)
-    create_silence_wav(0.65, silence_change, sample_rate=sample_rate)
-    create_silence_wav(1.2, silence_chapter, sample_rate=sample_rate)
+    create_silence_wav(0.18, silence_short, sample_rate=sample_rate)
+    create_silence_wav(0.28, silence_change, sample_rate=sample_rate)
+    create_silence_wav(0.80, silence_chapter, sample_rate=sample_rate)
 
     concat_list_file = temp_dir / "concat_list.txt"
     with concat_list_file.open("w", encoding="utf-8") as f:
@@ -92,7 +115,7 @@ def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path,
         "-c:a", "pcm_s16le",
         str(temp_raw_wav)
     ]
-    logger.info("Concatenating all speech chunks...")
+    logger.info("Concatenating all speech chunks with snappy micro-pauses...")
     subprocess.run(cmd, check=True, capture_output=True)
 
     # Master EBU R128 normalization on narration track

@@ -2,6 +2,7 @@
 """
 Story Audio Generator (VieNeu-TTS v3 Turbo 48kHz & OmniVoice Hybrid Engine)
 High-performance batch inference engine with GPU caching, resume-on-disk,
+dead silence trimming, snappy conversational pauses (0.18s/0.28s),
 EBU R128 loudness normalization, and broadcast master mixing.
 """
 
@@ -105,15 +106,15 @@ def generate_story_audio(
             ref_audio = item.get("ref_audio")
             voice = item.get("voice")
             style = item.get("style", "tu_nhien")
-            temperature = float(item.get("temperature", 0.75))
-            top_p = float(item.get("top_p", 0.92))
+            temperature = float(item.get("temperature", 0.72))
+            top_p = float(item.get("top_p", 0.90))
 
             if ref_audio and os.path.exists(ref_audio):
-                audio_arr = vieneu_tts.infer(text, ref_audio=ref_audio, temperature=temperature, top_p=top_p)
+                audio_arr = vieneu_tts.infer(text, ref_audio=ref_audio, style=style, temperature=temperature, top_p=top_p, silence_p=0.03, crossfade_p=0.05)
             elif voice:
-                audio_arr = vieneu_tts.infer(text, voice=voice, style=style, temperature=temperature, top_p=top_p)
+                audio_arr = vieneu_tts.infer(text, voice=voice, style=style, temperature=temperature, top_p=top_p, silence_p=0.03, crossfade_p=0.05)
             else:
-                audio_arr = vieneu_tts.infer(text, style=style, temperature=temperature, top_p=top_p)
+                audio_arr = vieneu_tts.infer(text, style=style, temperature=temperature, top_p=top_p, silence_p=0.03, crossfade_p=0.05)
 
             sf.write(out_wav, audio_arr, vieneu_tts.sample_rate)
         else:
@@ -135,8 +136,8 @@ def generate_story_audio(
             ]
             subprocess.run(cmd, check=True, capture_output=True)
 
-        # Normalize loudness to EBU R128 (-16 LUFS)
-        normalize_audio_chunk(out_wav, norm_wav)
+        # Normalize loudness & trim dead air to EBU R128 (-16 LUFS)
+        normalize_audio_chunk(out_wav, norm_wav, sample_rate=48000 if engine.lower() == "vieneu" else 24000)
         dt = time.time() - t0
         generated_count += 1
 
@@ -147,8 +148,8 @@ def generate_story_audio(
     clean_narration_wav = story_dir / "narration_clean.wav"
     full_mp3 = story_dir / "full_story_audio.mp3"
 
-    logger.info("Merging audio chunks and exporting master MP3...")
-    concat_audio_chunks(norm_audio_dir, manifest_path, clean_narration_wav)
+    logger.info("Merging audio chunks and exporting master MP3 with snappy pacing...")
+    concat_audio_chunks(norm_audio_dir, manifest_path, clean_narration_wav, sample_rate=48000 if engine.lower() == "vieneu" else 24000)
     mix_with_bgm(clean_narration_wav, bgm_path, full_mp3)
 
     logger.info(f"=== FULL STORY AUDIO COMPLETE: {full_mp3} ({full_mp3.stat().st_size:,} bytes) ===")
