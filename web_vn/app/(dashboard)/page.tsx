@@ -24,7 +24,8 @@ import {
   Sliders,
   Users,
   Download,
-  Music
+  Music,
+  Award
 } from 'lucide-react';
 
 const ARCHETYPES = [
@@ -68,46 +69,51 @@ const VOICE_CARDS = [
     id: 'bac_sam',
     name: 'Bác Sâm',
     role: 'Người Dẫn Chuyện (Master Narrator)',
-    desc: 'Giọng nam trung niên miền Bắc, chiêm nghiệm, ấm áp, nhịp điệu từ tốn, thấu cảm sự đời.',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Thanh Bình)',
+    desc: 'Giọng nam trung niên miền Bắc, chiêm nghiệm, trầm ấm, nhịp điệu từ tốn, thấu cảm sự đời.',
     file: 'test_voices/test_bac_sam.wav',
-    speed: '0.95x',
-    guidance: '2.5',
+    style: 'Kể chuyện',
+    quality: '48 kHz'
   },
   {
     id: 'nhan_vat_chinh',
     name: 'Nữ Chính (Hồng Diễm)',
     role: 'Nhân Vật Chính (Khổ Hạnh & Kiên Cường)',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Ngọc Linh)',
     desc: 'Giọng nữ chuẩn Hà Nội, nghẹn ngào, nén đau thương, dứt khoát và đanh thép khi lật màn.',
     file: 'test_voices/test_nhan_vat_chinh.wav',
-    speed: '0.98x',
-    guidance: '2.8',
+    style: 'Kể chuyện / Cảm xúc',
+    quality: '48 kHz'
   },
   {
     id: 'me_chong',
     name: 'Mẹ Chồng (NSND Lan Hương)',
     role: 'Mẹ Chồng Cay Nghiệt',
+    model: 'VieNeu Zero-Shot Refined (48kHz)',
     desc: 'Giọng nữ lớn tuổi, the thé, sắc lẹm, chì chiết, luôn trịch thượng chèn ép con dâu.',
     file: 'test_voices/test_me_chong.wav',
-    speed: '1.02x',
-    guidance: '3.0',
+    style: 'Tự nhiên / Đanh thép',
+    quality: '48 kHz'
   },
   {
     id: 'tieu_tam',
     name: 'Tiểu Tam (Lương Thanh)',
     role: 'Kẻ Thứ Ba Đắc Thắng',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Trúc Ly)',
     desc: 'Giọng nữ trẻ lả lơi, nũng nịu, châm chọc mỉa mai, lộ rõ bản chất tham lam trơ trẽn.',
     file: 'test_voices/test_tieu_tam.wav',
-    speed: '1.00x',
-    guidance: '2.8',
+    style: 'Tự nhiên / Lảnh lót',
+    quality: '48 kHz'
   },
   {
     id: 'chong_boi_bac',
     name: 'Chồng Bội Bạc',
     role: 'Người Chồng Vô Ơn',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Phạm Tuyên)',
     desc: 'Giọng nam trẻ gia trưởng, lạnh lùng, quát tháo tàn nhẫn, hèn nhát khi đối diện pháp luật.',
     file: 'test_voices/test_chong_boi_bac.wav',
-    speed: '1.00x',
-    guidance: '2.7',
+    style: 'Tự nhiên / Lạnh lùng',
+    quality: '48 kHz'
   }
 ];
 
@@ -143,6 +149,7 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
 
   // Audio Tab State
+  const [selectedEngine, setSelectedEngine] = useState<'vieneu' | 'omnivoice'>('vieneu');
   const [audioStatus, setAudioStatus] = useState<{
     totalChunks: number;
     generatedChunks: number;
@@ -277,6 +284,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storyId: currentStoryId,
+          engine: selectedEngine,
           chapter: selectedChapter !== 'all' ? parseInt(selectedChapter) : undefined,
           limit: selectedLimit !== 'all' ? parseInt(selectedLimit) : undefined
         })
@@ -332,9 +340,9 @@ export default function DashboardPage() {
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-              auto_YT <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Phase 1 & 2: Story & Audio Studio</span>
+              auto_YT <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">VieNeu-TTS 48kHz Audio Studio</span>
             </h1>
-            <p className="text-xs text-slate-400">Playwright ChatGPT Pipeline + OmniVoice 5-Voice Neural TTS • Sâm Kể Chuyện Style</p>
+            <p className="text-xs text-slate-400">Playwright ChatGPT Pipeline + VieNeu-TTS v3 Turbo 48kHz (Native VN Prosody) • Sâm Kể Chuyện Style</p>
           </div>
         </div>
 
@@ -346,7 +354,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300">
             <Cpu className="w-3.5 h-3.5" />
-            <span>GPU: RTX 3060 (CUDA)</span>
+            <span>GPU: RTX 3060 (VieNeu 48kHz)</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
             <Clock className="w-3.5 h-3.5" />
@@ -412,7 +420,7 @@ export default function DashboardPage() {
             }`}
           >
             <Headphones className="w-4 h-4 text-amber-400" />
-            5. OmniVoice Audio Studio (5 Voices)
+            5. VieNeu 48kHz Audio Studio (5 Voices)
             {audioStatus.hasFullAudio && (
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
@@ -676,7 +684,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tab 5: OmniVoice Audio Studio */}
+        {/* Tab 5: VieNeu-TTS 48kHz Audio Studio */}
         {activeTab === 'audio' && (
           <div className="space-y-6">
             {/* Studio Header & Demo Audio Highlights */}
@@ -685,35 +693,35 @@ export default function DashboardPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
-                      <Radio className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                      OmniVoice Neural TTS Studio (Zero-Shot Voice Cloning)
+                      <Award className="w-3.5 h-3.5 text-amber-400" />
+                      VieNeu-TTS v3 Turbo 48kHz (Native Vietnamese Prosody)
                     </span>
-                    <span className="text-xs font-mono text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30">
-                      RTX 3060 CUDA Active
+                    <span className="text-xs font-mono text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">
+                      Chuẩn Phòng Thu 48.000 Hz
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-white mt-2">
-                    5 Giọng Lồng Tiếng Độc Quyền Phong Cách Kịch Truyền Thanh Sâm Kể Chuyện
+                    5 Giọng Lồng Tiếng Biểu Cảm Phong Cách Kịch Truyền Thanh Sâm Kể Chuyện
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Đã chuẩn hóa 24kHz mono với transcript Whisper chính xác 100%, tự động điều chỉnh tốc độ & guidance scale.
+                    Ngữ điệu tiếng Việt tự nhiên, trầm ấm lắng đọng ở lời dẫn và sắc thái đối thoại rõ nét theo chuẩn phát thanh EBU R128 (-16 LUFS).
                   </p>
                 </div>
 
                 {/* Demo Players Box */}
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="bg-slate-950/80 border border-amber-500/40 rounded-xl p-3 flex flex-col gap-1.5 min-w-[240px]">
+                  <div className="bg-slate-950/80 border border-amber-500/40 rounded-xl p-3.5 flex flex-col gap-1.5 min-w-[260px]">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-amber-300 flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        Demo Kịch Tính 5 Giọng
+                        Demo VieNeu 48kHz (5 Giọng)
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">1:02</span>
+                      <span className="text-[10px] text-emerald-400 font-mono">48 kHz</span>
                     </div>
                     <audio 
                       controls 
                       className="w-full h-8"
-                      src="/api/audio?file=test_voices/demo_scene_5_voices.mp3"
+                      src="/api/audio?file=test_voices/vieneu_demo_scene_5_voices.mp3"
                     />
                   </div>
                 </div>
@@ -738,11 +746,12 @@ export default function DashboardPage() {
                           </h4>
                           <div className="text-xs text-amber-400/90 font-medium mt-0.5">{v.role}</div>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded border border-slate-800">
-                          <span>{v.speed}</span>
-                          <span>•</span>
-                          <span>G:{v.guidance}</span>
-                        </div>
+                        <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
+                          {v.quality}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 px-2 py-1 rounded border border-indigo-500/20">
+                        {v.model}
                       </div>
                       <p className="text-xs text-slate-400 leading-relaxed">
                         {v.desc}
@@ -759,10 +768,10 @@ export default function DashboardPage() {
                         }`}
                       >
                         {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        {isPlaying ? 'Tạm dừng' : 'Nghe thử giọng mẫu'}
+                        {isPlaying ? 'Tạm dừng' : 'Nghe giọng mẫu'}
                       </button>
-                      <span className="text-[10px] text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Sẵn sàng
+                      <span className="text-[10px] text-slate-400">
+                        Style: <strong className="text-slate-200">{v.style}</strong>
                       </span>
                     </div>
                   </div>
@@ -776,7 +785,7 @@ export default function DashboardPage() {
                 <div>
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
                     <Sliders className="w-5 h-5 text-amber-400" />
-                    Bảng Điều Khiển Batch Lồng Tiếng & Mix Âm Thanh Master
+                    Bảng Điều Khiển Batch Lồng Tiếng & Mix Master (48kHz)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
                     Tự động phân vai 835 phân đoạn thoại, ghép nối micro-pause chuẩn nhịp thở và nén nhạc nền BGM sidechain ducking.
@@ -791,9 +800,21 @@ export default function DashboardPage() {
               </div>
 
               {/* Controls Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Phạm vi Chương lồng tiếng:</label>
+                  <label className="text-xs font-semibold text-slate-300">Engine Lồng Tiếng:</label>
+                  <select
+                    value={selectedEngine}
+                    onChange={(e: any) => setSelectedEngine(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="vieneu">VieNeu-TTS v3 Turbo 48kHz (Khuyên dùng)</option>
+                    <option value="omnivoice">OmniVoice Calibrated (24kHz)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Phạm vi Chương:</label>
                   <select
                     value={selectedChapter}
                     onChange={(e) => setSelectedChapter(e.target.value)}
@@ -807,16 +828,16 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Giới hạn số lượng (Test Inference):</label>
+                  <label className="text-xs font-semibold text-slate-300">Giới hạn số lượng (Test):</label>
                   <select
                     value={selectedLimit}
                     onChange={(e) => setSelectedLimit(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
                   >
                     <option value="all">Toàn bộ (Không giới hạn)</option>
-                    <option value="5">5 chunks (Test nhanh ~45 giây)</option>
-                    <option value="20">20 chunks (~3 phút)</option>
-                    <option value="50">50 chunks (~7 phút)</option>
+                    <option value="5">5 chunks (~30 giây)</option>
+                    <option value="20">20 chunks (~2 phút)</option>
+                    <option value="50">50 chunks (~5 phút)</option>
                   </select>
                 </div>
 
@@ -827,7 +848,7 @@ export default function DashboardPage() {
                     className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold p-2.5 rounded-lg shadow-lg shadow-amber-500/20 transition cursor-pointer text-xs disabled:opacity-50"
                   >
                     {isSynthesizing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}
-                    {isSynthesizing ? 'Đang Lồng Tiếng GPU...' : 'Khởi Chạy Lồng Tiếng OmniVoice'}
+                    {isSynthesizing ? 'Đang Lồng Tiếng GPU...' : 'Khởi Chạy VieNeu 48kHz'}
                   </button>
                 </div>
               </div>
@@ -835,7 +856,7 @@ export default function DashboardPage() {
               {/* Progress Bar */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-slate-400">
-                  <span>Tiến trình hoàn thiện Audio Master:</span>
+                  <span>Tiến trình hoàn thiện Audio Master (48kHz):</span>
                   <span className="font-mono text-amber-400 font-semibold">{progressPercent}%</span>
                 </div>
                 <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">

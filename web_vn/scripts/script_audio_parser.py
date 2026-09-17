@@ -1,4 +1,10 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+"""
+Story Script Audio Parser with Emotion Prosody Preprocessing.
+Parses long-form multi-chapter storytelling scripts into structured audio manifests
+supporting both VieNeu-TTS v3 Turbo 48kHz and OmniVoice.
+"""
+
 import sys
 import os
 import re
@@ -66,6 +72,7 @@ def is_meta_text(text: str) -> bool:
     return False
 
 def clean_text_for_tts(text: str) -> str:
+    """Cleans markdown, removes meta tags, preserves emotional punctuation (.,!?…-)"""
     text = re.sub(r"#+\s*", "", text)
     text = re.sub(r"\*{1,3}", "", text)
     text = re.sub(r"\[SPEAKER(?::[a-zA-Z0-9_]+)?\]", "", text)
@@ -78,7 +85,8 @@ def clean_text_for_tts(text: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-def split_into_sentence_chunks(text: str, max_words: int = 50) -> List[str]:
+def split_into_sentence_chunks(text: str, max_words: int = 40) -> List[str]:
+    """Splits into natural sentence chunks with appropriate breath limits (max 40 words)"""
     raw_sentences = re.split(r"(?<=[.!?…])\s+", text)
     chunks = []
     current_chunk = []
@@ -141,7 +149,7 @@ def parse_script_to_manifest(script_path: Path, output_jsonl: Path) -> List[Dict
         if not c_text or len(c_text.split()) < 2:
             continue
 
-        sub_chunks = split_into_sentence_chunks(c_text, max_words=50)
+        sub_chunks = split_into_sentence_chunks(c_text, max_words=40)
         v_profile = voices.get(current_speaker, default_voice)
 
         for sub in sub_chunks:
@@ -152,11 +160,16 @@ def parse_script_to_manifest(script_path: Path, output_jsonl: Path) -> List[Dict
                 "speaker_id": current_speaker,
                 "text": sub,
                 "words": len(sub.split()),
+                "engine": v_profile.get("engine", "vieneu"),
+                "voice": v_profile.get("voice"),
+                "style": v_profile.get("style", "ke_chuyen" if current_speaker == "bac_sam" else "tu_nhien"),
+                "temperature": v_profile.get("temperature", 0.75),
+                "top_p": v_profile.get("top_p", 0.92),
                 "ref_audio": v_profile.get("ref_audio", ""),
                 "ref_text": v_profile.get("ref_text", ""),
                 "language_id": "vi",
                 "speed": v_profile.get("speed", 0.95),
-                "guidance_scale": v_profile.get("guidance_scale", 2.5),
+                "guidance_scale": v_profile.get("guidance_scale", 2.2),
                 "instruct": v_profile.get("instruct", "")
             }
             manifest_entries.append(entry)
@@ -168,7 +181,7 @@ def parse_script_to_manifest(script_path: Path, output_jsonl: Path) -> List[Dict
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     total_words = sum(e["words"] for e in manifest_entries)
-    logger.info(f"Parsed {len(manifest_entries)} clean audio chunks ({total_words:,} words) across 10 chapters.")
+    logger.info(f"Parsed {len(manifest_entries)} clean audio chunks ({total_words:,} words) across {current_chapter} chapters.")
     logger.info(f"Saved manifest to: {output_jsonl}")
 
     return manifest_entries

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -45,10 +45,11 @@ export async function GET(req: Request) {
       ? String(storyId)
       : (String(storyId) === 'test_01' ? 'story_test_01' : `story_${storyId}`);
     const outputDir = path.join(webVnDir, 'output', resolvedFolder);
-    const audioDir = path.join(outputDir, 'audio');
+    const audioDir = path.join(outputDir, 'norm_audio');
+    const rawAudioDir = path.join(outputDir, 'audio');
     const manifestPath = path.join(outputDir, 'audio_manifest.jsonl');
     const fullAudioPath = path.join(outputDir, 'full_story_audio.mp3');
-    const previewAudioPath = path.join(webVnDir, 'output', 'test_voices', 'test_conversation_preview.mp3');
+    const previewAudioPath = path.join(webVnDir, 'output', 'test_voices', 'vieneu_demo_scene_5_voices.mp3');
 
     let totalChunks = 0;
     let generatedChunks = 0;
@@ -58,8 +59,9 @@ export async function GET(req: Request) {
       totalChunks = manifestLines.length;
     }
 
-    if (fs.existsSync(audioDir)) {
-      const wavFiles = fs.readdirSync(audioDir).filter(f => f.endsWith('.wav') && f.startsWith('chunk_'));
+    const checkDir = fs.existsSync(audioDir) ? audioDir : (fs.existsSync(rawAudioDir) ? rawAudioDir : null);
+    if (checkDir) {
+      const wavFiles = fs.readdirSync(checkDir).filter(f => f.endsWith('.wav') && f.startsWith('chunk_'));
       generatedChunks = wavFiles.length;
     }
 
@@ -86,10 +88,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { storyId = 'test_01', chapter, limit } = body;
+    const { storyId = 'test_01', engine = 'vieneu', chapter, limit } = body;
 
-    const pythonScript = path.resolve(process.cwd(), 'scripts', 'omnivoice_story_generator.py');
-    const args = [pythonScript, '--story-id', String(storyId)];
+    const pythonScript = path.resolve(process.cwd(), 'scripts', 'story_audio_generator.py');
+    const args = [pythonScript, '--story-id', String(storyId), '--engine', String(engine)];
     if (chapter) args.push('--chapter', String(chapter));
     if (limit) args.push('--limit', String(limit));
 
@@ -103,7 +105,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       storyId,
-      message: 'OmniVoice story audio generation launched in background.',
+      engine,
+      message: `Story audio generation (${engine.toUpperCase()} 48kHz) launched in background.`,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

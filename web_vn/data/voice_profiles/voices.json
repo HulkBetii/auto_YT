@@ -1,47 +1,72 @@
 {
   "bac_sam": {
     "id": "bac_sam",
-    "name": "Bac Sam",
+    "name": "Bác Sâm",
+    "role": "Người Dẫn Chuyện (Master Narrator)",
+    "engine": "vieneu",
+    "voice": "Thanh Bình",
+    "style": "ke_chuyen",
+    "temperature": 0.72,
+    "top_p": 0.90,
     "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\bac_sam.wav",
     "ref_text": "Kính chào quý vị và các bạn đang lắng nghe Sâm kể chuyện. Đêm nay, bác Sâm xin mời quý vị cùng ngồi lại thật chậm.",
     "speed": 0.94,
-    "guidance_scale": 2.2,
-    "instruct": "Giọng nam trung niên trầm ấm, chiêm nghiệm, thong thả, rõ chữ"
+    "desc": "Giọng nam trung niên miền Bắc, chiêm nghiệm, trầm ấm, nhịp điệu từ tốn, thấu cảm sự đời."
   },
   "nhan_vat_chinh": {
     "id": "nhan_vat_chinh",
-    "name": "Nhan Vat Chinh",
+    "name": "Nữ Chính (Hồng Diễm)",
+    "role": "Nhân Vật Chính (Khổ Hạnh & Kiên Cường)",
+    "engine": "vieneu",
+    "voice": "Ngọc Linh",
+    "style": "ke_chuyen",
+    "temperature": 0.75,
+    "top_p": 0.92,
     "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\nhan_vat_chinh.wav",
     "ref_text": "Lúc nào mọi người cũng nghĩ rằng tôi sẽ quay lại với cả anh ta. Nhưng bản thân tôi biết, tôi sẽ không bao giờ làm như thế.",
     "speed": 0.96,
-    "guidance_scale": 2.2,
-    "instruct": "Giọng nữ Hà Nội truyền cảm, nghẹn ngào, tự trọng, kiên định"
+    "desc": "Giọng nữ chuẩn Hà Nội, nghẹn ngào, nén đau thương, dứt khoát và đanh thép khi lật màn."
   },
   "me_chong": {
     "id": "me_chong",
-    "name": "Me Chong",
+    "name": "Mẹ Chồng (NSND Lan Hương)",
+    "role": "Mẹ Chồng Cay Nghiệt",
+    "engine": "vieneu",
+    "voice": null,
+    "style": "tu_nhien",
+    "temperature": 0.78,
+    "top_p": 0.92,
     "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\me_chong.wav",
     "ref_text": "Tôi nói để chị biết nhá, tôi không có thèm quỵt tiền của chị nhé, chị cầm lấy chị đi đi.",
-    "speed": 1.0,
-    "guidance_scale": 2.2,
-    "instruct": "Giọng nữ lớn tuổi the thé, sắc lẹm, chì chiết, đanh thép"
+    "speed": 1.00,
+    "desc": "Giọng nữ lớn tuổi, the thé, sắc lẹm, chì chiết, luôn trịch thượng chèn ép con dâu."
   },
   "tieu_tam": {
     "id": "tieu_tam",
-    "name": "Tieu Tam",
+    "name": "Tiểu Tam (Lương Thanh)",
+    "role": "Kẻ Thứ Ba Đắc Thắng",
+    "engine": "vieneu",
+    "voice": "Trúc Ly",
+    "style": "tu_nhien",
+    "temperature": 0.75,
+    "top_p": 0.92,
     "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\tieu_tam.wav",
     "ref_text": "Alo, em đây. Chị Dung giao cho em một số việc nên em đang tranh thủ đi làm ạ. Có chuyện gì không anh?",
     "speed": 0.98,
-    "guidance_scale": 2.2,
-    "instruct": "Giọng nữ trẻ lảnh lót, nũng nịu, ngọt ngào giả tạo, sắc sảo"
+    "desc": "Giọng nữ trẻ lả lơi, nũng nịu, châm chọc mỉa mai, lộ rõ bản chất tham lam trơ trẽn."
   },
   "chong_boi_bac": {
     "id": "chong_boi_bac",
-    "name": "Chong Boi Bac",
+    "name": "Chồng Bội Bạc",
+    "role": "Người Chồng Vô Ơn",
+    "engine": "vieneu",
+    "voice": "Phạm Tuyên",
+    "style": "tu_nhien",
+    "temperature": 0.75,
+    "top_p": 0.92,
     "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\chong_boi_bac.wav",
     "ref_text": "Con đã bàn với mẹ rồi còn gì? Mẹ, con đã thuê được nhà rồi. Lát nữa xong việc, hai mẹ con mình dọn đồ nhá.",
     "speed": 0.98,
-    "guidance_scale": 2.2,
-    "instruct": "Giọng nam dứt khoát, lạnh lùng, gia trưởng, trịch thượng"
+    "desc": "Giọng nam trẻ gia trưởng, lạnh lùng, quát tháo tàn nhẫn, hèn nhát khi đối diện pháp luật."
   }
 }

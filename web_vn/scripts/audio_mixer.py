@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Audio Mixer & BGM Sidechain Ducking Engine
+Audio Mixer & BGM Sidechain Ducking Engine (48kHz Broadcast Standard)
 Concatenates chunk WAVs and mixes background music with automatic EBU R128 loudness normalization and audio ducking.
 """
 
@@ -18,7 +18,7 @@ logger = logging.getLogger("audio_mixer")
 
 REPO_ROOT = Path(r"D:\VibeCoding\auto_YT")
 
-def create_silence_wav(duration_sec: float, output_path: Path, sample_rate: int = 24000):
+def create_silence_wav(duration_sec: float, output_path: Path, sample_rate: int = 48000):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         "ffmpeg", "-y", "-f", "lavfi", "-i",
@@ -29,20 +29,20 @@ def create_silence_wav(duration_sec: float, output_path: Path, sample_rate: int 
     ]
     subprocess.run(cmd, check=True, capture_output=True)
 
-def normalize_audio_chunk(input_wav: Path, output_wav: Path):
+def normalize_audio_chunk(input_wav: Path, output_wav: Path, sample_rate: int = 48000):
     """Normalize individual audio chunk to EBU R128 -16 LUFS."""
     cmd = [
         "ffmpeg", "-y",
         "-i", str(input_wav),
         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-        "-ar", "24000",
+        "-ar", str(sample_rate),
         "-ac", "1",
         "-c:a", "pcm_s16le",
         str(output_wav)
     ]
     subprocess.run(cmd, check=True, capture_output=True)
 
-def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path) -> Path:
+def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path, sample_rate: int = 48000) -> Path:
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
@@ -54,9 +54,9 @@ def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path)
     silence_change = temp_dir / "silence_0.65s.wav"
     silence_chapter = temp_dir / "silence_1.2s.wav"
 
-    create_silence_wav(0.35, silence_short)
-    create_silence_wav(0.65, silence_change)
-    create_silence_wav(1.2, silence_chapter)
+    create_silence_wav(0.35, silence_short, sample_rate=sample_rate)
+    create_silence_wav(0.65, silence_change, sample_rate=sample_rate)
+    create_silence_wav(1.2, silence_chapter, sample_rate=sample_rate)
 
     concat_list_file = temp_dir / "concat_list.txt"
     with concat_list_file.open("w", encoding="utf-8") as f:
@@ -100,7 +100,7 @@ def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path)
         "ffmpeg", "-y",
         "-i", str(temp_raw_wav),
         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-        "-ar", "24000",
+        "-ar", str(sample_rate),
         "-ac", "1",
         "-c:a", "pcm_s16le",
         str(output_wav)
