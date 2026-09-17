@@ -110,7 +110,7 @@ def generate_story_audio(
             top_p = float(item.get("top_p", 0.90))
 
             if ref_audio and os.path.exists(ref_audio):
-                audio_arr = vieneu_tts.infer(text, ref_audio=ref_audio, style=style, temperature=temperature, top_p=top_p, silence_p=0.03, crossfade_p=0.05)
+                audio_arr = vieneu_tts.infer(text, ref_audio=ref_audio, style=style, temperature=temperature, top_p=top_p, silence_p=0.03, crossfade_p=0.05, use_ref_codes=False)
             elif voice:
                 audio_arr = vieneu_tts.infer(text, voice=voice, style=style, temperature=temperature, top_p=top_p, silence_p=0.03, crossfade_p=0.05)
             else:
