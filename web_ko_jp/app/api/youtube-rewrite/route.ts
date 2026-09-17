@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 import { createCompletedDramaVideo } from "@/lib/db/repo/videos";
+import {
+  extractYouTubeId,
+  getVideoFolderName,
+  buildSummaryTxtFilename,
+  buildDataJsonFilename,
+  buildThumbnailFilename,
+} from "@/lib/naming";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 600; // 10 minutes timeout for deep thinking 5-turn pipeline
@@ -88,10 +96,12 @@ export async function POST(request: NextRequest) {
 
     // Save to Postgres Database
     let videoId: number | null = null;
+    const sourceVideoId = extractYouTubeId(data.url) || undefined;
     try {
       const saved = await createCompletedDramaVideo({
         sourceUrl: data.url,
         sourceTitle: data.title,
+        sourceVideoId,
         transcriptText: body.transcript || "",
         finalScriptJp: data.script_jp,
         titleJp: data.title_jp,
@@ -108,10 +118,69 @@ export async function POST(request: NextRequest) {
       console.warn("[api/youtube-rewrite] DB save warning:", dbErr);
     }
 
+    // Save consolidated artifacts into output/{folderName}/
+    const namingParams = {
+      videoId: videoId ?? undefined,
+      sourceVideoId,
+      sourceUrl: data.url,
+      title: data.title || data.title_jp,
+    };
+    const folderName = getVideoFolderName(namingParams);
+    const videoOutDir = path.join(process.cwd(), "output", folderName);
+
+    try {
+      if (!fs.existsSync(videoOutDir)) {
+        fs.mkdirSync(videoOutDir, { recursive: true });
+      }
+
+      // 1. Save summary.txt
+      const tagsBlock = data.youtube_tags ? `\n\nYouTube Tags (Comma-separated):\n${data.youtube_tags}` : "";
+      const summaryContent = `Title (JP):\n${data.title_jp || ""}\n\nThumbnail Text:\n${data.thumbnail_text || ""}\n\nDescription & Chapters:\n${data.description_jp || ""}${tagsBlock}\n\nScript (JP):\n${data.script_jp || ""}`;
+      const summaryPath = path.join(videoOutDir, buildSummaryTxtFilename(namingParams));
+      fs.writeFileSync(summaryPath, summaryContent, "utf-8");
+
+      // 2. Save data.json
+      const fullData = {
+        id: videoId,
+        source_url: data.url,
+        source_video_id: sourceVideoId,
+        source_title: data.title,
+        title_jp: data.title_jp,
+        description_jp: data.description_jp,
+        youtube_tags: data.youtube_tags || "",
+        thumbnail_text: data.thumbnail_text,
+        thumbnail_options: data.thumbnail_options,
+        thumbnail_image_url: data.thumbnail_image_url,
+        conversation_url: data.conversation_url,
+        audio_url: data.audio_url,
+        final_script_jp: data.script_jp,
+        char_count: data.char_count,
+        created_at: new Date().toISOString(),
+      };
+      const dataPath = path.join(videoOutDir, buildDataJsonFilename(namingParams));
+      fs.writeFileSync(dataPath, JSON.stringify(fullData, null, 2), "utf-8");
+
+      // 3. Copy thumbnail image if available in public/thumbnails
+      if (data.thumbnail_image_url) {
+        const thumbFileName = path.basename(data.thumbnail_image_url);
+        const publicThumb = path.join(process.cwd(), "public", "thumbnails", thumbFileName);
+        const destThumb = path.join(videoOutDir, buildThumbnailFilename(namingParams));
+        if (fs.existsSync(publicThumb)) {
+          fs.copyFileSync(publicThumb, destThumb);
+        }
+      }
+      console.log(`[api/youtube-rewrite] Consolidated video artifacts saved to ${videoOutDir}`);
+    } catch (saveErr) {
+      console.warn("[api/youtube-rewrite] Failed to save consolidated artifacts:", saveErr);
+    }
+
     return NextResponse.json({
       ok: true,
       data: {
         videoId,
+        sourceVideoId,
+        folderName,
+        folderPath: videoOutDir,
         title: data.title,
         url: data.url,
         conversationUrl: data.conversation_url,

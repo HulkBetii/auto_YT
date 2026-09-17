@@ -216,9 +216,10 @@ export default async function DashboardPage() {
                                     href={v.audioUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="px-1.5 py-0.5 rounded bg-[#26D9FF]/20 text-[#26D9FF] hover:underline font-mono text-[9px] shrink-0"
+                                    title={`Tập tin audio: ${v.audioUrl.split("file=")[1] || v.audioUrl}`}
+                                    className="px-1.5 py-0.5 rounded bg-[#26D9FF]/20 text-[#26D9FF] hover:underline font-mono text-[9px] shrink-0 max-w-[200px] truncate inline-block align-middle"
                                   >
-                                    ▶ Audio WAV
+                                    ▶ {v.audioUrl.split("file=")[1] || "Audio WAV"}
                                   </a>
                                 )}
                               </div>

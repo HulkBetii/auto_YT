@@ -5,12 +5,14 @@ Supports long Japanese scripts via file input (--text_file) or directly by datab
 """
 import os
 import sys
+import re
+import unicodedata
 import argparse
 import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -25,17 +27,131 @@ GPT_SOVITS_PY = GPT_SOVITS_DIR / ".venv" / "Scripts" / "python.exe"
 GPT_SOVITS_SCRIPT = GPT_SOVITS_DIR / "scripts" / "tts_drama.py"
 
 
-def get_script_from_db(video_id: int) -> str:
-    """Fetch final_script_jp for a given video ID from auto_yt_ko_jp PostgreSQL."""
+def slugify_title(title: Optional[str], max_words: int = 6, max_chars: int = 35) -> str:
+    """Normalizes title into a clean, filesystem-safe alphanumeric slug."""
+    if not title:
+        return "narration"
+    text = unicodedata.normalize("NFKD", title)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = text.replace("đ", "d").replace("Đ", "D")
+    text = re.sub(r"[^\w\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+", "_", text)
+    text = re.sub(r"^_+|__+$", "", text)
+    text = re.sub(r"_+", "_", text)
+    if not text:
+        return "narration"
+    parts = [p for p in text.split("_") if p]
+    if len(parts) > max_words:
+        text = "_".join(parts[:max_words])
+    if len(text) > max_chars:
+        text = text[:max_chars].rstrip("_")
+    return text or "narration"
+
+
+def extract_youtube_id(url: Optional[str]) -> Optional[str]:
+    """Extracts 11-char YouTube video ID from various URL formats."""
+    if not url:
+        return None
+    m = re.search(r"(?:v=|\/|embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})", url)
+    return m.group(1) if m else None
+
+
+def build_video_base_name(
+    video_id: Optional[int] = None,
+    source_video_id: Optional[str] = None,
+    source_url: Optional[str] = None,
+    title: Optional[str] = None,
+    timestamp: Optional[int] = None,
+) -> str:
+    """Generates standard descriptive base name: v{id}_{yt_id}_{slug}"""
+    yt_id = source_video_id or extract_youtube_id(source_url)
+    slug = slugify_title(title)
+    parts = []
+    if video_id is not None:
+        parts.append(f"v{video_id}")
+    if yt_id:
+        parts.append(yt_id)
+    if slug and slug != "narration":
+        parts.append(slug)
+    elif len(parts) == 0:
+        parts.append("video")
+    if video_id is None:
+        ts = timestamp or int(time.time() * 1000)
+        parts.append(str(ts))
+    return "_".join(parts)
+
+
+def build_drama_audio_filename(
+    video_id: Optional[int] = None,
+    source_video_id: Optional[str] = None,
+    source_url: Optional[str] = None,
+    title: Optional[str] = None,
+    timestamp: Optional[int] = None,
+) -> str:
+    """Generates standard descriptive filename: drama_v{id}_{yt_id}_{slug}.wav"""
+    base = build_video_base_name(video_id, source_video_id, source_url, title, timestamp)
+    return f"drama_{base}.wav"
+
+
+def build_thumbnail_filename(
+    video_id: Optional[int] = None,
+    source_video_id: Optional[str] = None,
+    source_url: Optional[str] = None,
+    title: Optional[str] = None,
+    timestamp: Optional[int] = None,
+) -> str:
+    """Generates standard descriptive filename: thumb_v{id}_{yt_id}_{slug}.png"""
+    base = build_video_base_name(video_id, source_video_id, source_url, title, timestamp)
+    return f"thumb_{base}.png"
+
+
+def build_summary_txt_filename(
+    video_id: Optional[int] = None,
+    source_video_id: Optional[str] = None,
+    source_url: Optional[str] = None,
+    title: Optional[str] = None,
+    timestamp: Optional[int] = None,
+) -> str:
+    """Generates standard descriptive filename: summary_v{id}_{yt_id}_{slug}.txt"""
+    base = build_video_base_name(video_id, source_video_id, source_url, title, timestamp)
+    return f"summary_{base}.txt"
+
+
+def build_data_json_filename(
+    video_id: Optional[int] = None,
+    source_video_id: Optional[str] = None,
+    source_url: Optional[str] = None,
+    title: Optional[str] = None,
+    timestamp: Optional[int] = None,
+) -> str:
+    """Generates standard descriptive filename: data_v{id}_{yt_id}_{slug}.json"""
+    base = build_video_base_name(video_id, source_video_id, source_url, title, timestamp)
+    return f"data_{base}.json"
+
+
+def get_video_meta_from_db(video_id: int) -> Dict[str, str]:
+    """Fetch video record metadata from auto_yt_ko_jp PostgreSQL."""
     cmd = [
         "docker", "exec", "-i", "auto_yt_web_ko_jp_postgres",
-        "psql", "-U", "postgres", "-d", "auto_yt_ko_jp", "-t", "-A",
-        "-c", f"SELECT final_script_jp FROM ko_jp_videos WHERE id = {video_id};"
+        "psql", "-U", "postgres", "-d", "auto_yt_ko_jp", "-t", "-A", "-F", "|||",
+        "-c", f"SELECT final_script_jp, COALESCE(source_title, ''), COALESCE(title_jp, ''), COALESCE(source_video_id, ''), COALESCE(source_url, '') FROM ko_jp_videos WHERE id = {video_id};"
     ]
     res = subprocess.run(cmd, capture_output=True, encoding="utf-8")
     if res.returncode != 0 or not res.stdout.strip():
-        raise RuntimeError(f"Could not retrieve script for video_id {video_id}: {res.stderr}")
-    return res.stdout.strip()
+        raise RuntimeError(f"Could not retrieve video data for video_id {video_id}: {res.stderr}")
+    parts = res.stdout.strip().split("|||")
+    return {
+        "script": parts[0] if len(parts) > 0 else "",
+        "source_title": parts[1] if len(parts) > 1 else "",
+        "title_jp": parts[2] if len(parts) > 2 else "",
+        "source_video_id": parts[3] if len(parts) > 3 else "",
+        "source_url": parts[4] if len(parts) > 4 else "",
+    }
+
+
+def get_script_from_db(video_id: int) -> str:
+    """Fetch final_script_jp for a given video ID from auto_yt_ko_jp PostgreSQL."""
+    meta = get_video_meta_from_db(video_id)
+    return meta["script"]
 
 
 def update_audio_in_db(video_id: int, audio_url: str, audio_path: str):
@@ -54,6 +170,9 @@ def generate_japanese_narration(
     text: Optional[str] = None,
     text_file: Optional[str] = None,
     video_id: Optional[int] = None,
+    title: Optional[str] = None,
+    source_video_id: Optional[str] = None,
+    source_url: Optional[str] = None,
     output_path: Optional[str] = None,
     ref_audio: str = str(DEFAULT_REF_AUDIO),
     ref_text: Optional[str] = None,
@@ -71,13 +190,20 @@ def generate_japanese_narration(
     if not GPT_SOVITS_SCRIPT.exists():
         raise FileNotFoundError(f"TTS drama script not found at: {GPT_SOVITS_SCRIPT}")
 
-    # Handle source text
+    # Handle source text and metadata
     temp_text_path = None
+    meta = {}
     if video_id is not None:
-        print(f"[web_ko_jp TTS] Fetching Japanese drama script for video ID {video_id} from PostgreSQL...")
-        text = get_script_from_db(video_id)
-        if output_path is None:
-            output_path = str(BASE_DIR / "data" / "renders" / f"drama_narration_{video_id}.wav")
+        print(f"[web_ko_jp TTS] Fetching Japanese drama script & metadata for video ID {video_id} from PostgreSQL...")
+        meta = get_video_meta_from_db(video_id)
+        if not text:
+            text = meta.get("script", "")
+        if not title:
+            title = meta.get("source_title") or meta.get("title_jp")
+        if not source_video_id:
+            source_video_id = meta.get("source_video_id") or extract_youtube_id(meta.get("source_url"))
+        if not source_url:
+            source_url = meta.get("source_url")
 
     if text_file and Path(text_file).exists():
         input_file_arg = str(Path(text_file).resolve())
@@ -93,7 +219,21 @@ def generate_japanese_narration(
         raise ValueError("Must provide either 'text', 'text_file', or 'video_id'.")
 
     if output_path is None:
-        output_path = str(BASE_DIR / "data" / "renders" / f"drama_{int(time.time()*1000)}.wav")
+        base_folder = build_video_base_name(
+            video_id=video_id,
+            source_video_id=source_video_id,
+            source_url=source_url,
+            title=title,
+        )
+        filename = build_drama_audio_filename(
+            video_id=video_id,
+            source_video_id=source_video_id,
+            source_url=source_url,
+            title=title,
+        )
+        video_out_dir = BASE_DIR / "output" / base_folder
+        video_out_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(video_out_dir / filename)
 
     if ref_text is None:
         if DEFAULT_REF_TEXT_FILE.exists():
@@ -143,6 +283,42 @@ def generate_japanese_narration(
 
     duration_sec = time.time() - t0
     print(f"[web_ko_jp TTS SUCCESS] Generated audio in {duration_sec:.1f}s: {out_file}")
+
+    # Auto-generate synchronized Japanese subtitles (.srt) for every video
+    try:
+        scripts_dir = Path(__file__).resolve().parent
+        srt_script = scripts_dir / "generate_srt.py"
+        srt_filename = f"sub_{out_file.parent.name}.srt"
+        srt_path = out_file.parent / srt_filename
+        print(f"[web_ko_jp TTS] Auto-generating synchronized subtitles (.srt): {srt_path}...")
+
+        srt_cmd = [
+            str(GPT_SOVITS_PY),
+            str(srt_script),
+            "--audio", str(out_file),
+            "--output", str(srt_path),
+            "--lang", "ja",
+        ]
+        ground_truth = text or (meta.get("script") if meta else None)
+        temp_gt_file = None
+        if ground_truth:
+            temp_gt_file = out_file.parent / f"temp_gt_{int(time.time())}.txt"
+            temp_gt_file.write_text(ground_truth, encoding="utf-8")
+            srt_cmd.extend(["--script_file", str(temp_gt_file)])
+
+        srt_res = subprocess.run(srt_cmd, capture_output=True, text=True, encoding="utf-8")
+        if temp_gt_file and temp_gt_file.exists():
+            try:
+                temp_gt_file.unlink()
+            except Exception:
+                pass
+
+        if srt_res.returncode == 0:
+            print(f"[web_ko_jp TTS SUCCESS] Auto-generated subtitles (.srt): {srt_path}")
+        else:
+            print(f"[web_ko_jp TTS Warning] SRT generation exit code {srt_res.returncode}: {srt_res.stderr}")
+    except Exception as srt_err:
+        print(f"[web_ko_jp TTS Warning] Failed to auto-generate SRT: {srt_err}")
 
     # Update database if video_id is known
     if video_id is not None:
@@ -200,6 +376,9 @@ if __name__ == "__main__":
     parser.add_argument("--text", default="", help="Japanese text to synthesize")
     parser.add_argument("--text_file", default="", help="Path to text file to synthesize")
     parser.add_argument("--video_id", type=int, default=None, help="Database Video ID to fetch script from")
+    parser.add_argument("--title", default="", help="Video title for descriptive file naming")
+    parser.add_argument("--source_video_id", default="", help="YouTube video ID for descriptive file naming")
+    parser.add_argument("--source_url", default="", help="YouTube source URL for descriptive file naming")
     parser.add_argument("--master_file", default="", help="Path to existing WAV file to apply mastering to")
     parser.add_argument("--output", default="", help="Path for output WAV")
     parser.add_argument("--speed", type=float, default=0.95, help="Speech speed")
@@ -215,6 +394,9 @@ if __name__ == "__main__":
             text=args.text if args.text else None,
             text_file=args.text_file if args.text_file else None,
             video_id=args.video_id,
+            title=args.title if args.title else None,
+            source_video_id=args.source_video_id if args.source_video_id else None,
+            source_url=args.source_url if args.source_url else None,
             output_path=out,
             speed=args.speed,
             seed=args.seed,

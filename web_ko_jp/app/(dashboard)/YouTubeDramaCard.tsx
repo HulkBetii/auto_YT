@@ -1,20 +1,50 @@
 "use client";
 
 import React, { useState } from "react";
+import {
+  buildDramaAudioFilename,
+  buildThumbnailFilename,
+  buildSummaryTxtFilename,
+  buildDataJsonFilename,
+  buildSrtFilename,
+  extractYouTubeId,
+  getVideoFolderName,
+} from "@/lib/naming";
 
 interface YouTubePackageResult {
   videoId?: number;
+  sourceVideoId?: string;
+  folderName?: string;
+  folderPath?: string;
   title: string;
   url: string;
   conversationUrl?: string;
   titleJp: string;
   scriptJp: string;
   descriptionJp: string;
+  youtubeTags?: string;
   thumbnailText: string;
   thumbnailOptions?: string[];
   thumbnailImageUrl?: string | null;
   audioUrl?: string | null;
   charCount: number;
+}
+
+const DEFAULT_JP_KEYWORDS = [
+  "人生の教訓", "生き方", "人生哲学", "人間関係", "処世術", "老後の知恵",
+  "後悔しない生き方", "大人の学び", "名言", "心理学", "先人の知恵",
+  "人生の鉄則", "お金の教訓", "信用", "50代", "60代", "シニアの生き方",
+  "賢く生きる", "人生の落とし穴", "心に刺さる言葉"
+];
+
+function resolveYouTubeTags(result?: YouTubePackageResult | null): string {
+  if (!result) return "";
+  if (result.youtubeTags && result.youtubeTags.trim()) {
+    return result.youtubeTags.trim();
+  }
+  const hashtags = (result.descriptionJp || "").match(/#[^\s#]+/g)?.map((h) => h.replace("#", "")) || [];
+  const set = new Set([...hashtags, ...DEFAULT_JP_KEYWORDS]);
+  return Array.from(set).slice(0, 20).join(", ");
 }
 
 export function YouTubeDramaCard() {
@@ -133,6 +163,9 @@ export function YouTubeDramaCard() {
         body: JSON.stringify({
           text: result.scriptJp,
           videoId: result.videoId,
+          title: result.title || result.titleJp,
+          sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+          url: url,
           speed: 0.95,
         }),
       });
@@ -158,17 +191,55 @@ export function YouTubeDramaCard() {
 
   function handleCopyAll() {
     if (!result) return;
-    const allText = `【TIÊU ĐỀ】\n${result.titleJp}\n\n【TEXT THUMBNAIL (3 DÒNG)】\n${selectedThumb}\n\n【MÔ TẢ & HASHTAG】\n${result.descriptionJp}\n\n【KỊCH BẢN TIẾNG NHẬT】\n${result.scriptJp}`;
+    const tags = resolveYouTubeTags(result);
+    const allText = `【TIÊU ĐỀ】\n${result.titleJp}\n\n【TEXT THUMBNAIL (3 DÒNG)】\n${selectedThumb}\n\n【MÔ TẢ & HASHTAG】\n${result.descriptionJp}\n\n【THẺ TAGS YOUTUBE (DẤU PHẨY)】\n${tags}\n\n【KỊCH BẢN TIẾNG NHẬT】\n${result.scriptJp}`;
     copyToClipboard(allText, "all");
   }
 
   function handleDownloadTxt() {
     if (!result) return;
-    const allText = `Title (JP):\n${result.titleJp}\n\nThumbnail Text:\n${selectedThumb}\n\nDescription & Tags:\n${result.descriptionJp}\n\nScript (JP):\n${result.scriptJp}`;
+    const tags = resolveYouTubeTags(result);
+    const allText = `Title (JP):\n${result.titleJp}\n\nThumbnail Text:\n${selectedThumb}\n\nDescription & Chapters:\n${result.descriptionJp}\n\nYouTube Tags (Comma-separated):\n${tags}\n\nScript (JP):\n${result.scriptJp}`;
     const blob = new Blob([allText], { type: "text/plain;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `youtube_package_jp_${Date.now()}.txt`;
+    const fileName = buildSummaryTxtFilename({
+      videoId: result.videoId,
+      sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+      sourceUrl: url,
+      title: result.title || result.titleJp,
+    });
+    link.download = fileName;
+    link.click();
+  }
+
+  function handleDownloadJson() {
+    if (!result) return;
+    const jsonStr = JSON.stringify(result, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    const fileName = buildDataJsonFilename({
+      videoId: result.videoId,
+      sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+      sourceUrl: url,
+      title: result.title || result.titleJp,
+    });
+    link.download = fileName;
+    link.click();
+  }
+
+  function handleDownloadSrt() {
+    if (!result) return;
+    const fileName = buildSrtFilename({
+      videoId: result.videoId,
+      sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+      sourceUrl: url,
+      title: result.title || result.titleJp,
+    });
+    const link = document.createElement("a");
+    link.href = `/api/subtitles?file=${encodeURIComponent(fileName)}`;
+    link.download = fileName;
     link.click();
   }
 
@@ -344,6 +415,20 @@ export function YouTubeDramaCard() {
               >
                 💾 Tải .txt
               </button>
+              <button
+                type="button"
+                onClick={handleDownloadJson}
+                className="px-3 py-1.5 rounded bg-[#101821] hover:bg-[#344254] border border-[#344254] text-[#26D9FF] text-xs transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                💾 Tải .json
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadSrt}
+                className="px-3 py-1.5 rounded bg-[#101821] hover:bg-[#344254] border border-[#344254] text-[#43D17A] text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+              >
+                💾 Tải .srt
+              </button>
               {result.conversationUrl && (
                 <a
                   href={result.conversationUrl}
@@ -356,6 +441,47 @@ export function YouTubeDramaCard() {
               )}
             </div>
           </div>
+
+          {/* Consolidated Output Directory Banner */}
+          {(() => {
+            const currentFolder =
+              result.folderName ||
+              getVideoFolderName({
+                videoId: result.videoId,
+                sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+                sourceUrl: url,
+                title: result.title || result.titleJp,
+              });
+            const folderDisplay = `web_ko_jp/output/${currentFolder}`;
+            return (
+              <div className="p-3 rounded-lg bg-[#101821] border border-[#26D9FF]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-md">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-xl shrink-0">📂</span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-[#F7FAFF] flex items-center gap-2">
+                      <span>Thư mục dữ liệu trọn bộ video (Audio • Ảnh • Kịch bản • JSON • Phụ đề SRT):</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#26D9FF]/20 text-[#26D9FF] font-mono">
+                        Output
+                      </span>
+                    </div>
+                    <div
+                      className="text-xs text-[#26D9FF] font-mono truncate select-all mt-0.5"
+                      title={result.folderPath || folderDisplay}
+                    >
+                      {result.folderPath || folderDisplay}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(result.folderPath || folderDisplay, "folder")}
+                  className="px-3 py-1.5 rounded bg-[#18212C] hover:bg-[#344254] border border-[#344254] text-[#C3CEDB] hover:text-[#FFFFFF] text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  {copiedType === "folder" ? "✓ Đã copy đường dẫn!" : "📋 Copy Đường Dẫn Thư Mục"}
+                </button>
+              </div>
+            );
+          })()}
 
           {/* 1. Tiêu Đề Nhật Bản */}
           <div className="p-4 rounded-lg bg-[#0B0F14] border border-[#344254] space-y-2">
@@ -402,7 +528,12 @@ export function YouTubeDramaCard() {
                   <div className="absolute bottom-2 right-2 opacity-90 group-hover:opacity-100 transition-opacity">
                     <a
                       href={result.thumbnailImageUrl}
-                      download={`thumbnail_jp_${Date.now()}.png`}
+                      download={buildThumbnailFilename({
+                        videoId: result.videoId,
+                        sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+                        sourceUrl: url,
+                        title: result.title || result.titleJp,
+                      })}
                       className="px-3 py-1.5 rounded bg-[#000000]/80 hover:bg-[#000000] text-[#FFFFFF] text-xs font-semibold border border-white/20 shadow-lg flex items-center gap-1 cursor-pointer"
                     >
                       💾 Tải Ảnh HD (.png)
@@ -490,11 +621,14 @@ export function YouTubeDramaCard() {
             </div>
           </div>
 
-          {/* 3. Mô Tả & 3 Hashtag SEO */}
+          {/* 3. Mô Tả, Mục Lục & Hashtags (Chuẩn SEO YouTube JP) */}
           <div className="p-4 rounded-lg bg-[#0B0F14] border border-[#344254] space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#C3CEDB] uppercase tracking-wider">
-                📝 Mô Tả Video & 3 #Hashtags (Chuẩn SEO YouTube)
+              <span className="text-xs font-semibold text-[#C3CEDB] uppercase tracking-wider flex items-center gap-1.5">
+                <span>📝 Mô Tả Video, Mục Lục & Hashtags (Chuẩn SEO YouTube JP)</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#43D17A]/15 text-[#43D17A] font-mono">
+                  10/10 JP Market
+                </span>
               </span>
               <button
                 type="button"
@@ -507,12 +641,37 @@ export function YouTubeDramaCard() {
             <textarea
               readOnly
               value={result.descriptionJp}
-              rows={4}
-              className="w-full p-3 rounded-lg bg-[#101821] border border-[#344254] text-[#C3CEDB] text-xs leading-relaxed font-sans focus:outline-none"
+              rows={8}
+              className="w-full p-3 rounded-lg bg-[#101821] border border-[#344254] text-[#C3CEDB] text-xs leading-relaxed font-sans focus:outline-none max-h-72 overflow-y-auto resize-y"
             />
           </div>
 
-          {/* 4. Kịch Bản Tiếng Nhật & Audio Synthesis */}
+          {/* 4. Thẻ Tags YouTube (Keywords - Phân cách dấu phẩy để dán vào YouTube Studio) */}
+          <div className="p-4 rounded-lg bg-[#0B0F14] border border-[#344254] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#F7C948] uppercase tracking-wider flex items-center gap-1.5">
+                <span>🏷️ Thẻ Tags YouTube (Keywords • Phân Cách Dấu Phẩy)</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#F7C948]/15 text-[#F7C948] font-mono">
+                  Dán vào YouTube Studio
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(resolveYouTubeTags(result), "tags")}
+                className="text-xs px-2.5 py-1 rounded bg-[#101821] hover:bg-[#344254] border border-[#344254] text-[#F7C948] transition-colors cursor-pointer font-medium"
+              >
+                {copiedType === "tags" ? "✓ Đã copy thẻ tags!" : "📋 Copy Thẻ Tags (Dấu phẩy)"}
+              </button>
+            </div>
+            <textarea
+              readOnly
+              value={resolveYouTubeTags(result)}
+              rows={3}
+              className="w-full p-3 rounded-lg bg-[#101821] border border-[#344254] text-[#C3CEDB] text-xs leading-relaxed font-sans focus:outline-none resize-none select-all"
+            />
+          </div>
+
+          {/* 5. Kịch Bản Tiếng Nhật & Audio Synthesis */}
           <div className="p-4 rounded-lg bg-[#0B0F14] border border-[#344254] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -583,17 +742,28 @@ export function YouTubeDramaCard() {
 
             {audioUrl && (
               <div className="pt-2 border-t border-[#344254]/60 space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="text-xs text-[#43D17A] font-semibold flex items-center gap-1.5">
                     <span>✓ Audio Drama đã sẵn sàng (Giọng cụ Matsushita Seg A):</span>
                   </div>
                   <a
                     href={audioUrl}
-                    download={`narration_drama_${result.videoId || "video"}.wav`}
-                    className="text-xs px-3 py-1 rounded bg-[#101821] hover:bg-[#344254] border border-[#344254] text-[#26D9FF] hover:text-[#FFFFFF] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                    download={
+                      audioUrl.split("file=")[1] ||
+                      buildDramaAudioFilename({
+                        videoId: result.videoId,
+                        sourceVideoId: result.sourceVideoId || extractYouTubeId(url),
+                        sourceUrl: url,
+                        title: result.title || result.titleJp,
+                      })
+                    }
+                    className="text-xs px-3 py-1 rounded bg-[#101821] hover:bg-[#344254] border border-[#344254] text-[#26D9FF] hover:text-[#FFFFFF] transition-colors flex items-center gap-1.5 cursor-pointer font-medium shrink-0"
                   >
                     <span>💾 Tải File Audio (.wav)</span>
                   </a>
+                </div>
+                <div className="text-[11px] text-[#95A3B5] font-mono break-all bg-[#0B0F14] px-2.5 py-1 rounded border border-[#344254]/50">
+                  📁 {audioUrl.split("file=")[1] || "audio.wav"}
                 </div>
                 <audio controls src={audioUrl} className="w-full h-10 rounded" autoPlay />
               </div>

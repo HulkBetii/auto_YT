@@ -12,14 +12,44 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid file parameter" }, { status: 400 });
   }
 
-  // Look in data/renders or data/voices
+  // Look in output/ subfolders, data/renders, or data/voices
   const baseDir = process.cwd();
-  let filePath = path.join(baseDir, "data", "renders", fileName);
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(baseDir, "data", "voices", fileName);
+  let filePath: string | null = null;
+
+  // 1. Check inside output/ video folders
+  const outputDir = path.join(baseDir, "output");
+  if (fs.existsSync(outputDir)) {
+    try {
+      const subdirs = fs.readdirSync(outputDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+      for (const d of subdirs) {
+        const candidate = path.join(outputDir, d.name, fileName);
+        if (fs.existsSync(candidate)) {
+          filePath = candidate;
+          break;
+        }
+      }
+    } catch (e) {
+      console.warn("[api/audio] Error reading output dir:", e);
+    }
   }
 
-  if (!fs.existsSync(filePath)) {
+  // 2. Check legacy data/renders
+  if (!filePath) {
+    const rendersPath = path.join(baseDir, "data", "renders", fileName);
+    if (fs.existsSync(rendersPath)) {
+      filePath = rendersPath;
+    }
+  }
+
+  // 3. Check data/voices
+  if (!filePath) {
+    const voicesPath = path.join(baseDir, "data", "voices", fileName);
+    if (fs.existsSync(voicesPath)) {
+      filePath = voicesPath;
+    }
+  }
+
+  if (!filePath || !fs.existsSync(filePath)) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
 

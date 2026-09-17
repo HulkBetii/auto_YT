@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
-import { updateVideoAudio } from "@/lib/db/repo/videos";
+import { updateVideoAudio, getKoJpVideo } from "@/lib/db/repo/videos";
+import { buildDramaAudioFilename, extractYouTubeId, getVideoFolderName } from "@/lib/naming";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 900; // 15 minutes timeout for GPU drama TTS
@@ -13,29 +14,65 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const text = body.text?.trim();
     const videoId = typeof body.videoId === "number" ? body.videoId : undefined;
+    const title = typeof body.title === "string" ? body.title.trim() : undefined;
+    const sourceVideoId = typeof body.sourceVideoId === "string" ? body.sourceVideoId.trim() : undefined;
+    const url = typeof body.url === "string" ? body.url.trim() : undefined;
     const speed = typeof body.speed === "number" ? body.speed : 0.95;
 
     if (!text && !videoId) {
       return NextResponse.json({ ok: false, error: "Missing text or videoId to synthesize" }, { status: 400 });
     }
 
-    const timestamp = Date.now();
-    const fileName = videoId ? `drama_narration_${videoId}.wav` : `drama_${timestamp}.wav`;
-    const rendersDir = path.join(process.cwd(), "data", "renders");
-    if (!fs.existsSync(rendersDir)) {
-      fs.mkdirSync(rendersDir, { recursive: true });
+    // Fetch DB record if videoId is provided to obtain metadata fallback
+    let dbVideo = null;
+    if (videoId) {
+      try {
+        dbVideo = await getKoJpVideo(videoId);
+      } catch (e) {
+        console.warn("[api/tts-drama] Could not fetch video from DB:", e);
+      }
     }
-    const outputPath = path.join(rendersDir, fileName);
+
+    const finalTitle = title || dbVideo?.sourceTitle || dbVideo?.titleJp;
+    const finalSourceVideoId =
+      sourceVideoId || dbVideo?.sourceVideoId || extractYouTubeId(url || dbVideo?.sourceUrl);
+    const finalSourceUrl = url || dbVideo?.sourceUrl;
+
+    const timestamp = Date.now();
+    const namingParams = {
+      videoId,
+      sourceVideoId: finalSourceVideoId,
+      sourceUrl: finalSourceUrl,
+      title: finalTitle,
+      timestamp,
+    };
+    const fileName = buildDramaAudioFilename(namingParams);
+    const folderName = getVideoFolderName(namingParams);
+
+    const videoOutDir = path.join(process.cwd(), "output", folderName);
+    if (!fs.existsSync(videoOutDir)) {
+      fs.mkdirSync(videoOutDir, { recursive: true });
+    }
+    const outputPath = path.join(videoOutDir, fileName);
 
     const scriptPath = path.join(process.cwd(), "scripts", "tts_gpt_sovits.py");
 
     const args = ["python", scriptPath, "--output", outputPath, "--speed", speed.toString()];
+    if (finalTitle) {
+      args.push("--title", finalTitle);
+    }
+    if (finalSourceVideoId) {
+      args.push("--source_video_id", finalSourceVideoId);
+    }
+    if (finalSourceUrl) {
+      args.push("--source_url", finalSourceUrl);
+    }
 
     if (videoId && !text) {
       args.push("--video_id", videoId.toString());
       console.log(`[api/tts-drama] Synthesizing video ID ${videoId} to ${fileName}...`);
     } else if (text) {
-      tempFilePath = path.join(rendersDir, `temp_${timestamp}.txt`);
+      tempFilePath = path.join(videoOutDir, `temp_${timestamp}.txt`);
       fs.writeFileSync(tempFilePath, text, "utf-8");
       args.push("--text_file", tempFilePath);
       if (videoId) {
@@ -80,10 +117,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const srtFileName = `sub_${folderName}.srt`;
+    const srtUrl = `/api/subtitles?file=${encodeURIComponent(srtFileName)}`;
+
     return NextResponse.json({
       ok: true,
       fileName,
+      folderName,
+      folderPath: videoOutDir,
       audioUrl,
+      srtFileName,
+      srtUrl,
     });
   } catch (err: any) {
     console.error("[api/tts-drama]", err);

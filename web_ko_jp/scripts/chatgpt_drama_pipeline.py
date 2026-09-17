@@ -69,6 +69,21 @@ PROMPT_TURN1_TEMPLATE = """Viết lại nội dung đính kèm thành nội dung
 Transcript:
 {transcript}"""
 
+PROMPT_TURN3_TEMPLATE = """Hãy viết phần MÔ TẢ VIDEO YouTube (Description) hoàn chỉnh và DANH SÁCH THẺ TAGS chuẩn SEO YouTube Nhật Bản cho kịch bản trên:
+
+CẤU TRÚC BẮT BUỘC (Gồm 6 phần rõ ràng):
+1. 【HOOK MỞ ĐẦU】 (3-4 dòng đầu tiên trước nút 'もっと見る'): Đánh thẳng vào nỗi sợ hối tiếc và tâm lý người xem, khơi gợi tò mò mạnh mẽ.
+2. 【GIỚI THIỆU NỘI DUNG】: Tóm tắt thông điệp cốt lõi của video bằng giọng văn sâu sắc, nghiêm túc.
+3. 【MỤC LỤC / CHỦ ĐỀ CHÍNH】: Trích xuất và liệt kê đầy đủ các phần/bài học có trong kịch bản thành danh sách rõ ràng (Định dạng: ◆ 目次（チャプター）: liệt kê từng phần).
+4. 【KÊU GỌI HÀNH ĐỘNG (CTA)】: Lời cảm ơn và mời gọi đăng ký kênh (チャンネル登録), bấm like và để lại bình luận chia sẻ suy nghĩ bằng kính ngữ lịch thiệp chuẩn Nhật Bản.
+5. 【MIỄN TRỪ TRÁCH NHIỆM & HASHTAGS】: Ghi chú nội dung giáo dục/chiêm nghiệm đời sống và sử dụng giọng đọc AI, kèm 8-10 hashtag tiếng Nhật chuẩn SEO niche triết lý/đời sống.
+6. 【THẺ TAGS YOUTUBE / タグ】: Ở cuối cùng, viết một danh sách 15-20 từ khóa tìm kiếm quan trọng nhất phân cách bằng dấu phẩy (định dạng: タグ: từ1, từ2, từ3... để copy dán trực tiếp vào ô Tags của YouTube Studio).
+
+QUY TẮC BẮT BUỘC:
+- KHÔNG thêm bất kỳ lời chào hay câu dẫn của AI (Tuyệt đối KHÔNG có câu kiểu: "短く、...", "承知いたしました", "以下は説明文です").
+- KHÔNG dán nhãn như "YouTube動画説明文:" ở đầu.
+- OUTPUT: Chỉ xuất văn bản tiếng Nhật thuần túy, sạch sẽ, sẵn sàng copy dán trực tiếp lên YouTube Studio."""
+
 PROMPT_TURN5_IMAGE_BASE = """Bạn là chuyên gia thiết kế thumbnail YouTube tiếng Nhật có CTR rất cao, chuyên tạo thumbnail phong cách Nhật Bản dành cho khán giả trung niên và lớn tuổi, với cảm giác GAY GẮT, KHẲNG ĐỊNH, THÔ RÁP, DRAMA, CẢNH BÁO, gây sốc mạnh ngay trong 1 giây đầu tiên.
 
 Hãy tạo một thumbnail YouTube hoàn chỉnh dựa trên:
@@ -604,11 +619,50 @@ async def execute_full_drama_workflow(
         logger.info(f"[TURN 2 DONE] Title: {title_jp}")
         await asyncio.sleep(2)
 
-        # TURN 3: Mô tả & 3 #tag
-        logger.info("[TURN 3/5] Generating SEO video description & 3 tags...")
-        prompt_turn3 = "viết mô tả ngắn gọn chuẩn SEO cho video và 3 #tag"
-        description_jp = await send_chatgpt_message(page, prompt_turn3, timeout_seconds=180)
-        logger.info(f"[TURN 3 DONE] Description length: {len(description_jp)} chars.")
+        # TURN 3: Mô tả chuẩn SEO YouTube JP (Hook + Chapters + CTA + Disclaimer + Hashtags)
+        logger.info("[TURN 3/5] Generating professional Japanese YouTube description & chapters...")
+        raw_description_response = await send_chatgpt_message(page, PROMPT_TURN3_TEMPLATE, timeout_seconds=240)
+        desc_lines = raw_description_response.splitlines()
+        # Remove typical AI meta lead-in lines if present
+        while desc_lines and any(desc_lines[0].strip().startswith(prefix) for prefix in [
+            "短く", "承知", "以下", "YouTube動画説明文", "説明文：", "説明文:", "【説明文】"
+        ]):
+            first_line = desc_lines[0].strip()
+            for prefix in ["YouTube動画説明文：", "YouTube動画説明文:", "YouTube動画説明文", "説明文：", "説明文:"]:
+                if first_line.startswith(prefix):
+                    remainder = first_line[len(prefix):].strip()
+                    if remainder:
+                        desc_lines[0] = remainder
+                    else:
+                        desc_lines.pop(0)
+                    break
+            else:
+                desc_lines.pop(0)
+        description_jp = "\n".join(desc_lines).strip()
+        
+        # Extract comma-separated YouTube Tags
+        youtube_tags = ""
+        tag_match = re.search(r"(?:【?(?:タグ|Tags|YouTube Tags)】?[：:]\s*)([^\n]+)", description_jp, re.IGNORECASE)
+        if tag_match:
+            youtube_tags = tag_match.group(1).strip()
+            # Clean tags block from description
+            description_jp = re.sub(r"\n*(?:【?(?:タグ|Tags|YouTube Tags)】?[：:]?\s*[^\n]+)\Z", "", description_jp, flags=re.IGNORECASE).strip()
+        else:
+            # Fallback: extract hashtags and add high-volume Japanese wisdom keywords
+            hashtags = [h.strip("#") for h in re.findall(r"#[^\s#]+", description_jp)]
+            standard_tags = [
+                "人生の教訓", "生き方", "人生哲学", "人間関係", "処世術", "老後の知恵",
+                "後悔しない生き方", "大人の学び", "名言", "心理学", "先人の知恵",
+                "人生の鉄則", "お金の教訓", "信用", "50代", "60代", "シニアの生き方",
+                "賢く生きる", "人生の落とし穴", "心に刺さる言葉"
+            ]
+            combined = []
+            for t in hashtags + standard_tags:
+                if t and t not in combined:
+                    combined.append(t)
+            youtube_tags = ", ".join(combined[:20])
+
+        logger.info(f"[TURN 3 DONE] Description length: {len(description_jp)} chars. Tags: {len(youtube_tags.split(','))} tags.")
         await asyncio.sleep(2)
 
         # TURN 4: Text trên Thumbnail
@@ -648,7 +702,11 @@ async def execute_full_drama_workflow(
             try:
                 from tts_gpt_sovits import generate_japanese_narration
                 logger.info("[AUDIO TTS] Synthesizing Japanese drama narration via GPT-SoVITS...")
-                audio_file = generate_japanese_narration(text=script_jp)
+                audio_file = generate_japanese_narration(
+                    text=script_jp,
+                    title=title,
+                    source_url=url,
+                )
                 audio_url = f"/api/audio?file={Path(audio_file).name}"
                 logger.info(f"[AUDIO TTS DONE] Audio file ready at: {audio_url}")
             except Exception as tts_err:
@@ -661,6 +719,7 @@ async def execute_full_drama_workflow(
             "title_jp": title_jp,
             "script_jp": script_jp,
             "description_jp": description_jp,
+            "youtube_tags": youtube_tags,
             "thumbnail_text": chosen_thumb_text,
             "thumbnail_options": thumb_options,
             "thumbnail_image_url": thumbnail_image_url,
