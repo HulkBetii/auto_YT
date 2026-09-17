@@ -62,7 +62,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'storyId is required' }, { status: 400 });
     }
 
-    const outputDir = path.resolve(process.cwd(), 'output', `story_${storyId}`);
+    const resolvedFolder = String(storyId).startsWith('story_') 
+      ? String(storyId) 
+      : (String(storyId) === 'test_01' ? 'story_test_01' : `story_${storyId}`);
+    const outputDir = path.resolve(process.cwd(), 'output', resolvedFolder);
     const turns = {
       turn1_blueprint: fs.existsSync(path.join(outputDir, 'turn1_blueprint.md')) 
         ? fs.readFileSync(path.join(outputDir, 'turn1_blueprint.md'), 'utf-8') : null,
