@@ -4,20 +4,20 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   BookOpen, 
-  Mic2, 
-  Video, 
   RefreshCw, 
   CheckCircle2, 
   Layers, 
   Cpu, 
-  Volume2, 
-  Play, 
   Clock, 
   FileText,
   ShieldCheck,
   Zap,
   ArrowRight,
-  Database
+  Database,
+  Copy,
+  Check,
+  AlertCircle,
+  Play
 } from 'lucide-react';
 
 const ARCHETYPES = [
@@ -65,13 +65,55 @@ export default function DashboardPage() {
 
   const [generatedTitle, setGeneratedTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'matrix' | 'chapters' | 'omnivoice' | 'render'>('matrix');
-  const [storyChapters, setStoryChapters] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'matrix' | 'stepper' | 'fullscript' | 'seo'>('matrix');
+  const [currentStoryId, setCurrentStoryId] = useState<number | null>(null);
+  
+  const [turnData, setTurnData] = useState<{
+    turn1_blueprint: string | null;
+    turn2_chapters_1_4: string | null;
+    turn3_chapters_5_7: string | null;
+    turn4_chapters_8_10: string | null;
+    turn5_metadata_seo: string | null;
+    full_script: string | null;
+  }>({
+    turn1_blueprint: null,
+    turn2_chapters_1_4: null,
+    turn3_chapters_5_7: null,
+    turn4_chapters_8_10: null,
+    turn5_metadata_seo: null,
+    full_script: null,
+  });
+
   const [totalWords, setTotalWords] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     handleRandomize();
   }, []);
+
+  // Poll generation progress if storyId active
+  useEffect(() => {
+    if (!currentStoryId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/generate?storyId=${currentStoryId}`);
+        const data = await res.json();
+        if (data.success && data.turns) {
+          setTurnData(data.turns);
+          setTotalWords(data.totalWords || 0);
+          if (data.isCompleted) {
+            setIsGenerating(false);
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [currentStoryId]);
 
   const handleRandomize = () => {
     const arch = ARCHETYPES[Math.floor(Math.random() * ARCHETYPES.length)];
@@ -86,31 +128,47 @@ export default function DashboardPage() {
     setSelectedSec(sec);
     setSelectedRet(ret);
 
-    const title = `${arch.title} Giả Mù Sau Tai Nạn – Chồng và Tiểu Tam C.hết L.ặng Thấy Cảnh Sát Gọi Vợ Là Sếp | Sâm Kể Chuyện`;
+    const title = `${arch.title} Giả Mù Sau T.ai N.ạn – Chồng và Tiểu Tam C.hết L.ặng Thấy Cảnh Sát Gọi Vợ Là Sếp | Sâm Kể Chuyện`;
     setGeneratedTitle(title);
   };
 
-  const handleBuildStory = () => {
+  const handleStartGeneration = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
-      const demoChapters = [
-        { num: 1, act: 'Hồi 1', title: 'Bát cơm nguội và lời thề ngày nghèo khó', words: 2650, speaker: 'bac_sam & nhan_vat' },
-        { num: 2, act: 'Hồi 1', title: 'Mái nhà xây bằng những nhọc nhằn', words: 2780, speaker: 'nhan_vat' },
-        { num: 3, act: 'Hồi 2', title: 'Những cuộc gọi đêm và mật khẩu đổi thay', words: 2840, speaker: 'nhan_vat' },
-        { num: 4, act: 'Hồi 2', title: 'Khi người thứ ba bước qua ngưỡng cửa', words: 2910, speaker: 'nhan_vat & tieu_tam' },
-        { num: 5, act: 'Hồi 3', title: 'Biến cố bất ngờ và lòng người lộ diện', words: 2540, speaker: 'nhan_vat & me_chong' },
-        { num: 6, act: 'Hồi 3', title: 'Thu thập từng mảnh chứng cứ trong bóng tối', words: 2690, speaker: 'nhan_vat' },
-        { num: 7, act: 'Hồi 4', title: 'Bản hợp đồng chuyển nhượng 12 tỷ', words: 3100, speaker: 'nhan_vat & me_chong' },
-        { num: 8, act: 'Hồi 4', title: 'Cầu vai sắc phục và sự chết lặng', words: 3250, speaker: 'nhan_vat & can_bo' },
-        { num: 9, act: 'Hồi 5', title: 'Cái giá đắt của sự vong ân', words: 2420, speaker: 'nhan_vat' },
-        { num: 10, act: 'Hồi 5', title: 'Bát phở ấm bên đường và ngày trở về', words: 2180, speaker: 'bac_sam & nhan_vat' }
-      ];
-      setStoryChapters(demoChapters);
-      const total = demoChapters.reduce((acc, curr) => acc + curr.words, 0);
-      setTotalWords(total);
+    setActiveTab('stepper');
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: generatedTitle,
+          topicMatrix: {
+            archetype: selectedArch.title,
+            sacrifice: selectedSac,
+            oppression: selectedOpp,
+            plot_secret: selectedSec,
+            retribution: selectedRet,
+            moral: "Giá trị của người phụ nữ không nằm ở sự cam chịu, mà là dũng cảm sống vì danh dự và sự thật."
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentStoryId(data.storyId);
+      } else {
+        alert("Lỗi khởi chạy: " + data.error);
+        setIsGenerating(false);
+      }
+    } catch (err: any) {
+      alert("Lỗi kết nối API: " + err.message);
       setIsGenerating(false);
-      setActiveTab('chapters');
-    }, 800);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -119,27 +177,27 @@ export default function DashboardPage() {
       <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-            <Mic2 className="w-5 h-5" />
+            <BookOpen className="w-5 h-5" />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-              auto_YT <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">web_vn</span>
+              auto_YT <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Phase 1: Story Writer</span>
             </h1>
-            <p className="text-xs text-slate-400">Sâm Kể Chuyện Audio Drama Engine (2.5 Hours Long-form)</p>
+            <p className="text-xs text-slate-400">Playwright ChatGPT Pipeline (PROFILE_GPT_1) • Sâm Kể Chuyện Style</p>
           </div>
         </div>
 
         {/* Runtime Status Badges */}
-        <div className="flex items-center space-x-4 text-xs">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+        <div className="flex items-center space-x-3 text-xs">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
             <Database className="w-3.5 h-3.5" />
-            <span>Postgres: 5438 (auto_yt_vn)</span>
+            <span>DB: 5438 (auto_yt_vn)</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300">
             <Cpu className="w-3.5 h-3.5" />
-            <span>OmniVoice: Ready</span>
+            <span>Playwright: PROFILE_GPT_1</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
             <Clock className="w-3.5 h-3.5" />
             <span>Port: 3005</span>
           </div>
@@ -162,52 +220,51 @@ export default function DashboardPage() {
             1. Ma trận Topic & Blueprint
           </button>
           <button
-            onClick={() => setActiveTab('chapters')}
+            onClick={() => setActiveTab('stepper')}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition ${
-              activeTab === 'chapters' 
+              activeTab === 'stepper' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <BookOpen className="w-4 h-4" />
-            2. Pipeline 10 Chương ({totalWords.toLocaleString()} từ)
+            <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin text-amber-400' : ''}`} />
+            2. Tiến trình 5-Turn Playwright
           </button>
           <button
-            onClick={() => setActiveTab('omnivoice')}
+            onClick={() => setActiveTab('fullscript')}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition ${
-              activeTab === 'omnivoice' 
+              activeTab === 'fullscript' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Volume2 className="w-4 h-4" />
-            3. OmniVoice Multi-Speaker
+            <FileText className="w-4 h-4" />
+            3. Kịch bản Hoàn chỉnh ({totalWords.toLocaleString()} từ)
           </button>
           <button
-            onClick={() => setActiveTab('render')}
+            onClick={() => setActiveTab('seo')}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition ${
-              activeTab === 'render' 
+              activeTab === 'seo' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Video className="w-4 h-4" />
-            4. Video Render (GPU NVENC)
+            <Layers className="w-4 h-4" />
+            4. Trọn bộ Metadata SEO & Thumbnail
           </button>
         </div>
 
         {/* Tab 1: Topic Matrix */}
         {activeTab === 'matrix' && (
           <div className="space-y-6">
-            {/* Generated Title Banner */}
             <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Tiêu đề Kịch tính Đã Tối ưu Clickbait (CTR & Evasion)
+                  Tiêu đề Kịch tính Đã Tối ưu Lách Kiểm duyệt
                 </span>
                 <button
                   onClick={handleRandomize}
-                  className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition"
+                  className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Xáo trộn Ma trận
@@ -224,18 +281,16 @@ export default function DashboardPage() {
             {/* Matrix Variables Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    1. Thân phận & Phẩm chất Nhân vật chính
-                  </label>
-                </div>
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  1. Thân phận & Phẩm chất Nhân vật chính
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   {ARCHETYPES.map((a) => (
                     <button
                       key={a.id}
                       onClick={() => setSelectedArch(a)}
-                      className={`text-left p-3 rounded-lg border text-xs transition ${
+                      className={`text-left p-3 rounded-lg border text-xs transition cursor-pointer ${
                         selectedArch.id === a.id
                           ? 'bg-emerald-950/40 border-emerald-500 text-emerald-200'
                           : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -251,14 +306,14 @@ export default function DashboardPage() {
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <HeartHandshake className="w-4 h-4 text-pink-400" />
-                  2. Sự hy sinh ban đầu (Thiết lập lòng trắc ẩn)
+                  2. Sự hy sinh ban đầu (Tạo lòng trắc ẩn)
                 </label>
                 <div className="space-y-2">
                   {SACRIFICES.map((s, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedSac(s)}
-                      className={`w-full text-left p-2.5 rounded-lg border text-xs transition ${
+                      className={`w-full text-left p-2.5 rounded-lg border text-xs transition cursor-pointer ${
                         selectedSac === s
                           ? 'bg-pink-950/40 border-pink-500 text-pink-200'
                           : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -273,14 +328,14 @@ export default function DashboardPage() {
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-red-400" />
-                  3. Hành vi áp bức & Bạc bẽo (Đẩy xung đột đỉnh điểm)
+                  3. Hành vi áp bức & Bạc bẽo (Xung đột dâng cao)
                 </label>
                 <div className="space-y-2">
                   {OPPRESSIONS.map((o, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedOpp(o)}
-                      className={`w-full text-left p-2.5 rounded-lg border text-xs transition ${
+                      className={`w-full text-left p-2.5 rounded-lg border text-xs transition cursor-pointer ${
                         selectedOpp === o
                           ? 'bg-red-950/40 border-red-500 text-red-200'
                           : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -295,14 +350,14 @@ export default function DashboardPage() {
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                  4. Bí mật & Cú Lật kèo (Catharsis / Thỏa mãn)
+                  4. Bí mật & Cú Lật kèo (Thỏa mãn công lý)
                 </label>
                 <div className="space-y-2">
                   {RETRIBUTIONS.map((r, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedRet(r)}
-                      className={`w-full text-left p-2.5 rounded-lg border text-xs transition ${
+                      className={`w-full text-left p-2.5 rounded-lg border text-xs transition cursor-pointer ${
                         selectedRet === r
                           ? 'bg-amber-950/40 border-amber-500 text-amber-200'
                           : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -318,145 +373,131 @@ export default function DashboardPage() {
             {/* Action Button */}
             <div className="flex justify-end">
               <button
-                onClick={handleBuildStory}
+                onClick={handleStartGeneration}
                 disabled={isGenerating}
-                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
+                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
               >
                 {isGenerating ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                Khởi tạo Kịch bản 10 Chương (2.5 Giờ)
+                Khởi chạy Playwright ChatGPT Sinh Kịch Bản (5 Turns)
               </button>
             </div>
           </div>
         )}
 
-        {/* Tab 2: Chapters Breakdown */}
-        {activeTab === 'chapters' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        {/* Tab 2: Stepper Progress */}
+        {activeTab === 'stepper' && (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
-                <h3 className="font-bold text-white text-base">{generatedTitle}</h3>
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  Tiến trình Tự động hóa 5 Lượt (Playwright ChatGPT Session)
+                </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Tổng dung lượng: <span className="text-amber-400 font-semibold">{totalWords.toLocaleString()} từ</span> (~2 giờ 35 phút audio) • 10 Chương hoàn chỉnh
+                  Đang chạy trên profile <span className="text-indigo-400 font-mono">PROFILE_GPT_1</span> với context liên tục
                 </p>
               </div>
-              <button
-                onClick={() => setActiveTab('omnivoice')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition"
-              >
-                Chuyển sang TTS OmniVoice <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="text-xs font-mono text-amber-400 px-3 py-1 rounded bg-amber-500/10 border border-amber-500/30">
+                {totalWords.toLocaleString()} từ được tạo
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {storyChapters.map((ch) => (
-                <div key={ch.num} className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            {/* 5 Turn Steps */}
+            <div className="space-y-4">
+              {[
+                { turn: 1, name: 'Turn 1: Master Blueprint & Dàn ý 10 Chương', data: turnData.turn1_blueprint },
+                { turn: 2, name: 'Turn 2: Hồi 1 & Hồi 2 (Chương 1 - 4: ~9.000 từ)', data: turnData.turn2_chapters_1_4 },
+                { turn: 3, name: 'Turn 3: Hồi 3 (Chương 5 - 7: ~9.000 từ - Biến cố & Âm mưu)', data: turnData.turn3_chapters_5_7 },
+                { turn: 4, name: 'Turn 4: Hồi 4 & 5 (Chương 8 - 10: ~10.000 từ - Lật kèo & Outro)', data: turnData.turn4_chapters_8_10 },
+                { turn: 5, name: 'Turn 5: Trọn bộ Metadata SEO & Prompt Thumbnail', data: turnData.turn5_metadata_seo },
+              ].map((step) => (
+                <div 
+                  key={step.turn}
+                  className={`p-4 rounded-xl border transition ${
+                    step.data 
+                      ? 'bg-emerald-950/20 border-emerald-500/40 text-slate-200'
+                      : isGenerating 
+                        ? 'bg-slate-950/40 border-slate-800 text-slate-400' 
+                        : 'bg-slate-950/20 border-slate-800/60 text-slate-500'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-amber-400 font-mono font-semibold">
-                      {ch.act} • Chương {ch.num}
-                    </span>
-                    <span className="text-xs text-slate-400">{ch.words} từ</span>
-                  </div>
-                  <h4 className="font-semibold text-slate-200 text-sm">{ch.title}</h4>
-                  <div className="text-xs text-slate-400 flex items-center gap-2 pt-1 border-t border-slate-800/60">
-                    <span className="text-[10px] text-slate-500">Giọng đọc:</span>
-                    <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-mono text-[10px]">
-                      {ch.speaker}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {step.data ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      ) : isGenerating ? (
+                        <RefreshCw className="w-5 h-5 text-amber-400 animate-spin shrink-0" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-slate-600 shrink-0" />
+                      )}
+                      <div>
+                        <div className="font-semibold text-sm">{step.name}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          {step.data ? `Đã hoàn thành (${step.data.length.toLocaleString()} ký tự)` : 'Đang chờ xử lý...'}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            {turnData.full_script && (
+              <div className="flex justify-end pt-4 border-t border-slate-800">
+                <button
+                  onClick={() => setActiveTab('fullscript')}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition cursor-pointer"
+                >
+                  Đọc Duyệt Kịch Bản Hoàn Chỉnh ({totalWords.toLocaleString()} từ) <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Tab 3: OmniVoice */}
-        {activeTab === 'omnivoice' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 space-y-6">
-            <div className="border-b border-slate-800 pb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Volume2 className="w-5 h-5 text-indigo-400" />
-                Cấu hình Giọng đọc OmniVoice (Multi-Speaker Profiles)
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Tự động chia tách câu thoại và gán giọng đọc tương ứng theo tag [SPEAKER:xxx]
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold text-sm text-amber-300">1. Giọng Bác Sâm (Host / Dẫn chuyện)</div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">bac_sam</span>
-                </div>
-                <p className="text-xs text-slate-400">Giọng nam miền Bắc trầm ấm, tốc độ 0.95x, chiêm nghiệm đời sống</p>
-                <div className="text-xs bg-slate-900 p-2.5 rounded text-slate-300 font-mono">
-                  data/voices/bac_sam_ref.wav (Đã sẵn sàng kết nối)
-                </div>
+        {/* Tab 3: Full Script Reader */}
+        {activeTab === 'fullscript' && (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="font-bold text-white text-base">{generatedTitle}</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Độ dài: <span className="text-amber-400 font-semibold">{totalWords.toLocaleString()} từ</span> (~{Math.round(totalWords / 135 / 60 * 10) / 10} giờ đọc audio)
+                </p>
               </div>
-
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold text-sm text-indigo-300">2. Giọng Nhân vật chính (Tự sự)</div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">nhan_vat_chinh</span>
-                </div>
-                <p className="text-xs text-slate-400">Giọng nam/nữ trẻ hơn, chân chất, thể hiện sự hy sinh và đau đớn</p>
-                <div className="text-xs bg-slate-900 p-2.5 rounded text-slate-300 font-mono">
-                  data/voices/nhan_vat_ref.wav (Đã sẵn sàng kết nối)
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-4 flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-indigo-200">Trạng thái OmniVoice Local Server</div>
-                <div className="text-xs text-indigo-300/80">Endpoint: http://127.0.0.1:8000 (Sẽ kết nối khi bạn khởi chạy model clone)</div>
-              </div>
-              <button 
-                onClick={() => alert("OmniVoice Client đã sẵn sàng. Khi bạn khởi động server clone giọng, pipeline sẽ tự động bắt luồng synthesis!")}
-                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition"
+              <button
+                onClick={() => copyToClipboard(turnData.full_script || '')}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
               >
-                Kiểm tra Kết nối
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Đã sao chép' : 'Sao chép toàn bộ kịch bản'}
               </button>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-5 max-h-[600px] overflow-y-auto space-y-4 text-sm text-slate-300 leading-relaxed font-sans whitespace-pre-wrap selection:bg-amber-500/20">
+              {turnData.full_script || "Chưa có kịch bản. Hãy quay lại Tab 1 và bấm khởi chạy."}
             </div>
           </div>
         )}
 
-        {/* Tab 4: Render */}
-        {activeTab === 'render' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 space-y-6">
-            <div className="border-b border-slate-800 pb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Video className="w-5 h-5 text-amber-400" />
-                Trung tâm Render Video GPU NVENC (1080p Master)
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Tự động ghép Master Audio 2.5h + Ảnh nền chất lượng cao + Waveform + Phụ đề SRT
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-2">
-                <div className="text-xs text-slate-400">Độ phân giải</div>
-                <div className="text-base font-bold text-white">Full HD 1080p (60fps)</div>
+        {/* Tab 4: SEO Metadata */}
+        {activeTab === 'seo' && (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="font-bold text-white text-base">Bộ Metadata SEO & Prompt Thumbnail YouTube</h3>
+                <p className="text-xs text-slate-400 mt-1">Đã tối ưu hóa tiêu đề lách kiểm duyệt, mô tả 6 phần kèm Disclaimer và danh sách 20 thẻ tags</p>
               </div>
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-2">
-                <div className="text-xs text-slate-400">Bộ giải mã tăng tốc</div>
-                <div className="text-base font-bold text-emerald-400">NVIDIA NVENC (p4 tune:hq)</div>
-              </div>
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-2">
-                <div className="text-xs text-slate-400">Thời gian render ước tính</div>
-                <div className="text-base font-bold text-amber-400">3 ~ 5 Phút (cho 2.5 giờ audio)</div>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button 
-                onClick={() => alert("Hệ thống Render GPU đã sẵn sàng nhận Audio Master!")}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition cursor-pointer"
+              <button
+                onClick={() => copyToClipboard(turnData.turn5_metadata_seo || '')}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
               >
-                <Play className="w-4 h-4 fill-current" />
-                Bắt đầu Render Video Master
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Đã sao chép' : 'Sao chép Metadata'}
               </button>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-5 max-h-[600px] overflow-y-auto text-sm text-slate-300 whitespace-pre-wrap font-mono selection:bg-amber-500/20">
+              {turnData.turn5_metadata_seo || "Chưa có dữ liệu Metadata SEO."}
             </div>
           </div>
         )}
