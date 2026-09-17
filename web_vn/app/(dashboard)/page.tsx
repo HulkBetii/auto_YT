@@ -72,7 +72,6 @@ const VOICE_CARDS = [
     file: 'test_voices/test_bac_sam.wav',
     speed: '0.95x',
     guidance: '2.5',
-    color: 'amber'
   },
   {
     id: 'nhan_vat_chinh',
@@ -82,7 +81,6 @@ const VOICE_CARDS = [
     file: 'test_voices/test_nhan_vat_chinh.wav',
     speed: '0.98x',
     guidance: '2.8',
-    color: 'emerald'
   },
   {
     id: 'me_chong',
@@ -92,7 +90,6 @@ const VOICE_CARDS = [
     file: 'test_voices/test_me_chong.wav',
     speed: '1.02x',
     guidance: '3.0',
-    color: 'purple'
   },
   {
     id: 'tieu_tam',
@@ -102,7 +99,6 @@ const VOICE_CARDS = [
     file: 'test_voices/test_tieu_tam.wav',
     speed: '1.00x',
     guidance: '2.8',
-    color: 'rose'
   },
   {
     id: 'chong_boi_bac',
@@ -112,7 +108,6 @@ const VOICE_CARDS = [
     file: 'test_voices/test_chong_boi_bac.wav',
     speed: '1.00x',
     guidance: '2.7',
-    color: 'blue'
   }
 ];
 
@@ -684,7 +679,7 @@ export default function DashboardPage() {
         {/* Tab 5: OmniVoice Audio Studio */}
         {activeTab === 'audio' && (
           <div className="space-y-6">
-            {/* Studio Header & Conversation Preview Card */}
+            {/* Studio Header & Demo Audio Highlights */}
             <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-indigo-950/40 border border-amber-500/30 rounded-2xl p-6 shadow-xl space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -705,20 +700,22 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                {/* Conversation Preview Player */}
-                <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl p-3.5 flex flex-col gap-2 min-w-[280px]">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                      <Volume2 className="w-4 h-4 text-amber-400" />
-                      Test Hội Thoại 5 Giọng
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">0:28 • 668 KB</span>
+                {/* Demo Players Box */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="bg-slate-950/80 border border-amber-500/40 rounded-xl p-3 flex flex-col gap-1.5 min-w-[240px]">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-amber-300 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        Demo Kịch Tính 5 Giọng
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">1:02</span>
+                    </div>
+                    <audio 
+                      controls 
+                      className="w-full h-8"
+                      src="/api/audio?file=test_voices/demo_scene_5_voices.mp3"
+                    />
                   </div>
-                  <audio 
-                    controls 
-                    className="w-full h-8"
-                    src="/api/audio?file=test_voices/test_conversation_preview.mp3"
-                  />
                 </div>
               </div>
             </div>
