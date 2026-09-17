@@ -1,0 +1,47 @@
+{
+  "bac_sam": {
+    "id": "bac_sam",
+    "name": "Bac Sam",
+    "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\bac_sam.wav",
+    "ref_text": "Kính chào quý vị và các bạn đang lắng nghe Sâm kể chuyện. Đêm nay, bác Sâm xin mời quý vị cùng ngồi lại thật chậm, nhấp một ngụm trà nóng để lắng nghe một câu chuyện gia đình. Cuộc đời con người ta đi qua bao nhiêu giông bão ngoài xã hội mới hiểu được rằng mái ấm thực sự không nằm ở căn nhà to hay nhỏ, mà nằm ở cái tâm và phẩm giá của người sống bên cạnh mình.",
+    "speed": 0.92,
+    "guidance_scale": 2.5,
+    "instruct": "Giọng nam trung niên trầm ấm, chậm rãi, chiêm nghiệm, truyền cảm"
+  },
+  "nhan_vat_chinh": {
+    "id": "nhan_vat_chinh",
+    "name": "Nhan Vat Chinh",
+    "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\nhan_vat_chinh.wav",
+    "ref_text": "Sao hôm trước, anh không nói với tôi, anh đánh anh Thái vì tờ vé số? Có phải anh biết anh ta lấy tờ vé số nên anh bức xúc phải không? Có một điều tôi cảm thấy rất khó hiểu là cả anh, hay là San và cả mẹ tôi nữa, lúc nào mọi người cũng nghĩ rằng tôi sẽ quay lại với cả anh ta. Nhưng bản thân tôi biết tôi sẽ không bao giờ làm như thế.",
+    "speed": 0.95,
+    "guidance_scale": 2.5,
+    "instruct": "Giọng nữ trẻ nhẹ nhàng, nghẹn ngào, tự trọng, kiên định"
+  },
+  "me_chong": {
+    "id": "me_chong",
+    "name": "Me Chong",
+    "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\me_chong.wav",
+    "ref_text": "Chị nói thế là có ý gì? Chị nói như thế, tôi có ý định quỵt tiền của chị không bằng? Như thế mà chị còn bảo là tôi suy diễn à? Rõ ràng là chị có ý đó. Tôi nói để chị biết nhá, dẫu tôi có ở nhà chỉ có nội trợ thôi, nhưng tôi cũng không ngu gì để mà không hiểu được ý tứ sâu xa trong câu nói của chị. Tôi cũng nói để chị biết, tôi không có ý định quỵt tiền của chị. Nhưng được rồi, để tôi gọi điện lại cho ông bà thông gia hỏi xem thực hư thế nào. Chị thì cũng hay dối trá lắm. Đây, tôi nói để chị biết nhá, tôi không có thèm quỵt tiền của chị nhá, chị cầm lấy chị đi đi. Trời đất ơi, đã đi lấy chồng rồi, về làm dâu người ta rồi mà cũng không chịu sống cho nó yên ổn, nay thậm thụt mai thậm thụt bên ngoại thôi.",
+    "speed": 1.0,
+    "guidance_scale": 2.5,
+    "instruct": "Giọng nữ lớn tuổi đanh thép, the thé, xét nét, cay nghiệt, gia trưởng"
+  },
+  "tieu_tam": {
+    "id": "tieu_tam",
+    "name": "Tieu Tam",
+    "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\tieu_tam.wav",
+    "ref_text": "Alo, em đây. Chị Dung giao cho em một số việc nên em đang tranh thủ đi làm ạ. Có chuyện gì không anh? Thôi chết, em nhớ đợt đấy mới mang bầu nên sức khỏe không được tốt, em xin nghỉ làm suốt mà em có giao cho nhân viên trong phòng làm rồi mà. Sao lại để xảy ra sai sót như thế cơ chứ? Thế có vấn đề gì nghiêm trọng không anh?",
+    "speed": 0.98,
+    "guidance_scale": 2.5,
+    "instruct": "Giọng nữ trẻ nũng nịu, lảnh lót, ngọt ngào giả tạo, sắc sảo"
+  },
+  "chong_boi_bac": {
+    "id": "chong_boi_bac",
+    "name": "Chong Boi Bac",
+    "ref_audio": "D:\\VibeCoding\\auto_YT\\web_vn\\data\\voice_profiles\\samples\\chong_boi_bac.wav",
+    "ref_text": "Mẹ, con đã bàn với mẹ rồi còn gì? Mẹ, con đã thuê được nhà rồi. Lát nữa xong việc, hai mẹ con mình dọn đồ nhá.",
+    "speed": 1.0,
+    "guidance_scale": 2.5,
+    "instruct": "Giọng nam dứt khoát, lạnh lùng, tự phụ, gia trưởng"
+  }
+}
