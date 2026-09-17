@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Story Generator Engine for Vietnamese Audio Drama (Sâm Kể Chuyện Style)
 Hierarchical 3-Pass Architecture:
@@ -12,6 +12,8 @@ import random
 import re
 import os
 import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
 
 ARCHETYPES = [
     {"title": "Thiếu tá Điều tra", "role": "Thiếu tá Công an / Cảnh sát điều tra tỉnh", "tone": "Bản lĩnh, trọng tình nghĩa, chính trực"},
