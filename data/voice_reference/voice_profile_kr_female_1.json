@@ -1,0 +1,44 @@
+{
+  "profile_id": "kr_female_sayeon_mannam_01",
+  "channel_source": "사연만남",
+  "source_video_url": "https://www.youtube.com/watch?v=pK6PQrD7fC4",
+  "source_video_title": "계모는 저를 교수까지 공부시켜주었어요. 집을 사드리고 싶어 2억을 모았고, 돈을 찾으러 은행에 찾아갔더니 창구 직원의 한마디에 주저앉아 울어버렸습니다.",
+  "gender": "Female",
+  "age_group": "35-45",
+  "accent": "Standard Seoul Korean (표준어)",
+  "vocal_traits": "Warm, mature, deep, emotional, steady pacing, radio drama storytelling tone",
+  "target_lufs": -16.0,
+  "reference_samples": {
+    "candidate_b_recommended": {
+      "id": "candidate_b",
+      "audio_file": "ref_kr_candidate_b_8s.wav",
+      "duration_seconds": 8.70,
+      "original_timestamp": "00:00:19.80 -> 00:00:28.50",
+      "transcript_kr": "피 한 방울 섞이지 않았지만 저를 친자식처럼 키워주신 새어머니께 집을 사드리려던 돈이었습니다.",
+      "sampling_rate": 32000,
+      "channels": 1,
+      "recommended_for": "Primary Voice Cloning reference (Rich emotional depth and natural breathing)"
+    },
+    "candidate_a_hook": {
+      "id": "candidate_a",
+      "audio_file": "ref_kr_candidate_a_7s.wav",
+      "duration_seconds": 7.05,
+      "original_timestamp": "00:00:12.80 -> 00:00:19.85",
+      "transcript_kr": "먹고 싶은 것도 참고 입고 싶은 것도 참으며 10년 동안 모은 2억이었어요.",
+      "sampling_rate": 32000,
+      "channels": 1,
+      "recommended_for": "Climax and suspenseful scenes"
+    },
+    "candidate_c_intro": {
+      "id": "candidate_c",
+      "audio_file": "ref_kr_candidate_c_9s.wav",
+      "duration_seconds": 9.50,
+      "original_timestamp": "00:01:11.50 -> 00:01:21.00",
+      "transcript_kr": "안녕하세요. 저는 이수진이고 대학교에서 학생들을 가르치는 부교수입니다. 남들은 교수님, 교수님하고 불러주지만",
+      "sampling_rate": 32000,
+      "channels": 1,
+      "recommended_for": "Calm, objective narration baseline"
+    }
+  },
+  "default_edge_tts_fallback": "ko-KR-SunHiNeural"
+}
