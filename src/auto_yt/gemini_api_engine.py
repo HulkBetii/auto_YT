@@ -62,8 +62,8 @@ class GeminiApiEngine:
         base_url: Optional[str] = None,
         ninerouter_url: Optional[str] = None,
         api_keys: Optional[Union[List[str], str]] = None,
-        default_model: str = "cc/claude-sonnet-5",
-        timeout: int = 180,
+        default_model: str = "ag/gemini-3.8-flash-high",
+        timeout: int = 360,
     ):
         self.base_url = (
             base_url
@@ -73,7 +73,7 @@ class GeminiApiEngine:
             or "http://localhost:20128/v1"
         ).strip().rstrip("/")
         self.api_keys = self._parse_keys(api_keys)
-        self.default_model = default_model or os.getenv("NINEROUTER_MODEL") or os.getenv("GEMINI_MODEL") or "cc/claude-sonnet-5"
+        self.default_model = default_model or os.getenv("NINEROUTER_MODEL") or os.getenv("GEMINI_MODEL") or "ag/gemini-3.8-flash-high"
         self.timeout = timeout
 
     @classmethod
@@ -149,11 +149,15 @@ class GeminiApiEngine:
         Tự động thử Google Gemini native protocol hoặc OpenAI protocol.
         Hỗ trợ xoay vòng API Keys nếu gặp Rate Limit (429) hoặc lỗi quota.
         """
-        model_name = (model or self.default_model).strip()
+        primary_model = (model or self.default_model).strip()
+        candidate_models = [primary_model]
+        for fb in ["ag/gemini-pro-agent", "ag/gemini-3.8-flash-medium", "ag/gemini-3.7-flash-high"]:
+            if fb not in candidate_models:
+                candidate_models.append(fb)
+
         req_timeout = timeout or self.timeout
         keys_count = max(1, len(self.api_keys))
         max_attempts = max(3, keys_count * 2)
-
         last_error = "Không xác định"
 
         # Đọc dữ liệu PDF nếu có
@@ -170,7 +174,9 @@ class GeminiApiEngine:
                     if att:
                         image_attachments.append(att)
 
+        model_idx = 0
         for attempt in range(1, max_attempts + 1):
+            model_name = candidate_models[model_idx % len(candidate_models)]
             current_key = self.get_current_key()
             if not current_key:
                 raise ValueError("Chưa cấu hình API Key cho 9router / Gemini API. Vui lòng kiểm tra data/db_config.json.")
@@ -185,7 +191,7 @@ class GeminiApiEngine:
                 except Exception:
                     pass
 
-            prefer_openai = model_name.startswith("ag/") or self.base_url.endswith("/v1")
+            prefer_openai = model_name.startswith("ag/") or model_name.startswith("cc/") or self.base_url.endswith("/v1")
             try:
                 if prefer_openai:
                     try:
@@ -255,7 +261,15 @@ class GeminiApiEngine:
                 error_body = http_err.response.text
                 logger.warning(f"[9router HTTP {status_code}] {error_body}")
 
-                if status_code in (429, 403, 503) or "quota" in error_body.lower() or "rate" in error_body.lower():
+                if status_code in (502, 503, 504) or "timeout" in error_body.lower() or "connect" in error_body.lower():
+                    # Upstream proxy failure for this specific model -> switch to next fallback model immediately
+                    model_idx += 1
+                    next_model = candidate_models[model_idx % len(candidate_models)]
+                    logger.warning(f"[9router Fallback] Model '{model_name}' gặp lỗi upstream ({status_code}). Tự động fallback sang model '{next_model}'...")
+                    last_error = f"HTTP {status_code}: {error_body}"
+                    await asyncio.sleep(1.0)
+                    continue
+                elif status_code in (429, 403) or "quota" in error_body.lower() or "rate" in error_body.lower():
                     last_error = f"HTTP {status_code}: {error_body}"
                     await self.rotate_key(context_logger=context_logger)
                     await asyncio.sleep(min(2.0 * attempt, 6.0))
@@ -267,6 +281,9 @@ class GeminiApiEngine:
             except httpx.RequestError as req_err:
                 last_error = f"Lỗi kết nối mạng: {req_err}"
                 logger.warning(f"[9router Connection Error] {req_err}")
+                model_idx += 1
+                next_model = candidate_models[model_idx % len(candidate_models)]
+                logger.warning(f"[9router Fallback] Lỗi mạng với model '{model_name}'. Chuyển sang model '{next_model}'...")
                 await asyncio.sleep(2.0)
 
             except Exception as e:
@@ -275,6 +292,7 @@ class GeminiApiEngine:
                 err_lower = str(e).lower()
                 if "rate limit" in err_lower or "429" in err_lower or "quota" in err_lower:
                     await self.rotate_key(context_logger=context_logger)
+                model_idx += 1
                 await asyncio.sleep(1.5)
 
         raise RuntimeError(f"Không thể nhận phản hồi từ 9router sau {max_attempts} lần thử. Lỗi cuối: {last_error}")
@@ -372,7 +390,12 @@ class GeminiApiEngine:
         max_output_tokens: int,
         timeout: int,
     ) -> str:
-        """Gọi theo chuẩn OpenAI Chat Completions /v1/chat/completions."""
+        """Gọi theo chuẩn OpenAI Chat Completions /v1/chat/completions.
+
+        cc/* models dùng streaming (stream=True + SSE) để tránh body-read timeout
+        khi output lớn (8192 tokens ~ 120s). Streaming đọc từng chunk ngay lập tức,
+        không bao giờ bị idle-read timeout.
+        """
         clean_base = self.base_url
         if not clean_base.endswith("/chat/completions"):
             if clean_base.endswith("/v1"):
@@ -406,6 +429,10 @@ class GeminiApiEngine:
                 }
             })
 
+        # cc/* models: dùng streaming để tránh body-read timeout trên output lớn.
+        # ag/* và model khác: non-streaming cho đơn giản.
+        use_streaming = model.startswith("cc/")
+
         payload = {
             "model": model,
             "messages": [
@@ -416,10 +443,42 @@ class GeminiApiEngine:
             ],
             "temperature": temperature,
             "max_tokens": max_output_tokens,
-            "stream": False,
+            "stream": use_streaming,
         }
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        # Streaming: per-chunk read timeout 120s (không phải total body timeout)
+        # Non-streaming: single timeout bao toàn bộ
+        http_timeout = httpx.Timeout(connect=30.0, read=120.0, write=60.0, pool=10.0) if use_streaming else timeout
+
+        async with httpx.AsyncClient(timeout=http_timeout) as client:
+            if use_streaming:
+                full_content: List[str] = []
+                async with client.stream("POST", endpoint_url, json=payload, headers=headers) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        line = line.strip()
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data_part = line[5:].strip()
+                        if data_part == "[DONE]":
+                            break
+                        if data_part:
+                            try:
+                                chunk_json = json.loads(data_part)
+                                choices = chunk_json.get("choices", [])
+                                if choices:
+                                    delta = choices[0].get("delta", {})
+                                    delta_content = delta.get("content", "")
+                                    if delta_content:
+                                        full_content.append(delta_content)
+                            except Exception:
+                                pass
+                result = "".join(full_content).strip()
+                if not result:
+                    raise ValueError(f"cc/ streaming trả về nội dung trống từ model {model}")
+                return result
+
+            # Non-streaming path (ag/* và các model khác)
             resp = await client.post(endpoint_url, json=payload, headers=headers)
             resp.raise_for_status()
 

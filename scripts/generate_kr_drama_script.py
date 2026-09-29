@@ -97,7 +97,7 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        default="ag/gemini-3.8-flash-medium",
+        default="ag/gemini-3.8-flash-high",
         help="9Router model name to use",
     )
     parser.add_argument(

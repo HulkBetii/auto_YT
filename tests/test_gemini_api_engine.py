@@ -55,4 +55,4 @@ def test_get_gemini_api_engine_singleton():
     engine2 = get_gemini_api_engine()
     assert engine1 is engine2
     assert engine1.base_url == "http://localhost:20128/v1"
-    assert engine1.default_model == "cc/claude-sonnet-5"
+    assert engine1.default_model == "ag/gemini-3.8-flash-high"

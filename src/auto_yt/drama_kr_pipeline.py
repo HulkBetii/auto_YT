@@ -250,7 +250,7 @@ class DramaKrPipeline:
     def __init__(
         self,
         engine: Optional[GeminiApiEngine] = None,
-        model: str = "ag/gemini-3.8-flash-medium",
+        model: str = "ag/gemini-3.8-flash-high",
         output_base_dir: Optional[Path] = None,
     ):
         self.engine = engine or get_gemini_api_engine(default_model=model)
