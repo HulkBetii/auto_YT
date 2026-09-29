@@ -22,6 +22,15 @@ from typing import Optional, List, Dict, Any, Tuple
 
 from auto_yt.paths import DATA_DIR, PROJECT_ROOT
 from auto_yt.gemini_api_engine import get_gemini_api_engine, GeminiApiEngine
+from auto_yt.kr_topic_matrix import (
+    KrTopicMatrix,
+    KrTopicRegistry,
+    get_kr_topic_registry,
+    RELATIONSHIPS,
+    CATALYSTS,
+    REVERSALS,
+    EMOTIONAL_TONES,
+)
 
 logger = logging.getLogger("DramaKrPipeline")
 
@@ -215,27 +224,47 @@ class DramaKrPipeline:
     async def generate_story(
         self,
         topic_seed: Optional[Dict[str, Any]] = None,
-        cluster_id: str = "cluster_kr_stepfamily",
+        cluster_id: Optional[str] = None,
+        matrix_combo: Optional[Dict[str, Any]] = None,
         custom_prompt: Optional[str] = None,
         story_slug: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Thực hiện toàn bộ quy trình 8 Giai đoạn tạo kịch bản Radio Drama tiếng Hàn đỉnh cao.
+        Hỗ trợ cả Cluster truyền thống và Ma trận 4 Chiều (4D Matrix).
         """
-        cluster_info = TOPIC_CLUSTERS.get(cluster_id, TOPIC_CLUSTERS["cluster_kr_stepfamily"])
-        seed = topic_seed or {
-            "cluster_id": cluster_id,
-            "title": cluster_info["sample_titles"][0],
-            "summary": cluster_info["description"],
-            "custom_prompt": custom_prompt or "",
-        }
+        registry = get_kr_topic_registry()
+        
+        # Nếu có matrix_combo hoặc yêu cầu dùng matrix
+        if matrix_combo:
+            seed = matrix_combo
+            combo_hash = matrix_combo.get("combo_hash", "")
+            cluster_name = f"{matrix_combo.get('rel_name', '')} x {matrix_combo.get('cat_name', '')}"
+            slug_prefix = f"matrix_{combo_hash[:8]}"
+        elif topic_seed and "combo_hash" in topic_seed:
+            seed = topic_seed
+            combo_hash = topic_seed.get("combo_hash", "")
+            cluster_name = f"{topic_seed.get('rel_name', '')} x {topic_seed.get('cat_name', '')}"
+            slug_prefix = f"matrix_{combo_hash[:8]}"
+        else:
+            c_id = cluster_id or "cluster_kr_stepfamily"
+            cluster_info = TOPIC_CLUSTERS.get(c_id, TOPIC_CLUSTERS["cluster_kr_stepfamily"])
+            seed = topic_seed or {
+                "cluster_id": c_id,
+                "title": cluster_info["sample_titles"][0],
+                "summary": cluster_info["description"],
+                "custom_prompt": custom_prompt or "",
+            }
+            combo_hash = seed.get("combo_hash", "")
+            cluster_name = cluster_info["name"]
+            slug_prefix = f"drama_kr_{c_id}"
 
-        slug = story_slug or f"drama_kr_{cluster_id}_{int(asyncio.get_event_loop().time())}"
+        slug = story_slug or f"{slug_prefix}_{int(asyncio.get_event_loop().time())}"
         story_dir = self.output_base_dir / slug
         story_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"🚀 [DramaKrPipeline] Bắt đầu quy trình K-Drama cao cấp: {slug}")
-        logger.info(f"📌 Chủ đề: {cluster_info['name']}")
+        logger.info(f"📌 Chủ đề: {cluster_name}")
 
         (story_dir / "topic_seed.json").write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -243,7 +272,7 @@ class DramaKrPipeline:
         # STAGE 1: Viral Hook & Character Dossier
         # -------------------------------------------------------------
         logger.info("🎬 [Stage 1/8] Thiết kế Cold Open Hook & Hồ sơ nhân vật...")
-        prompt_s1 = self._build_stage1_prompt(seed, cluster_info)
+        prompt_s1 = self._build_stage1_prompt(seed, {"name": cluster_name, "description": seed.get("summary", "")})
         s1_response, _ = await self.engine.generate_content(prompt=prompt_s1, model=self.model, temperature=0.7)
         (story_dir / "stage1_hook_and_characters.md").write_text(s1_response, encoding="utf-8")
 
@@ -251,7 +280,7 @@ class DramaKrPipeline:
         # STAGE 2: Master 8-Act Beat Sheet & Timeline
         # -------------------------------------------------------------
         logger.info("📋 [Stage 2/8] Thiết kế Dàn ý 8 Màn kịch tính (Beat Sheet & Financial Details)...")
-        prompt_s2 = self._build_stage2_prompt(s1_response, cluster_info)
+        prompt_s2 = self._build_stage2_prompt(s1_response, {"name": cluster_name, "description": seed.get("summary", "")})
         s2_response, _ = await self.engine.generate_content(prompt=prompt_s2, model=self.model, temperature=0.7)
         (story_dir / "stage2_beat_sheet.md").write_text(s2_response, encoding="utf-8")
 
@@ -314,7 +343,13 @@ class DramaKrPipeline:
 
         summary_result = {
             "slug": slug,
-            "cluster_id": cluster_id,
+            "combo_hash": combo_hash,
+            "cluster_id": cluster_id or "matrix",
+            "cluster_name": cluster_name,
+            "rel_name": seed.get("rel_name", ""),
+            "cat_name": seed.get("cat_name", ""),
+            "rev_name": seed.get("rev_name", ""),
+            "tone_name": seed.get("tone_name", ""),
             "status": "completed",
             "output_dir": str(story_dir),
             "metrics": metrics,
@@ -326,6 +361,10 @@ class DramaKrPipeline:
                 "seo_package": str(story_dir / "stage8_youtube_seo_package.md"),
             }
         }
+
+        # Tự động đăng ký vào Topic Registry nếu có combo_hash
+        if combo_hash:
+            registry.register_completed_story(combo_hash, summary_result)
 
         (story_dir / "pipeline_state.json").write_text(
             json.dumps(summary_result, ensure_ascii=False, indent=2), encoding="utf-8"
