@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for Korean TTS and Voice Synthesis Engine."""
+"""Unit tests for Korean TTS, Text Sanitizer, and Broadcast-Grade Voice Engine."""
 
 import os
 import sys
@@ -13,6 +13,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 import pytest
 from auto_yt.kr_tts_engine import (
+    sanitize_korean_script_for_tts,
+    generate_silence_wav,
     chunk_korean_text,
     get_ffmpeg_path,
     get_ffprobe_path,
@@ -23,30 +25,49 @@ from auto_yt.kr_tts_engine import (
 )
 
 
-def test_chunk_korean_text_basic():
-    text = (
-        "안녕하세요. 제 이름은 이수진입니다. 오늘 사연을 들려드립니다. "
-        "피 한 방울 섞이지 않았지만 저를 친자식처럼 키워주신 새어머니의 이야기입니다. "
-        "그날 은행 창구에서 잔고 0원을 확인한 순간 저는 주저앉아 울고 말았습니다."
-    )
-    chunks = chunk_korean_text(text, max_chars=80)
-    assert len(chunks) >= 2
-    for c in chunks:
-        assert len(c) <= 90
-        assert len(c.strip()) > 0
-
-
-def test_chunk_korean_text_strips_markdown_and_speaker_tags():
-    raw = """
+def test_sanitize_korean_script_for_tts():
+    raw_script = """
     # 제1막: 시작
     [SPEAKER:nguoi_dan] "출금 가능 잔액: 0원."
-    [SPEAKER:nu_chinh] 저는 그 자리에 주저앉았습니다.
+    ***
+    [OO백화점 압구정점: 한정판 에르메스 버킨백 외 3,180만 원 결제]
+    ---
+    [SPEAKER:nu_chinh] **저는** 10년 동안 모은 2억 1,400만 원을 확인했습니다.
+    - 배신당한 기분이었죠.
     """
-    chunks = chunk_korean_text(raw, max_chars=100)
-    joined = " ".join(chunks)
-    assert "[SPEAKER:" not in joined
-    assert "# 제1막" not in joined
-    assert "출금 가능 잔액: 0원." in joined
+    cleaned = sanitize_korean_script_for_tts(raw_script)
+    
+    assert "[SPEAKER:" not in cleaned
+    assert "# 제1막" not in cleaned
+    assert "***" not in cleaned
+    assert "---" not in cleaned
+    assert "[" not in cleaned
+    assert "]" not in cleaned
+    assert "3180만 원" in cleaned, "Commas in Korean currency should be normalized"
+    assert "2억 1400만 원" in cleaned
+    assert "**" not in cleaned
+    assert "저는" in cleaned
+    assert "OO백화점 압구정점: 한정판 에르메스 버킨백 외 3180만 원 결제" in cleaned
+
+
+def test_generate_silence_wav():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        silence_file = Path(tmp_dir) / "silence_test.wav"
+        generate_silence_wav(silence_file, duration_s=0.35, sample_rate=32000)
+        assert silence_file.exists()
+        # 0.35s * 32000 samples/s * 2 bytes/sample = 22400 bytes + 44 bytes header
+        assert silence_file.stat().st_size >= 22444
+
+
+def test_chunk_korean_text_with_paragraph_end_flag():
+    text = (
+        "첫 번째 문단입니다. 사연을 들려드립니다.\n\n"
+        "두 번째 문단입니다. 새어머니의 이야기입니다."
+    )
+    chunks = chunk_korean_text(text, max_chars=100)
+    assert len(chunks) == 2
+    assert chunks[0][1] is True, "First chunk should be paragraph end"
+    assert chunks[1][1] is True, "Second chunk should be paragraph end"
 
 
 def test_ffmpeg_and_ffprobe_paths_detected():
@@ -76,7 +97,7 @@ async def test_synthesize_short_text_edge_tts():
     with tempfile.TemporaryDirectory() as tmp_dir:
         out_mp3 = Path(tmp_dir) / "test_synth.mp3"
         res = await engine.synthesize_text(
-            text="안녕하세요. 사연 시작합니다.",
+            text="안녕하세요. 사연 시작합니다. 3,180만 원 결제되었습니다.",
             output_file=out_mp3,
             normalize_loudness=False,
         )

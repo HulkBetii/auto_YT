@@ -194,15 +194,51 @@ def heal_speaker_tags(text: str, default_role: str = "nguoi_dan") -> str:
     return healed
 
 
+def sanitize_korean_audiobook_text(text: str) -> str:
+    """
+    Bộ lọc làm sạch văn bản tiếng Hàn toàn diện phục vụ Text-to-Speech (TTS):
+    - Xóa toàn bộ thẻ kỹ thuật [SPEAKER:role].
+    - Xóa tiêu đề markdown (# Hồi 1, ## Màn 2).
+    - Xóa các ký tự phân cách cảnh (***, ---, ___, ===).
+    - Xóa bỏ dấu ngoặc vuông chú thích [OO백화점...] -> OO백화점...
+    - Chuẩn hóa số tiền có dấu phẩy: 3,180만 -> 3180만, 2,000만 -> 2000만.
+    - Xóa dấu định dạng in đậm/nghiêng (**chữ**, *chữ*).
+    - Xóa dấu gạch đầu dòng (- , * ).
+    """
+    # 1. Bỏ thẻ SPEAKER
+    clean = re.sub(r'\[SPEAKER:[^\]]+\]\s*', '', text)
+    
+    # 2. Bỏ markdown headers
+    clean = re.sub(r'#{1,6}\s+.*?\n', '\n', clean)
+    
+    # 3. Bỏ các ký tự phân cảnh đường kẻ ngang
+    clean = re.sub(r'(?m)^\s*(\*{3,}|-{3,}|_{3,}|={3,})\s*$', '', clean)
+    
+    # 4. Chuyển đổi [Nội dung trong ngoặc] thành Nội dung bình thường (bỏ dấu ngoặc vuông)
+    clean = re.sub(r'\[([^\]]+)\]', r'\1', clean)
+    
+    # 5. Chuẩn hóa số có dấu phẩy kèm đơn vị tiếng Hàn: 3,180만 -> 3180만, 1,500만 -> 1500만
+    clean = re.sub(r'(\d+),(\d{3})(만|억|원|천|백|십|개|명|번|살|세|일|월|년)', r'\1\2\3', clean)
+    clean = re.sub(r'(\d+),(\d{3})', r'\1\2', clean)  # Số nguyên có dấu phẩy thông thường
+    
+    # 6. Bỏ ký tự in đậm / nghiêng
+    clean = re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', clean)
+    clean = re.sub(r'_{1,3}([^_]+)_{1,3}', r'\1', clean)
+    
+    # 7. Bỏ bullet points ở đầu dòng
+    clean = re.sub(r'(?m)^\s*[-*•]\s+', '', clean)
+    
+    # 8. Chuẩn hóa dòng trống thừa
+    clean = re.sub(r'\n{3,}', '\n\n', clean).strip()
+    return clean
+
+
 def extract_clean_audiobook_text(text: str) -> str:
     """
     Chuyển đổi kịch bản có tag sang bản văn xuôi Audiobook mượt mà,
     loại bỏ mọi thẻ tag kỹ thuật để đưa trực tiếp vào engine TTS đơn giọng đọc.
     """
-    clean = re.sub(r'\[SPEAKER:[^\]]+\]\s*', '', text)
-    clean = re.sub(r'#{1,6}\s+.*?\n', '', clean)  # Bỏ markdown headers
-    clean = re.sub(r'\n{3,}', '\n\n', clean).strip()
-    return clean
+    return sanitize_korean_audiobook_text(text)
 
 
 class DramaKrPipeline:
