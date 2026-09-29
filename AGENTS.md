@@ -105,8 +105,19 @@ Use Puppeteer to search Official Docs or StackOverflow ONLY when:
 - Do not create temporary profiles, select another profile, or add environment/config overrides for this path.
 - If the profile is locked, report the conflict or clear stale singleton locks; never fall back to a different profile.
 
-## 11. Playwright-First AI Policy
-- All text generation, evaluation, ranking, and reasoning MUST run through the Playwright ChatGPT job queues.
-- OpenAI API usage is allowed only for semantic embeddings and Whisper transcription with timestamps.
-- Do not use OpenAI Chat Completions, Responses, or TTS APIs in production code, tests, or utility scripts.
-- Any new OpenAI API use requires an explicit policy change approved by the user; never add an automatic OpenAI fallback for Playwright jobs.
+## 11. AI Generation Engines Policy
+- Primary Engine: 9Router API Gateway (`http://localhost:20128/v1`, `cc/claude-sonnet-5` via `GeminiApiEngine`).
+- Secondary/Fallback: Playwright ChatGPT Automation using `PROFILE_GPT_1`.
+- OpenAI Direct API usage is allowed only for semantic embeddings and Whisper transcription with timestamps.
+
+## 12. Output Review & Continuous System Improvement Philosophy (MANDATORY)
+- **Mục đích cốt lõi của việc Review output**: KHÔNG PHẢI chỉ để sửa lỗi (patch) cho tập/episode cụ thể đó rồi xong.
+- **Mục đích chính**: Rút ra bài học (pattern lỗi, điểm yếu logic, cơ hội tối ưu) → Đề xuất và cập nhật trực tiếp vào logic/config/prompt chung của pipeline, để **TẤT CẢ các lần chạy sau của mọi tập đều được hưởng lợi**.
+- **Quy chuẩn bắt buộc khi thực hiện Review**:
+  1. **Xác định Nguyên nhân gốc (Root Cause)**: Truy vết tận gốc cơ chế gây lỗi (regex, prompt thiếu ràng buộc, context drift, parser heuristic...), tuyệt đối không fix triệu chứng tạm thời.
+  2. **Đề xuất thay đổi mang tính hệ thống**: Sửa đổi trực tiếp vào code parser, prompt template, quality gate hoặc validation schema dùng chung.
+  3. **Cấu trúc trình bày Review**:
+     - **Bài học rút ra**: Mô tả lỗi/điểm yếu và nguyên nhân cốt lõi.
+     - **Thay đổi đề xuất cho hệ thống**: Giải pháp nâng cấp toàn diện cho pipeline.
+     - **File / Logic cần update**: Danh sách file, hàm, regex cụ thể cần được sửa đổi.
+

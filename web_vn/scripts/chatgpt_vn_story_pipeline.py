@@ -34,13 +34,13 @@ from playwright.async_api import async_playwright, Page, BrowserContext
 
 CHATGPT_URL = "https://chatgpt.com/"
 PROMPT_INPUT_SELECTOR = "#prompt-textarea, div[contenteditable='true'], div.ProseMirror, p[data-placeholder]"
-STOP_SELECTOR = 'button[data-testid="stop-button"], button[aria-label="Stop generating"], button[aria-label*="Stop"], button[aria-label*="stop"], button:has(svg.animate-spin)'
+STOP_SELECTOR = 'button[aria-label="Stop"], button[aria-label="Stop generating"], button[aria-label*="Stop"], button[data-testid="stop-button"], button:has(svg.animate-spin)'
 SEND_SELECTORS = (
+    'button[aria-label="Send"]',
+    'button[type="submit"]',
     'button[data-testid="send-button"]',
     'button[data-testid="composer-send-button"]',
-    'button[aria-label*="Send"]',
-    'button[aria-label*="send"]',
-    'button[aria-label="Send prompt"]',
+    'button[aria-label*="Send" i]',
 )
 NEW_CHAT_SELECTOR = '[data-testid="create-new-chat-button"], a[href="/"], button:has-text("New chat")'
 CONTINUE_SELECTOR = 'button:has-text("Continue generating"), button:has-text("Tiếp tục"), button[data-testid*="continue"]'
@@ -175,7 +175,7 @@ class ChatGPTStoryPipeline:
         except Exception as e:
             logger.warning(f"New chat notice: {e}")
 
-    async def send_prompt_and_wait(self, prompt_text: str, turn_name: str, max_wait_sec: int = 420) -> str:
+    async def send_prompt_and_wait(self, prompt_text: str, turn_name: str, max_wait_sec: int = 540) -> str:
         logger.info(f"--- Sending Prompt [{turn_name}] ({len(prompt_text)} chars) ---")
         init_cnt = await self.page.evaluate(
             "() => document.querySelectorAll('[data-markdown-text-style=\"assistant-message\"], [data-message-author-role=\"assistant\"]').length"
@@ -189,21 +189,48 @@ class ChatGPTStoryPipeline:
 
         # Type text via browser keyboard events to guarantee ProseMirror & React state synchronization
         await self.page.keyboard.insert_text(prompt_text)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.8)
 
-        send_btn = self.page.locator('button[aria-label="Send"], button[data-testid="send-button"], button[aria-label*="Send" i]').first
+        send_btn = self.page.locator('button[aria-label="Send"], button[type="submit"], button[data-testid="send-button"]').first
         if await send_btn.is_visible() and await send_btn.is_enabled():
             await send_btn.click()
         else:
             await self.page.keyboard.press("Enter")
 
-        logger.info(f"Prompt sent. Waiting for generation to complete (target_msg_idx={target_idx}, max {max_wait_sec}s)...")
+        logger.info(f"Prompt dispatched. Monitoring generation (target_msg_idx={target_idx}, max {max_wait_sec}s)...")
+
+        # Initial handshake: wait up to 15s for generation to begin (stop button visible or count increases)
+        started = False
+        for init_sec in range(1, 15):
+            await asyncio.sleep(1)
+            try:
+                stop_btn = self.page.locator(STOP_SELECTOR).first
+                if await stop_btn.is_visible(timeout=300):
+                    started = True
+                    break
+            except Exception:
+                pass
+            cur_cnt = await self.page.evaluate(
+                "() => document.querySelectorAll('[data-markdown-text-style=\"assistant-message\"], [data-message-author-role=\"assistant\"]').length"
+            )
+            if cur_cnt > target_idx:
+                started = True
+                break
+
+        if not started:
+            logger.info(f"[{turn_name}] Generation not yet started after 15s. Checking if send button is still active...")
+            try:
+                if await send_btn.is_visible() and await send_btn.is_enabled():
+                    logger.info(f"[{turn_name}] Re-clicking Send button...")
+                    await send_btn.click()
+            except Exception:
+                pass
 
         stable_count = 0
         last_text_len = 0
         for sec in range(0, max_wait_sec, 3):
             await asyncio.sleep(3)
-            
+
             try:
                 stop_btn = self.page.locator(STOP_SELECTOR).first
                 is_generating = await stop_btn.is_visible(timeout=300)
@@ -225,13 +252,11 @@ class ChatGPTStoryPipeline:
             cur_cnt = await self.page.evaluate(
                 "() => document.querySelectorAll('[data-markdown-text-style=\"assistant-message\"], [data-message-author-role=\"assistant\"]').length"
             )
+
+            # If still in thinking phase (cur_cnt <= target_idx but is_generating is True), wait patiently
             if cur_cnt <= target_idx:
-                if sec in (6, 12, 18):
-                    logger.info(f"[{turn_name}] Retrying Send trigger (sec={sec})...")
-                    if await send_btn.is_visible() and await send_btn.is_enabled():
-                        await send_btn.click()
-                    else:
-                        await self.page.keyboard.press("Enter")
+                if sec % 15 == 0:
+                    logger.info(f"[{turn_name}] ChatGPT is reasoning/thinking... (sec={sec}s, is_generating={is_generating})")
                 continue
 
             try:
@@ -250,12 +275,14 @@ class ChatGPTStoryPipeline:
                         return current_text
                 else:
                     stable_count = 0
-            
+
             last_text_len = current_len
             if sec % 15 == 0:
-                logger.info(f"[{turn_name}] Streaming in progress... ({current_len:,} chars received)")
+                logger.info(f"[{turn_name}] Streaming in progress... ({current_len:,} chars received, is_generating={is_generating})")
 
-        return await self.page.evaluate(GET_ASSISTANT_TEXT_BY_INDEX_SCRIPT, target_idx)
+        final_res = await self.page.evaluate(GET_ASSISTANT_TEXT_BY_INDEX_SCRIPT, target_idx)
+        logger.info(f"[{turn_name}] Finished polling loop. Returning result ({len(final_res):,} chars).")
+        return final_res
 
     async def _send_with_tag_validation(
         self,

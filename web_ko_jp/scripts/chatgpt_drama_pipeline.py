@@ -25,14 +25,17 @@ logger = logging.getLogger("chatgpt_drama")
 
 REPO_ROOT = Path(r"D:\VibeCoding\auto_YT")
 SRC_DIR = REPO_ROOT / "src"
+SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 from auto_yt.paths import gpt_profile_dir
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 CHATGPT_URL = "https://chatgpt.com/"
-PROMPT_INPUT_SELECTOR = "#prompt-textarea"
+PROMPT_INPUT_SELECTOR = 'div[contenteditable="true"][role="textbox"], #prompt-textarea, [data-composer-markdown], div.ProseMirror'
 ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]'
 STOP_SELECTOR = 'button[data-testid="stop-button"], button[aria-label="Stop generating"], button[aria-label*="Stop"]'
 SEND_SELECTORS = (
@@ -69,20 +72,97 @@ PROMPT_TURN1_TEMPLATE = """Viết lại nội dung đính kèm thành nội dung
 Transcript:
 {transcript}"""
 
-PROMPT_TURN3_TEMPLATE = """Hãy viết phần MÔ TẢ VIDEO YouTube (Description) hoàn chỉnh và DANH SÁCH THẺ TAGS chuẩn SEO YouTube Nhật Bản cho kịch bản trên:
-
-CẤU TRÚC BẮT BUỘC (Gồm 6 phần rõ ràng):
-1. 【HOOK MỞ ĐẦU】 (3-4 dòng đầu tiên trước nút 'もっと見る'): Đánh thẳng vào nỗi sợ hối tiếc và tâm lý người xem, khơi gợi tò mò mạnh mẽ.
-2. 【GIỚI THIỆU NỘI DUNG】: Tóm tắt thông điệp cốt lõi của video bằng giọng văn sâu sắc, nghiêm túc.
-3. 【MỤC LỤC / CHỦ ĐỀ CHÍNH】: Trích xuất và liệt kê đầy đủ các phần/bài học có trong kịch bản thành danh sách rõ ràng (Định dạng: ◆ 目次（チャプター）: liệt kê từng phần).
-4. 【KÊU GỌI HÀNH ĐỘNG (CTA)】: Lời cảm ơn và mời gọi đăng ký kênh (チャンネル登録), bấm like và để lại bình luận chia sẻ suy nghĩ bằng kính ngữ lịch thiệp chuẩn Nhật Bản.
-5. 【MIỄN TRỪ TRÁCH NHIỆM & HASHTAGS】: Ghi chú nội dung giáo dục/chiêm nghiệm đời sống và sử dụng giọng đọc AI, kèm 8-10 hashtag tiếng Nhật chuẩn SEO niche triết lý/đời sống.
-6. 【THẺ TAGS YOUTUBE / タグ】: Ở cuối cùng, viết một danh sách 15-20 từ khóa tìm kiếm quan trọng nhất phân cách bằng dấu phẩy (định dạng: タグ: từ1, từ2, từ3... để copy dán trực tiếp vào ô Tags của YouTube Studio).
+PROMPT_TURN2_TEMPLATE = """Dựa trên kịch bản vừa viết, hãy tạo TIÊU ĐỀ YOUTUBE tiếng Nhật đạt CTR cao nhất cho ngách 処世訓・人生哲学ドラマ (khán giả 50-75 tuổi Nhật Bản).
 
 QUY TẮC BẮT BUỘC:
-- KHÔNG thêm bất kỳ lời chào hay câu dẫn của AI (Tuyệt đối KHÔNG có câu kiểu: "短く、...", "承知いたしました", "以下は説明文です").
-- KHÔNG dán nhãn như "YouTube動画説明文:" ở đầu.
-- OUTPUT: Chỉ xuất văn bản tiếng Nhật thuần túy, sạch sẽ, sẵn sàng copy dán trực tiếp lên YouTube Studio."""
+- Tổng độ dài: 32-55 ký tự (không kể khoảng trắng kép).
+- 20-28 ký tự ĐẦU TIÊN phải hoàn chỉnh mệnh đề cảnh báo/tổn thất cốt lõi.
+- PHẢI chứa con số cụ thể (số lượng đặc điểm, tuổi, %) HOẶC động từ mệnh lệnh mạnh.
+- Sau dấu ｜ là bối cảnh triết lý hoặc hậu quả cụ thể.
+- TUYỆT ĐỐI KHÔNG dùng 【99%が知らない】 (cụm này quá cũ, mất uy tín).
+- Thay thế bằng: 「多くの人が見落とす」「意外と知られていない」「気づかない人が多い」「最後まで気づきにくい」hoặc dạng không prefix.
+
+5 FORMULA CHO PHÉP (chọn formula PHÙ HỢP NHẤT với nội dung kịch bản):
+1. 【Yếu tố hiếm/sốc】[Đối tượng]の[Đặc điểm]〇選｜[Hành động mệnh lệnh]と[Hậu quả cụ thể]
+2. [Người làm X]の人は注意｜今すぐ[Hành động phòng thủ]すべき理由
+3. [Tuổi cụ thể]で絶対に[Hành động]べきこと〇つ｜死ぬ前に激しく後悔する
+4. わしは長く生きてきた。[Đối tượng cụ thể]だけは絶対に[Mệnh lệnh tiêu cực]
+5. この〇つを[Hành động]すれば、[Vấn đề lớn]の〇割は消える
+
+OUTPUT FORMAT BẮT BUỘC (3 dòng, không giải thích, không thêm gì khác):
+A: [Tiêu đề mạnh nhất — Warning/Conflict hook — dùng formula phù hợp nhất]
+B: [Tiêu đề thứ hai — Paradox/Đảo ngược kỳ vọng — cùng chủ đề nhưng góc khác]
+C: [Tiêu đề thứ ba — Age-specific/Life-stage — nhắm thẳng tuổi 60-70]"""
+
+PROMPT_TURN3_TEMPLATE = """Dựa trên kịch bản vừa viết, tạo MÔ TẢ VIDEO YouTube + TAGS + PINNED COMMENT chuẩn SEO thị trường Nhật Bản (ngách 処世訓・人生哲学ドラマ, khán giả 50-75 tuổi).
+
+━━━ PHẦN 1: MÔ TẢ VIDEO (Description) ━━━
+
+【BLOCK 1 — HOOK (80 ký tự đầu trước nút もっと見る)】
+3 dòng mở đầu nói thẳng vào nỗi đau của người 50-70 tuổi. Phải gây khó chịu, bứt rứt, không thể bỏ qua.
+Format:
+「[Tình huống quen thuộc/Sự thật cay đắng mà khán giả đang sống]。」
+今回は、[Nội dung cốt lõi cụ thể của video này]についてお話しします。
+[Lý do khẩn cấp — tại sao phải nghe ngay bây giờ, không phải sau]。
+
+【BLOCK 2 — KÊNH NÀY DÀNH CHO AI】
+こんな方におすすめです。
+Liệt kê 4-5 dòng bullet (・) — mỗi dòng là một chân dung cụ thể của người xem phù hợp:
+・[Tình trạng/vấn đề họ đang gặp — càng cụ thể càng tốt]
+
+【BLOCK 3 — NỘI DUNG VIDEO】
+この動画では、
+[Giải thích ngắn 3-4 câu về những gì video này sẽ dạy — dùng ngôn ngữ ôn tồn, thận trọng, có chiều sâu triết học]
+
+【BLOCK 4 — MỤC LỤC TIMESTAMPS】
+▼目次
+00:00 はじめに｜[Nội dung chương mở đầu]
+XX:XX [Chương 2 — đặt tên theo đặc điểm/bài học thực tế trong kịch bản, không đặt chung chung kiểu "第1章"]
+XX:XX [Chương 3]
+(tiếp tục — mỗi bài học/đặc điểm chính là 1 chapter riêng)
+XX:XX まとめ｜[Thông điệp kết]
+(Giữ nguyên XX:XX — script Python sẽ tính và inject timestamps thực tế sau)
+
+【BLOCK 5 — KÊNH + CTA】
+▼このチャンネルについて
+人生後半を穏やかに、賢く生きるための「処世訓」「先人の知恵」「人間関係の教訓」を、物語とともにお届けしています。
+
+動画が心に残りましたら、チャンネル登録と高評価で応援していただけると励みになります。
+
+[1 câu hỏi CTA — hỏi về trải nghiệm TỰ SỰ của khán giả, KHÔNG hỏi ý kiến chung. Câu hỏi phải liên quan trực tiếp đến chủ đề của video này. Ví dụ nếu video về nhận diện người xấu: "あなたが「距離を置いてよかった」と感じた人には、どんな特徴がありましたか？差し支えない範囲でコメントをお聞かせください。"]
+
+【BLOCK 6 — DISCLAIMER + HASHTAGS】
+※本動画は一般的な人生観・人間関係について考えるためのコンテンツです。個別の医療・心理・法律上の助言を目的とするものではありません。
+※本動画では合成音声を使用しています。脚本・構成・編集は当チャンネル独自のものです。実在人物の発言や音声を再現するものではありません。
+
+#人間関係 #人生哲学 #先人の知恵
+
+━━━ PHẦN 2: TAGS YOUTUBE ━━━
+
+【BLOCK 7 — TAGS 4 TẦNG】
+Viết đúng format dưới đây (để script Python có thể parse):
+
+TIER1_CORE: 処世訓, 人生哲学, 先人の知恵, 人間関係, 生き方, 人生後半
+TIER2_TOPIC: [8-10 tags xoay vòng phù hợp chủ đề video này — ví dụ nếu video về nhận diện kẻ độc hại: 関わってはいけない人, 縁を切るべき人, 信用できない人, 人の本性, 本音を見抜く, 距離を置くべき人, 嫌な人の対処法, 人間関係を整理する]
+TIER3_LONGTAIL: [5-8 tags long-tail đặc thù cho nội dung cụ thể của video này — ví dụ: 60代から関わってはいけない人, 信用できない人の口癖, 人の本性が出る瞬間]
+TIER4_DEMO: 50代, 60代, 70代, シニア, 定年後
+
+━━━ PHẦN 3: PINNED COMMENT ━━━
+
+【BLOCK 8 — PINNED COMMENT】
+📌 [1-2 dòng mô tả ngắn nội dung video]
+
+💬 [1 câu hỏi "engagement dilemma" — câu hỏi lưỡng nan khó trả lời ngay, buộc khán giả phải suy nghĩ và chia sẻ. Liên quan trực tiếp chủ đề video. Ví dụ: "あなたの周りに「いつも助けてもらっているのに、なぜか疲れる人」はいますか？その人にはどんな特徴がありましたか？"]
+
+👉 チャンネル登録で次の動画もお届けします
+
+━━━ QUY TẮC ĐẦU RA ━━━
+- TUYỆT ĐỐI KHÔNG có lời chào AI, không có "以下は" hay "承知しました" hay bất kỳ meta-commentary nào.
+- Giữ đúng format BLOCK với header 【BLOCK X — ...】 để script parse.
+- Timestamps dùng XX:XX làm placeholder — KHÔNG tự bịa timestamps.
+- Hashtags CỐ ĐỊNH ở Block 6: đúng 3 thẻ #人間関係 #人生哲学 #先人の知恵
+- TIER1_CORE không được thay đổi.
+- Output sạch, sẵn sàng copy-paste."""
 
 PROMPT_TURN5_IMAGE_BASE = """Bạn là chuyên gia thiết kế thumbnail YouTube tiếng Nhật có CTR rất cao, chuyên tạo thumbnail phong cách Nhật Bản dành cho khán giả trung niên và lớn tuổi, với cảm giác GAY GẮT, KHẲNG ĐỊNH, THÔ RÁP, DRAMA, CẢNH BÁO, gây sốc mạnh ngay trong 1 giây đầu tiên.
 
@@ -174,6 +254,174 @@ Thumbnail cuối cùng phải giống một thumbnail YouTube Nhật Bản CTR c
 
 PHẦN TEXT THUMBNAIL CẦN HIỂN THỊ:
 {thumbnail_text}"""
+
+PROMPT_TURN4_TEMPLATE = """Dựa trên tiêu đề vừa chọn, hãy đề xuất TEXT TRÊN THUMBNAIL (3 dòng tiếng Nhật) đạt CTR cao nhất.
+
+QUY TẮC THUMBNAIL TEXT:
+- DÒNG 1 (Trắng, cỡ lớn): Mô tả chủ thể/đối tượng chính — 4-7 ký tự. Ví dụ: 悪い人は / 本性は / 信じるな
+- DÒNG 2 (Vàng, nổi bật nhất): Trạng thái/hành động/sự thật cốt lõi — 4-8 ký tự. Đây là dòng người xem nhìn đầu tiên. Ví dụ: 顔に出る / こう見抜く / ここに出る
+- DÒNG 3 (Đỏ, cảm giác nguy hiểm): BẮT BUỘC là mệnh lệnh tiêu cực hoặc hậu quả — 4-7 ký tự:
+  • Video nhận diện kẻ xấu/độc hại: dùng 近づくな / 信じるな / 逃げろ
+  • Video cắt đứt quan hệ: dùng 縁を切れ / 離れろ / 距離を置け
+  • Video bài học cuộc đời/hối tiếc: dùng 覚えておけ / 忘れるな / 気づけ
+  • Video buông bỏ/sống thanh thản: dùng 手放せ / 執着を捨てろ
+
+CHÚ Ý:
+- Mỗi dòng tối đa 8 ký tự — đọc được ngay trên điện thoại màn hình nhỏ.
+- KHÔNG thêm dấu câu thừa, không bọc trong 【】hay 「」.
+- Chọn mệnh lệnh dòng 3 PHÙ HỢP với chủ đề của kịch bản vừa viết.
+
+OUTPUT FORMAT BẮT BUỘC (3 dòng, không giải thích, không thêm gì khác):
+Dòng 1: [text dòng 1]
+Dòng 2: [text dòng 2]
+Dòng 3: [text dòng 3]"""
+
+
+# =============================================================================
+# PARSERS — Turn 2 & Turn 3
+# =============================================================================
+
+def parse_turn2_result(raw_text: str) -> dict:
+    """
+    Parse 3 title variants A/B/C from Turn 2 ChatGPT response.
+    Expected format:
+        A: [title_a]
+        B: [title_b]
+        C: [title_c]
+    Falls back to first Japanese-containing line as title_primary.
+    """
+    result = {"title_a": "", "title_b": "", "title_c": "", "title_primary": ""}
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if re.match(r'^A[:：]', stripped):
+            result["title_a"] = re.sub(r'^A[:：]\s*', '', stripped).strip(' "`*')
+        elif re.match(r'^B[:：]', stripped):
+            result["title_b"] = re.sub(r'^B[:：]\s*', '', stripped).strip(' "`*')
+        elif re.match(r'^C[:：]', stripped):
+            result["title_c"] = re.sub(r'^C[:：]\s*', '', stripped).strip(' "`*')
+    # Fallback: pick first non-empty line containing Japanese characters
+    if not result["title_a"]:
+        for line in raw_text.splitlines():
+            line = line.strip().strip(' "`*')
+            if line and re.search(r'[\u3040-\u30ff\u4e00-\u9fff]', line):
+                result["title_a"] = line
+                break
+    result["title_primary"] = result["title_a"] or result["title_b"] or (raw_text.splitlines()[0].strip() if raw_text.splitlines() else "")
+    return result
+
+
+def parse_turn3_result(raw_text: str) -> dict:
+    """
+    Parse description, tags (tiered), pinned comment from Turn 3 response.
+    Expects BLOCK markers: 【BLOCK 1 —】 through 【BLOCK 8 —】
+    Also reads TIER1_CORE:, TIER2_TOPIC:, TIER3_LONGTAIL:, TIER4_DEMO: lines.
+    Returns dict with keys:
+        description_jp  - Blocks 1-6 joined (clean description ready for YouTube)
+        tags_tiered     - {tier1, tier2, tier3, tier4} as lists
+        tags_flat       - comma-separated string, all tiers merged, max 480 chars
+        pinned_comment  - Block 8 text
+        chapters_raw    - list of chapter timestamp lines from Block 4
+    """
+    # Split raw into blocks by 【BLOCK N or [BLOCK N
+    block_texts: dict = {}
+    current_block = 0
+    buffer: list = []
+
+    for line in raw_text.splitlines():
+        m = re.match(r'[【\[]?BLOCK\s+(\d+)', line, re.IGNORECASE)
+        if m:
+            if current_block > 0:
+                block_texts[current_block] = "\n".join(buffer).strip()
+            current_block = int(m.group(1))
+            buffer = []
+        else:
+            if current_block > 0:
+                buffer.append(line)
+    if current_block > 0:
+        block_texts[current_block] = "\n".join(buffer).strip()
+
+    # Graceful degradation: no BLOCK markers found
+    if not block_texts:
+        logger.warning("parse_turn3_result: No BLOCK markers found, returning raw text as description.")
+        return {
+            "description_jp": raw_text.strip(),
+            "tags_tiered": {"tier1": [], "tier2": [], "tier3": [], "tier4": []},
+            "tags_flat": "",
+            "pinned_comment": "",
+            "chapters_raw": [],
+        }
+
+    # Build description from blocks 1-6, stripping Vietnamese instruction hints
+    INSTRUCTION_PATTERNS = re.compile(
+        r'(Format:|Liệt kê|Ví dụ|tiếp tục|Giải thích|Giữ nguyên XX|câu hỏi|Tình huống|Lý do khẩn)',
+        re.IGNORECASE
+    )
+    desc_parts = []
+    for bn in range(1, 7):
+        if bn in block_texts:
+            text = block_texts[bn]
+            cleaned_lines = [ln for ln in text.splitlines() if not INSTRUCTION_PATTERNS.search(ln)]
+            text = "\n".join(cleaned_lines).strip()
+            if text:
+                desc_parts.append(text)
+    description_jp = "\n\n".join(desc_parts).strip()
+
+    # Parse tags from block 7 (TIER lines) — also scan full raw as fallback
+    tags_tiered: dict = {"tier1": [], "tier2": [], "tier3": [], "tier4": []}
+    tier_search_text = block_texts.get(7, "") or raw_text
+    tier_patterns = [
+        ("tier1", re.compile(r'TIER1(?:_CORE)?[:：]\s*(.+)', re.IGNORECASE)),
+        ("tier2", re.compile(r'TIER2(?:_TOPIC)?[:：]\s*(.+)', re.IGNORECASE)),
+        ("tier3", re.compile(r'TIER3(?:_LONGTAIL)?[:：]\s*(.+)', re.IGNORECASE)),
+        ("tier4", re.compile(r'TIER4(?:_DEMO)?[:：]\s*(.+)', re.IGNORECASE)),
+    ]
+    for line in tier_search_text.splitlines():
+        for tier_key, pattern in tier_patterns:
+            m = pattern.match(line.strip())
+            if m:
+                tags = [t.strip() for t in m.group(1).split(',') if t.strip()]
+                tags_tiered[tier_key] = tags
+                break
+
+    # Build flat tags: all tiers merged, deduped, max 480 chars
+    all_tags: list = []
+    seen: set = set()
+    for tier in ["tier1", "tier2", "tier3", "tier4"]:
+        for tag in tags_tiered[tier]:
+            if tag not in seen:
+                seen.add(tag)
+                all_tags.append(tag)
+    tags_flat_parts: list = []
+    char_count = 0
+    for tag in all_tags:
+        addition = len(tag) + 2  # +2 for ", "
+        if char_count + addition > 480:
+            break
+        tags_flat_parts.append(tag)
+        char_count += addition
+    tags_flat = ", ".join(tags_flat_parts)
+
+    # Extract chapter lines from block 4
+    chapters_raw: list = []
+    for ln in block_texts.get(4, "").splitlines():
+        if re.match(r'^(?:00:00|XX:XX|\d{2}:\d{2})', ln.strip()):
+            chapters_raw.append(ln.strip())
+
+    # Extract and clean pinned comment from block 8
+    pinned_lines = []
+    for ln in block_texts.get(8, "").splitlines():
+        if re.search(r'(câu hỏi|Liên quan|Ví dụ|buộc khán giả|dòng mô tả)', ln):
+            continue
+        pinned_lines.append(ln)
+    pinned_comment = "\n".join(pinned_lines).strip()
+
+    return {
+        "description_jp": description_jp,
+        "tags_tiered": tags_tiered,
+        "tags_flat": tags_flat,
+        "pinned_comment": pinned_comment,
+        "chapters_raw": chapters_raw,
+    }
 
 
 async def ensure_thinking_effort_high(page: Page) -> None:
@@ -287,6 +535,37 @@ async def submit_prompt(page: Page, timeout_seconds: int = 15) -> None:
         await asyncio.sleep(0.5)
 
 
+GET_LATEST_ASSISTANT_TEXT_SCRIPT = """
+() => {
+    // 1. Standard selector
+    const roleNodes = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+    if (roleNodes.length > 0) {
+        const last = roleNodes[roleNodes.length - 1];
+        return last.innerText || last.textContent || "";
+    }
+    
+    // 2. Find by 'You said:' boundaries
+    const all = Array.from(document.querySelectorAll('*'));
+    const userSaidNodes = all.filter(el => el.textContent.trim() === 'You said:' && el.children.length === 0);
+    if (userSaidNodes.length > 0) {
+        const lastUser = userSaidNodes[userSaidNodes.length - 1];
+        let userBlock = lastUser;
+        while (userBlock && userBlock.parentElement && userBlock.parentElement.children.length === 1) {
+            userBlock = userBlock.parentElement;
+        }
+        const userTurn = userBlock.parentElement;
+        let assistantTurn = userTurn ? userTurn.nextElementSibling : null;
+        if (assistantTurn) {
+            let txt = assistantTurn.innerText || "";
+            txt = txt.replace(/^ChatGPT said:\s*/i, "").trim();
+            return txt;
+        }
+    }
+    return "";
+}
+"""
+
+
 async def send_chatgpt_message(page: Page, message: str, timeout_seconds: int = 400) -> str:
     prompt_input = page.locator(PROMPT_INPUT_SELECTOR).first
     await prompt_input.wait_for(state="visible", timeout=30000)
@@ -296,11 +575,7 @@ async def send_chatgpt_message(page: Page, message: str, timeout_seconds: int = 
     while await stop_btn.is_visible() and asyncio.get_running_loop().time() < wait_stop_deadline:
         await asyncio.sleep(1)
 
-    previous_count = await page.locator(ASSISTANT_SELECTOR).count()
-    previous_text = ""
-    if previous_count > 0:
-        previous_text = await page.locator(ASSISTANT_SELECTOR).last.evaluate(RENDERED_MESSAGE_TEXT_SCRIPT)
-        previous_text = str(previous_text).strip()
+    previous_text = (await page.evaluate(GET_LATEST_ASSISTANT_TEXT_SCRIPT) or "").strip()
     
     await set_composer_text(page, message)
     await asyncio.sleep(0.4)
@@ -310,9 +585,9 @@ async def send_chatgpt_message(page: Page, message: str, timeout_seconds: int = 
     deadline = asyncio.get_running_loop().time() + timeout_seconds
     started = False
     while asyncio.get_running_loop().time() < deadline:
-        curr_count = await page.locator(ASSISTANT_SELECTOR).count()
         stop_count = await page.locator(STOP_SELECTOR).count()
-        if curr_count > previous_count or stop_count > 0:
+        curr_text = (await page.evaluate(GET_LATEST_ASSISTANT_TEXT_SCRIPT) or "").strip()
+        if stop_count > 0 or (curr_text and curr_text != previous_text):
             started = True
             break
         await asyncio.sleep(1)
@@ -331,21 +606,17 @@ async def send_chatgpt_message(page: Page, message: str, timeout_seconds: int = 
         except Exception:
             pass
             
-        messages = page.locator(ASSISTANT_SELECTOR)
-        msg_count = await messages.count()
-        if msg_count > 0:
-            curr_text = await messages.nth(msg_count - 1).evaluate(RENDERED_MESSAGE_TEXT_SCRIPT)
-            curr_text = str(curr_text).strip()
-            curr_text = re.sub(r"^(?:thought for \d+\s*(?:s|sec|seconds)|thinking process:?[\s\S]*?\n\n)", "", curr_text, flags=re.I).strip()
-            
-            if curr_text and curr_text != previous_text and curr_text == last_text and not stop_visible:
-                stable_count += 1
-                if stable_count >= 3:
-                    logger.info("Generation finished and stabilized.")
-                    break
-            else:
-                stable_count = 0
-            last_text = curr_text
+        curr_text = (await page.evaluate(GET_LATEST_ASSISTANT_TEXT_SCRIPT) or "").strip()
+        curr_text = re.sub(r"^(?:thought for \d+\s*(?:s|sec|seconds)|thinking process:?[\s\S]*?\n\n)", "", curr_text, flags=re.I).strip()
+        
+        if curr_text and curr_text != previous_text and curr_text == last_text and not stop_visible:
+            stable_count += 1
+            if stable_count >= 3:
+                logger.info("Generation finished and stabilized.")
+                break
+        else:
+            stable_count = 0
+        last_text = curr_text
             
         await asyncio.sleep(2)
         
@@ -606,72 +877,36 @@ async def execute_full_drama_workflow(
         logger.info(f"[TURN 1 DONE] Script length: {len(script_jp)} chars.")
         await asyncio.sleep(2)
 
-        # TURN 2: Tiêu đề 【99％が知らない】
-        logger.info("[TURN 2/5] Generating dramatic Japanese title...")
-        prompt_turn2 = (
-            f"viết lại tiêu đề sao cho GAY GẮT, KHẲNG ĐỊNH, THÔ RÁP, DRAMA. chuẩn SEO. "
-            f"bắt đầu bằng 【99％が知らない】(phù hợp với thị trường Nhật Bản)\n\n{title}"
-        )
-        raw_title_response = await send_chatgpt_message(page, prompt_turn2, timeout_seconds=180)
-        title_lines = [l.strip() for l in raw_title_response.splitlines() if l.strip()]
-        title_jp = next((l for l in title_lines if "【99" in l or "99%" in l), title_lines[0] if title_lines else raw_title_response)
-        title_jp = title_jp.strip('"`*')
-        logger.info(f"[TURN 2 DONE] Title: {title_jp}")
+        # TURN 2: Title — 3 variants A/B/C, SEO JP
+        logger.info("[TURN 2/5] Generating Japanese title variants (A/B/C)...")
+        raw_title_response = await send_chatgpt_message(page, PROMPT_TURN2_TEMPLATE, timeout_seconds=180)
+        title_parsed = parse_turn2_result(raw_title_response)
+        title_jp = title_parsed["title_primary"]
+        logger.info(f"[TURN 2 DONE] Title A: {title_parsed['title_a']}")
+        logger.info(f"              Title B: {title_parsed['title_b']}")
+        logger.info(f"              Title C: {title_parsed['title_c']}")
         await asyncio.sleep(2)
 
-        # TURN 3: Mô tả chuẩn SEO YouTube JP (Hook + Chapters + CTA + Disclaimer + Hashtags)
-        logger.info("[TURN 3/5] Generating professional Japanese YouTube description & chapters...")
-        raw_description_response = await send_chatgpt_message(page, PROMPT_TURN3_TEMPLATE, timeout_seconds=240)
-        desc_lines = raw_description_response.splitlines()
-        # Remove typical AI meta lead-in lines if present
-        while desc_lines and any(desc_lines[0].strip().startswith(prefix) for prefix in [
-            "短く", "承知", "以下", "YouTube動画説明文", "説明文：", "説明文:", "【説明文】"
-        ]):
-            first_line = desc_lines[0].strip()
-            for prefix in ["YouTube動画説明文：", "YouTube動画説明文:", "YouTube動画説明文", "説明文：", "説明文:"]:
-                if first_line.startswith(prefix):
-                    remainder = first_line[len(prefix):].strip()
-                    if remainder:
-                        desc_lines[0] = remainder
-                    else:
-                        desc_lines.pop(0)
-                    break
-            else:
-                desc_lines.pop(0)
-        description_jp = "\n".join(desc_lines).strip()
-        
-        # Extract comma-separated YouTube Tags
-        youtube_tags = ""
-        tag_match = re.search(r"(?:【?(?:タグ|Tags|YouTube Tags)】?[：:]\s*)([^\n]+)", description_jp, re.IGNORECASE)
-        if tag_match:
-            youtube_tags = tag_match.group(1).strip()
-            # Clean tags block from description
-            description_jp = re.sub(r"\n*(?:【?(?:タグ|Tags|YouTube Tags)】?[：:]?\s*[^\n]+)\Z", "", description_jp, flags=re.IGNORECASE).strip()
-        else:
-            # Fallback: extract hashtags and add high-volume Japanese wisdom keywords
-            hashtags = [h.strip("#") for h in re.findall(r"#[^\s#]+", description_jp)]
-            standard_tags = [
-                "人生の教訓", "生き方", "人生哲学", "人間関係", "処世術", "老後の知恵",
-                "後悔しない生き方", "大人の学び", "名言", "心理学", "先人の知恵",
-                "人生の鉄則", "お金の教訓", "信用", "50代", "60代", "シニアの生き方",
-                "賢く生きる", "人生の落とし穴", "心に刺さる言葉"
-            ]
-            combined = []
-            for t in hashtags + standard_tags:
-                if t and t not in combined:
-                    combined.append(t)
-            youtube_tags = ", ".join(combined[:20])
-
-        logger.info(f"[TURN 3 DONE] Description length: {len(description_jp)} chars. Tags: {len(youtube_tags.split(','))} tags.")
+        # TURN 3: Description (8 blocks) + Tags (4 tiers) + Pinned Comment
+        logger.info("[TURN 3/5] Generating description, tags, pinned comment...")
+        raw_description_response = await send_chatgpt_message(page, PROMPT_TURN3_TEMPLATE, timeout_seconds=300)
+        turn3_parsed = parse_turn3_result(raw_description_response)
+        description_jp = turn3_parsed["description_jp"]
+        youtube_tags = turn3_parsed["tags_flat"]
+        tags_tiered = turn3_parsed["tags_tiered"]
+        pinned_comment = turn3_parsed["pinned_comment"]
+        chapters_raw = turn3_parsed["chapters_raw"]
+        logger.info(
+            f"[TURN 3 DONE] Description: {len(description_jp)} chars. "
+            f"Tags: {len(youtube_tags.split(','))} total. "
+            f"Chapters: {len(chapters_raw)}. "
+            f"Pinned comment: {'YES' if pinned_comment else 'NO'}."
+        )
         await asyncio.sleep(2)
 
-        # TURN 4: Text trên Thumbnail
-        logger.info("[TURN 4/5] Generating 3-line dramatic thumbnail text...")
-        prompt_turn4 = (
-            f"chốt\n{title_jp}\n"
-            f"hãy đề xuất text trên thumb (3 dòng không quá dài) sao cho clickbait, gây gốc, GAY GẮT, KHẲNG ĐỊNH, THÔ RÁP, DRAMA."
-        )
-        raw_thumb_response = await send_chatgpt_message(page, prompt_turn4, timeout_seconds=180)
+        # TURN 4: Thumbnail text — 3 lines with formula heuristic
+        logger.info("[TURN 4/5] Generating 3-line thumbnail text with formula heuristic...")
+        raw_thumb_response = await send_chatgpt_message(page, PROMPT_TURN4_TEMPLATE, timeout_seconds=180)
         chosen_thumb_text, thumb_options = parse_thumbnail_response(raw_thumb_response)
         logger.info(f"[TURN 4 DONE] Chosen Thumbnail Text:\n{chosen_thumb_text}")
         await asyncio.sleep(2)
@@ -696,7 +931,7 @@ async def execute_full_drama_workflow(
         
         await context.close()
 
-        # AUDIO TTS: Tùy chọn sinh audio lồng tiếng bằng GPT-SoVITS (giọng Matsushita drama seg_A)
+        # AUDIO TTS: Tùy chọn sinh audio lồng tiếng bằng GPT-SoVITS
         audio_url = None
         if synthesize_audio and script_jp:
             try:
@@ -716,13 +951,24 @@ async def execute_full_drama_workflow(
             "title": title,
             "url": url,
             "conversation_url": conversation_url,
+            # Title variants
             "title_jp": title_jp,
+            "title_a_jp": title_parsed["title_a"],
+            "title_b_jp": title_parsed["title_b"],
+            "title_c_jp": title_parsed["title_c"],
+            # Script
             "script_jp": script_jp,
+            # Description & metadata
             "description_jp": description_jp,
             "youtube_tags": youtube_tags,
+            "tags_tiered": tags_tiered,
+            "pinned_comment": pinned_comment,
+            "chapters_raw": chapters_raw,
+            # Thumbnail
             "thumbnail_text": chosen_thumb_text,
             "thumbnail_options": thumb_options,
             "thumbnail_image_url": thumbnail_image_url,
+            # Audio
             "audio_url": audio_url,
             "char_count": len(script_jp),
         }

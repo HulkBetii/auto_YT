@@ -324,6 +324,15 @@ def is_meta_text(text: str) -> bool:
     for kw in meta_keywords:
         if kw in t_low:
             return True
+
+    # Filter standalone onomatopoeia / sound effect lines (e.g. "Ù... O...", "RẦM!", "Choang!", "CỐP!")
+    sfx_keywords = ["rầm", "cốp", "rắc", "cạch", "choang", "tách", "bốp", "bụp", "xoảng", "vút"]
+    if any(siren in t_low for siren in ["ù... o", "ù...o", "u... o", "u...o", "ù o"]):
+        return True
+    words = t_low.split()
+    if len(words) <= 3 and any(k in t_low for k in sfx_keywords) and not any(w in t_low for w in ["tôi", "mẹ", "con", "bà", "anh", "chị", "ông", "đứng", "nói", "nghe"]):
+        return True
+
     return False
 
 def clean_text_for_tts(text: str) -> str:
@@ -806,7 +815,7 @@ def parse_script_to_manifest(script_path: Path, output_jsonl: Path) -> List[Dict
             (9, r"CHƯƠNG\s*9\b.*?(?=Phần này kết|$)")
         ]),
         ("turn5_chapter_10_outro.md", [
-            (10, r"CHƯƠNG\s*10\b.*?(?=$)")
+            (10, r"(?:CHƯƠNG\s*10\b|##\s*PHẦN\s*4|\[SPEAKER:).*?(?=$)")
         ])
     ]
 

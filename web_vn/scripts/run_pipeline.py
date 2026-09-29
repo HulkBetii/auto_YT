@@ -93,31 +93,43 @@ def run_step_1_seed(story_id: str, cluster_id: Optional[str], story_dir: Path, a
     return seed
 
 
-def run_step_2_chatgpt(story_id: str, story_dir: Path, headless: bool = False):
-    """Step 2: Script generation via ChatGPT 6-turn pipeline."""
+def run_step_2_script(story_id: str, story_dir: Path, ai_engine: str = "9router", headless: bool = False):
+    """Step 2: Script generation via 9Router Gemini API (default) or ChatGPT Playwright."""
     logger.info("=" * 70)
-    logger.info("👉 STEP 2/6: ChatGPT 6-Turn Scriptwriting")
+    logger.info(f"👉 STEP 2/6: Scriptwriting Generation [{ai_engine.upper()}]")
     logger.info("=" * 70)
 
     # Check if final or turn files already exist
     full_script_file = story_dir / "full_story_script.md"
-    turn_files = list(story_dir.glob("turn*_*.md"))
     if full_script_file.exists() and full_script_file.stat().st_size > 1000:
-        logger.info(f"Full story script already exists ({full_script_file.stat().st_size:,} bytes). Skipping ChatGPT generation.")
+        logger.info(f"Full story script already exists ({full_script_file.stat().st_size:,} bytes). Skipping script generation.")
         update_state(story_dir, "step_2_script", "SKIPPED_EXISTING", {"path": str(full_script_file)})
         return
 
-    logger.info("Launching Playwright ChatGPT multi-turn automation...")
-    cmd = [
-        sys.executable,
-        str(SCRIPTS_DIR / "chatgpt_vn_story_pipeline.py"),
-        "--story-id", story_id
-    ]
+    if ai_engine == "9router":
+        logger.info("Launching 9Router Gemini API high-speed story pipeline...")
+        cmd = [
+            sys.executable,
+            str(SCRIPTS_DIR / "gemini_vn_story_pipeline.py"),
+            "--story-id", story_id
+        ]
+    else:
+        logger.info("Launching Playwright ChatGPT multi-turn automation...")
+        cmd = [
+            sys.executable,
+            str(SCRIPTS_DIR / "chatgpt_vn_story_pipeline.py"),
+            "--story-id", story_id
+        ]
+        if headless:
+            cmd.append("--headless")
+
     subprocess.run(cmd, check=True)
 
     update_state(story_dir, "step_2_script", "DONE", {
+        "engine": ai_engine,
         "full_script_exists": full_script_file.exists()
     })
+
 
 
 def run_step_3_parser(story_id: str, story_dir: Path) -> Path:
@@ -244,12 +256,13 @@ def main():
     parser = argparse.ArgumentParser(description="Vietnamese Audio Drama Orchestrator Pipeline v4.1")
     parser.add_argument("--story-id", type=str, required=True, help="Story identifier (e.g. story_bo_chong_02)")
     parser.add_argument("--cluster", type=str, default=None, help="Cluster preset ID from topic_matrix_presets.json")
+    parser.add_argument("--ai-engine", type=str, default="9router", choices=["9router", "chatgpt"], help="LLM engine for scriptwriting (default: 9router)")
     parser.add_argument("--engine", type=str, default="vieneu", choices=["vieneu", "edge_tts", "omnivoice"], help="TTS engine")
-    parser.add_argument("--skip-chatgpt", action="store_true", help="Skip Step 2 (ChatGPT generation) if script exists")
+    parser.add_argument("--skip-script", "--skip-chatgpt", dest="skip_script", action="store_true", help="Skip Step 2 (Script generation) if script exists")
     parser.add_argument("--skip-tts", action="store_true", help="Stop after manifest generation and validation")
     parser.add_argument("--skip-video", action="store_true", help="Skip Step 7 (video rendering)")
     parser.add_argument("--cover-image", type=str, default=None, help="Custom cover image path for video")
-    parser.add_argument("--headless", action="store_true", help="Run Playwright in headless mode")
+    parser.add_argument("--headless", action="store_true", help="Run Playwright in headless mode (if using chatgpt engine)")
     parser.add_argument("--chapter", type=int, default=None, help="Filter to specific chapter number")
     parser.add_argument("--limit-chunks", type=int, default=None, help="Limit number of chunks to synthesize")
     parser.add_argument("--bgm", type=str, default=None, help="Path to background music audio file")
@@ -268,6 +281,7 @@ def main():
     logger.info("╚" + "═" * 68 + "╝")
     logger.info(f"Target Story : {story_folder}")
     logger.info(f"Output Dir   : {story_dir}")
+    logger.info(f"AI Engine    : {args.ai_engine}")
     logger.info(f"TTS Engine   : {args.engine}")
     if args.cluster:
         logger.info(f"Topic Cluster: {args.cluster}")
@@ -282,14 +296,15 @@ def main():
         )
         title = seed.get("title", story_folder)
 
-        # Step 2: ChatGPT Script
-        if not args.skip_chatgpt:
-            run_step_2_chatgpt(story_folder, story_dir, headless=args.headless)
+        # Step 2: Script Generation (9Router Gemini API or ChatGPT Playwright)
+        if not args.skip_script:
+            run_step_2_script(story_folder, story_dir, ai_engine=args.ai_engine, headless=args.headless)
         else:
-            logger.info("Skipping ChatGPT scriptwriting (--skip-chatgpt enabled).")
+            logger.info("Skipping scriptwriting (--skip-script enabled).")
 
         # Step 3: Script Audio Parser
         manifest_file = run_step_3_parser(story_folder, story_dir)
+
 
         # Step 4: Quality Gate & Validation
         run_step_4_validate(manifest_file, story_dir)

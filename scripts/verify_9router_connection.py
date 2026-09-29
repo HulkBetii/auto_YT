@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Script xác thực kết nối E2E tới 9Router Gemini API Gateway trên localhost:20128.
+Smoke test and latency check for 9Router Gemini API Gateway in auto_YT.
 """
-
-import sys
 import os
+import sys
+import time
 import asyncio
 from pathlib import Path
 
+# Add src to sys.path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
@@ -16,43 +17,44 @@ from auto_yt.gemini_api_engine import get_gemini_api_engine
 
 async def main():
     print("=" * 60)
-    print("🔍 Đang khởi tạo kết nối tới 9Router Gemini API Gateway...")
+    print("🚀 9ROUTER GEMINI API GATEWAY — SMOKE TEST & LATENCY CHECK")
     print("=" * 60)
 
     engine = get_gemini_api_engine()
-    print(f"📍 Base URL     : {engine.base_url}")
-    print(f"🔑 Current Key  : {engine.get_current_key()[:8]}...{engine.get_current_key()[-4:]}")
-    print(f"🤖 Default Model: {engine.default_model}")
+    print(f"Base URL     : {engine.base_url}")
+    print(f"Default Model: {engine.default_model}")
+    print(f"Active Key   : {engine.get_current_key()[:8]}... (Total Keys: {len(engine.api_keys)})")
 
-    print("\n--- 1. Kiểm tra kết nối nhanh (Health Check) ---")
+    # 1. Test basic connection
+    print("\n[Step 1] Testing basic connection...")
+    t0 = time.time()
     ok, msg = await engine.test_connection()
+    t1 = time.time()
     if ok:
-        print(f"✅ {msg}")
+        print(f"✅ Connection OK ({t1 - t0:.2f}s): {msg}")
     else:
-        print(f"❌ {msg}")
-        return
+        print(f"❌ Connection FAILED ({t1 - t0:.2f}s): {msg}")
+        sys.exit(1)
 
-    print("\n--- 2. Thử nghiệm sinh kịch bản Drama Hàn Quốc (Prompt Test) ---")
-    prompt = """
-Hãy viết 1 phân đoạn kịch bản ngắn (khoảng 150-200 từ) cho tập phim Drama Hàn Quốc:
-Chủ đề: Mẹ chồng gia tộc Chaebol đối đầu con dâu nghèo giàu nghị lực.
-Yêu cầu bắt buộc:
-1. Sử dụng định dạng thẻ nhân vật: [SPEAKER:me_chong], [SPEAKER:con_dau], [SPEAKER:nguoi_dan].
-2. Lời thoại sắc bén, đậm chất drama trả thù Hàn Quốc.
-"""
-    try:
-        res, used_model = await engine.generate_content(
-            prompt=prompt,
-            temperature=0.7,
-            max_output_tokens=1024,
-        )
-        print(f"✅ Đã nhận phản hồi thành công từ model '{used_model}':\n")
-        print("-" * 50)
-        print(res.strip())
-        print("-" * 50)
-        print("\n🎉 XÁC THỰC 9ROUTER CHO DRAMA HÀN THÀNH CÔNG 100%!")
-    except Exception as e:
-        print(f"❌ Lỗi sinh nội dung: {e}")
+    # 2. Test creative generation (Vietnamese prompt)
+    print("\n[Step 2] Testing creative prompt generation in Vietnamese...")
+    prompt = (
+        "Bạn là biên kịch audio drama 'Sâm Kể Chuyện'. "
+        "Hãy viết một đoạn mở đầu 2 câu đầy cảm xúc và chiêm nghiệm về tình mẫu tử thiêng liêng."
+    )
+    t0 = time.time()
+    text, model_used = await engine.generate_content(
+        prompt=prompt,
+        temperature=0.7,
+        max_output_tokens=500
+    )
+    t1 = time.time()
+    print(f"✅ Model [{model_used}] responded in {t1 - t0:.2f}s:")
+    print("-" * 50)
+    print(text)
+    print("-" * 50)
+
+    print("\n🎉 9Router Gemini API Gateway is 100% OPERATIONAL!")
 
 
 if __name__ == "__main__":

@@ -7,9 +7,16 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 
 REPO_ROOT = Path(r"D:\VibeCoding\auto_YT")
-story_dir = REPO_ROOT / "web_vn" / "output" / "story_me_gia_03"
+import argparse
+parser = argparse.ArgumentParser(description="Audit dialogue attribution")
+parser.add_argument("--story-id", type=str, default="story_me_gia_03", help="Story ID")
+args, _ = parser.parse_known_args()
+
+s_name = args.story_id if args.story_id.startswith("story_") else f"story_{args.story_id}"
+story_dir = REPO_ROOT / "web_vn" / "output" / s_name
 manifest_path = story_dir / "audio_manifest.jsonl"
 script_path = story_dir / "full_story_script.md"
+
 
 if not manifest_path.exists():
     print("Manifest not found.")
@@ -73,12 +80,12 @@ for c in chunks:
     # Check 3: Con dâu (female antagonist) speaking lines attributed to nhan_vat_chinh
     if role == "nhan_vat_chinh":
         direct_dil_phrases = [
-            "Bà Lành", "nhà này không phải cái chợ", "đồ nhà quê", "bẩn thỉu", "gầm cầu thang", 
+            "Bà Lành", "nhà này không phải cái chợ", "đồ nhà quê", "gầm cầu thang", 
             "vứt hết đi", "mẹ chồng", "ai cho bà", "bà cút đi", "người giúp việc"
         ]
         for p in direct_dil_phrases:
             # Check if it looks like direct speech from con dâu
-            if p.lower() in text.lower() and any(verb in text.lower() for verb in ["hét lên", "quát", "lườm", "đồ", "bảo bà", "đuổi"]):
+            if p.lower() in text.lower() and any(re.search(rf"\b{re.escape(verb)}\b", text, re.IGNORECASE) for verb in ["hét lên", "quát", "lườm", "đồ", "bảo bà", "đuổi"]):
                 daughter_in_law_mismatches.append((cid, chap, role, "ke_phan_dien_nu (Con dâu)", text))
                 break
 

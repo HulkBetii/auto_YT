@@ -59,6 +59,11 @@ def extract_youtube_info(video_url: str) -> Dict[str, Any]:
         "writesubtitles": True,
         "writeautomaticsub": True,
         "subtitleslangs": ["all"],
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios", "android", "web"]
+            }
+        },
         "quiet": True,
         "no_warnings": True,
     }
