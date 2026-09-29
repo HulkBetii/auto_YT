@@ -9,62 +9,74 @@ import {
   Layers, 
   Cpu, 
   Clock, 
-  FileText,
-  ShieldCheck,
-  Zap,
-  ArrowRight,
-  Database,
-  Copy,
-  Check,
-  Volume2,
-  Play,
-  Pause,
-  Headphones,
-  Radio,
-  Sliders,
-  Users,
-  Download,
-  Music,
-  Award
+  FileText, 
+  ShieldCheck, 
+  Zap, 
+  ArrowRight, 
+  Database, 
+  Copy, 
+  Check, 
+  Volume2, 
+  Play, 
+  Pause, 
+  Headphones, 
+  Radio, 
+  Sliders, 
+  Users, 
+  Download, 
+  Music, 
+  Award, 
+  UserCheck, 
+  Flame 
 } from 'lucide-react';
 
-const ARCHETYPES = [
-  { id: '1', title: 'Thiếu tá Điều tra', desc: 'Bản lĩnh, trọng tình nghĩa, chính trực' },
-  { id: '2', title: 'Đại úy An ninh', desc: 'Điềm đạm, kín tiếng, sắc sảo' },
-  { id: '3', title: 'Trung tá Biên phòng', desc: 'Mộc mạc, giàu đức hy sinh' },
-  { id: '4', title: 'Nữ Đại úy Công an', desc: 'Tự trọng, kiên định' },
-  { id: '5', title: 'Đại tá Quân đội', desc: 'Nghiêm nghị, quyết đoán' }
-];
+import matrixPresetsData from '@/data/topic_matrix_presets.json';
 
-const SACRIFICES = [
-  'Bán toàn bộ của hồi môn và vàng cưới lo vốn cho chồng lập nghiệp',
-  'Tần tảo chăm sóc mẹ chồng tai biến liệt giường suốt 6 năm',
-  'Gửi toàn bộ tiền bán đất dưỡng già của mẹ nghèo ở quê cho vợ giữ',
-  'Từ chối cơ hội thăng tiến lên tỉnh để ở quê chăm lo bố mẹ chồng'
-];
+interface Archetype {
+  id: string;
+  title: string;
+  desc: string;
+}
 
-const OPPRESSIONS = [
-  'Chồng rước Tiểu tam có bầu về nhà, ép vợ ra đi tay trắng trong đêm mưa',
-  'Bị vu oan làm thâm hụt tiền, mẹ chồng ép quỳ lạy từ bỏ quyền nuôi con',
-  'Chồng và Tiểu tam cấu kết làm giả chữ ký bán căn nhà 12 tỷ',
-  'Con dâu ngược đãi bố chồng thương binh cụt tay, bắt ăn cơm thừa dưới bếp'
-];
+interface ConflictCluster {
+  id: string;
+  name: string;
+  badge: string;
+  desc: string;
+  default_pronoun: string;
+  victim_role_name: string;
+  antagonist_1_name: string;
+  antagonist_2_name: string;
+  voice_preset: {
+    host: string;
+    victim: string;
+    antagonist_1: string;
+    antagonist_2: string;
+    justice: string;
+  };
+  archetypes: Archetype[];
+  sacrifices: string[];
+  oppressions: string[];
+  plot_secrets: string[];
+  retributions: string[];
+  morals: string[];
+  title_templates: string[];
+}
 
-const SECRETS = [
-  'Căn nhà 12 tỷ đứng tên riêng do bố mẹ đẻ mua từ trước ngày cưới',
-  'Nhân vật chính giả vờ mù sau tai nạn để thu thập toàn bộ chứng cứ',
-  'Vợ cũ thực chất là Tổ trưởng chuyên án đang bí mật điều tra kẻ lừa đảo',
-  'Điện thoại bị ném xuống sông được trục vớt, phục hồi tin nhắn tố cáo'
-];
+interface VoiceCard {
+  id: string;
+  name: string;
+  role: string;
+  model: string;
+  desc: string;
+  file: string;
+  style: string;
+  quality: string;
+}
 
-const RETRIBUTIONS = [
-  'Cảnh sát ập vào phòng công chứng bắt giữ Tiểu tam và Chồng lừa đảo',
-  'Mẹ chồng chết lặng khi thấy toàn bộ công an tỉnh cúi chào con dâu là Sếp',
-  'Gã nhân tình ôm tiền bỏ trốn để lại món nợ 8 tỷ cho người vợ bội bạc',
-  'Kẻ thủ ác bị còng tay ngay trước giờ cử hành đám cưới xa hoa'
-];
+const CLUSTERS: ConflictCluster[] = matrixPresetsData.clusters as ConflictCluster[];
 
-const VOICE_CARDS = [
+const ALL_VOICE_CARDS: VoiceCard[] = [
   {
     id: 'bac_sam',
     name: 'Bác Sâm',
@@ -77,8 +89,8 @@ const VOICE_CARDS = [
   },
   {
     id: 'nhan_vat_chinh',
-    name: 'Nữ Chính (Hồng Diễm)',
-    role: 'Nhân Vật Chính (Khổ Hạnh & Kiên Cường)',
+    name: 'Nữ Chính (Minh Hà)',
+    role: 'Nữ Chính Khổ Hạnh & Kiên Cường',
     model: 'VieNeu-TTS v3 Turbo 48kHz (Ngọc Linh)',
     desc: 'Giọng nữ chuẩn Hà Nội, nghẹn ngào, nén đau thương, dứt khoát và đanh thép khi lật màn.',
     file: 'test_voices/test_nhan_vat_chinh.wav',
@@ -86,19 +98,49 @@ const VOICE_CARDS = [
     quality: '48 kHz'
   },
   {
+    id: 'bo_chong',
+    name: 'Bố Chồng / Cựu Binh Già',
+    role: 'Nam Cao Tuổi Khắc Khổ & Bản Lĩnh',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Thanh Bình / Ref Clone)',
+    desc: 'Giọng nam lớn tuổi miền Bắc, trầm đục, từng trải, nén nỗi xót xa nhưng uy nghiêm đĩnh đạc.',
+    file: 'test_voices/test_bac_sam.wav',
+    style: 'Kể chuyện / Xúc động',
+    quality: '48 kHz'
+  },
+  {
+    id: 'me_gia',
+    name: 'Mẹ Già Quê Nghèo',
+    role: 'Nữ Cao Tuổi Tần Tảo & Nghẹn Ngào',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Mai Anh)',
+    desc: 'Giọng nữ lớn tuổi miền quê, khắc khổ, rung rẩy nghẹn ngào, giàu tình mẫu tử bao la.',
+    file: 'samples/me_chong.wav',
+    style: 'Tự sự / Nghẹn ngào',
+    quality: '48 kHz'
+  },
+  {
+    id: 'nguoi_chong',
+    name: 'Người Chồng Cựu Binh',
+    role: 'Nam Trung Niên Cương Trực & Phong Trần',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Phạm Tuyên)',
+    desc: 'Giọng nam trung niên miền Bắc, dứt khoát, phong trần, đậm chất kỷ luật người lính.',
+    file: 'samples/nguoi_chong.mp3',
+    style: 'Tự sự / Phong trần',
+    quality: '48 kHz'
+  },
+  {
     id: 'me_chong',
-    name: 'Mẹ Chồng (NSND Lan Hương)',
-    role: 'Mẹ Chồng Cay Nghiệt',
-    model: 'VieNeu Zero-Shot Refined (48kHz)',
-    desc: 'Giọng nữ lớn tuổi, the thé, sắc lẹm, chì chiết, luôn trịch thượng chèn ép con dâu.',
+    name: 'Mẹ Chồng Cay Nghiệt',
+    role: 'Mẹ Chồng / Mẹ Đẻ Áp Bức',
+    model: 'VieNeu Zero-Shot Refined 48kHz (Mai Anh)',
+    desc: 'Giọng nữ lớn tuổi, the thé, sắc lẹm, chì chiết, luôn trịch thượng chèn ép.',
     file: 'test_voices/test_me_chong.wav',
     style: 'Tự nhiên / Đanh thép',
     quality: '48 kHz'
   },
   {
     id: 'tieu_tam',
-    name: 'Tiểu Tam (Lương Thanh)',
-    role: 'Kẻ Thứ Ba Đắc Thắng',
+    name: 'Tiểu Tam / Con Dâu Hỗn / Vợ Bội Bạc',
+    role: 'Nữ Trẻ Sắc Lẹm & Trơ Trẽn',
     model: 'VieNeu-TTS v3 Turbo 48kHz (Trúc Ly)',
     desc: 'Giọng nữ trẻ lả lơi, nũng nịu, châm chọc mỉa mai, lộ rõ bản chất tham lam trơ trẽn.',
     file: 'test_voices/test_tieu_tam.wav',
@@ -107,41 +149,57 @@ const VOICE_CARDS = [
   },
   {
     id: 'chong_boi_bac',
-    name: 'Chồng Bội Bạc',
-    role: 'Người Chồng Vô Ơn',
+    name: 'Chồng Bội Bạc / Kẻ Trọc Phú / Con Bất Hiếu',
+    role: 'Nam Vô Ơn & Lạnh Lùng',
     model: 'VieNeu-TTS v3 Turbo 48kHz (Phạm Tuyên)',
-    desc: 'Giọng nam trẻ gia trưởng, lạnh lùng, quát tháo tàn nhẫn, hèn nhát khi đối diện pháp luật.',
+    desc: 'Giọng nam trẻ/trung niên gia trưởng, lạnh lùng, quát tháo tàn nhẫn, hèn nhát khi đối diện pháp luật.',
     file: 'test_voices/test_chong_boi_bac.wav',
     style: 'Tự nhiên / Lạnh lùng',
+    quality: '48 kHz'
+  },
+  {
+    id: 'can_bo',
+    name: 'Đại Diện Công Lý / Đồng Đội',
+    role: 'Đại Diện Pháp Luật & Công Lý',
+    model: 'VieNeu-TTS v3 Turbo 48kHz (Thanh Bình)',
+    desc: 'Giọng nam dứt khoát, đanh thép, thể hiện sự trang nghiêm của pháp luật và công lý.',
+    file: 'test_voices/test_bac_sam.wav',
+    style: 'Trang nghiêm / Đanh thép',
     quality: '48 kHz'
   }
 ];
 
 export default function DashboardPage() {
-  const [selectedArch, setSelectedArch] = useState(ARCHETYPES[0]);
-  const [selectedSac, setSelectedSac] = useState(SACRIFICES[0]);
-  const [selectedOpp, setSelectedOpp] = useState(OPPRESSIONS[0]);
-  const [selectedSec, setSelectedSec] = useState(SECRETS[0]);
-  const [selectedRet, setSelectedRet] = useState(RETRIBUTIONS[0]);
+  const [selectedClusterIndex, setSelectedClusterIndex] = useState<number>(0);
+  const currentCluster = CLUSTERS[selectedClusterIndex] || CLUSTERS[0];
 
-  const [generatedTitle, setGeneratedTitle] = useState('');
+  const [selectedArch, setSelectedArch] = useState<Archetype>(currentCluster.archetypes[0]);
+  const [selectedSac, setSelectedSac] = useState<string>(currentCluster.sacrifices[0]);
+  const [selectedOpp, setSelectedOpp] = useState<string>(currentCluster.oppressions[0]);
+  const [selectedSec, setSelectedSec] = useState<string>(currentCluster.plot_secrets[0]);
+  const [selectedRet, setSelectedRet] = useState<string>(currentCluster.retributions[0]);
+  const [selectedMoral, setSelectedMoral] = useState<string>(currentCluster.morals[0]);
+
+  const [generatedTitle, setGeneratedTitle] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'matrix' | 'stepper' | 'fullscript' | 'seo' | 'audio'>('matrix');
   const [currentStoryId, setCurrentStoryId] = useState<string | number>('test_01');
   
   const [turnData, setTurnData] = useState<{
     turn1_blueprint: string | null;
-    turn2_chapters_1_4: string | null;
-    turn3_chapters_5_7: string | null;
-    turn4_chapters_8_10: string | null;
-    turn5_metadata_seo: string | null;
+    turn2_chapters_1_3: string | null;
+    turn3_chapters_4_6: string | null;
+    turn4_chapters_7_9: string | null;
+    turn5_chapter_10_outro: string | null;
+    turn6_metadata_seo: string | null;
     full_script: string | null;
   }>({
     turn1_blueprint: null,
-    turn2_chapters_1_4: null,
-    turn3_chapters_5_7: null,
-    turn4_chapters_8_10: null,
-    turn5_metadata_seo: null,
+    turn2_chapters_1_3: null,
+    turn3_chapters_4_6: null,
+    turn4_chapters_7_9: null,
+    turn5_chapter_10_outro: null,
+    turn6_metadata_seo: null,
     full_script: null,
   });
 
@@ -149,7 +207,7 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
 
   // Audio Tab State
-  const [selectedEngine, setSelectedEngine] = useState<'vieneu' | 'omnivoice'>('vieneu');
+  const [selectedEngine, setSelectedEngine] = useState<'vieneu' | 'edge_tts' | 'omnivoice'>('vieneu');
   const [audioStatus, setAudioStatus] = useState<{
     totalChunks: number;
     generatedChunks: number;
@@ -167,10 +225,55 @@ export default function DashboardPage() {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
+  // Initialize cluster
   useEffect(() => {
-    handleRandomize();
+    applyCluster(0);
     fetchAudioStatus();
   }, []);
+
+  const applyCluster = (index: number) => {
+    setSelectedClusterIndex(index);
+    const cluster = CLUSTERS[index] || CLUSTERS[0];
+    const arch = cluster.archetypes[0];
+    const sac = cluster.sacrifices[0];
+    const opp = cluster.oppressions[0];
+    const sec = cluster.plot_secrets[0];
+    const ret = cluster.retributions[0];
+    const moral = cluster.morals[0];
+    const title = cluster.title_templates[Math.floor(Math.random() * cluster.title_templates.length)];
+
+    setSelectedArch(arch);
+    setSelectedSac(sac);
+    setSelectedOpp(opp);
+    setSelectedSec(sec);
+    setSelectedRet(ret);
+    setSelectedMoral(moral);
+    setGeneratedTitle(title);
+  };
+
+  const handleRandomizeWithinCluster = () => {
+    const cluster = currentCluster;
+    const arch = cluster.archetypes[Math.floor(Math.random() * cluster.archetypes.length)];
+    const sac = cluster.sacrifices[Math.floor(Math.random() * cluster.sacrifices.length)];
+    const opp = cluster.oppressions[Math.floor(Math.random() * cluster.oppressions.length)];
+    const sec = cluster.plot_secrets[Math.floor(Math.random() * cluster.plot_secrets.length)];
+    const ret = cluster.retributions[Math.floor(Math.random() * cluster.retributions.length)];
+    const moral = cluster.morals[Math.floor(Math.random() * cluster.morals.length)];
+    const title = cluster.title_templates[Math.floor(Math.random() * cluster.title_templates.length)];
+
+    setSelectedArch(arch);
+    setSelectedSac(sac);
+    setSelectedOpp(opp);
+    setSelectedSec(sec);
+    setSelectedRet(ret);
+    setSelectedMoral(moral);
+    setGeneratedTitle(title);
+  };
+
+  const handleRandomizeAllClusters = () => {
+    const nextIdx = Math.floor(Math.random() * CLUSTERS.length);
+    applyCluster(nextIdx);
+  };
 
   // Poll generation progress if storyId active
   useEffect(() => {
@@ -226,23 +329,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRandomize = () => {
-    const arch = ARCHETYPES[Math.floor(Math.random() * ARCHETYPES.length)];
-    const sac = SACRIFICES[Math.floor(Math.random() * SACRIFICES.length)];
-    const opp = OPPRESSIONS[Math.floor(Math.random() * OPPRESSIONS.length)];
-    const sec = SECRETS[Math.floor(Math.random() * SECRETS.length)];
-    const ret = RETRIBUTIONS[Math.floor(Math.random() * RETRIBUTIONS.length)];
-
-    setSelectedArch(arch);
-    setSelectedSac(sac);
-    setSelectedOpp(opp);
-    setSelectedSec(sec);
-    setSelectedRet(ret);
-
-    const title = `${arch.title} Giả Mù Sau T.ai N.ạn – Chồng và Tiểu Tam C.hết L.ặng Thấy Cảnh Sát Gọi Vợ Là Sếp | Sâm Kể Chuyện`;
-    setGeneratedTitle(title);
-  };
-
   const handleStartGeneration = async () => {
     setIsGenerating(true);
     setActiveTab('stepper');
@@ -254,12 +340,23 @@ export default function DashboardPage() {
         body: JSON.stringify({
           title: generatedTitle,
           topicMatrix: {
+            cluster_id: currentCluster.id,
+            cluster_name: currentCluster.name,
+            default_pronoun: currentCluster.default_pronoun,
+            victim_role: currentCluster.voice_preset.victim,
+            victim_role_name: currentCluster.victim_role_name,
+            antagonist_1_role: currentCluster.voice_preset.antagonist_1,
+            antagonist_1_name: currentCluster.antagonist_1_name,
+            antagonist_2_role: currentCluster.voice_preset.antagonist_2,
+            antagonist_2_name: currentCluster.antagonist_2_name,
+            justice_role: currentCluster.voice_preset.justice,
+            justice_name: "Đại diện công lý / Đồng đội cũ",
             archetype: selectedArch.title,
             sacrifice: selectedSac,
             oppression: selectedOpp,
             plot_secret: selectedSec,
             retribution: selectedRet,
-            moral: "Giá trị của người phụ nữ không nằm ở sự cam chịu, mà là dũng cảm sống vì danh dự và sự thật."
+            moral: selectedMoral
           }
         })
       });
@@ -328,7 +425,7 @@ export default function DashboardPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Hidden Global Audio Element */}
       <audio ref={audioPlayerRef} className="hidden" />
 
@@ -342,7 +439,7 @@ export default function DashboardPage() {
             <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
               auto_YT <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">VieNeu-TTS 48kHz Audio Studio</span>
             </h1>
-            <p className="text-xs text-slate-400">Playwright ChatGPT Pipeline + VieNeu-TTS v3 Turbo 48kHz (Native VN Prosody) • Sâm Kể Chuyện Style</p>
+            <p className="text-xs text-slate-400">Pipeline Kịch Bản 1h00 – 1h30 (11.000 – 12.500 từ) + VieNeu-TTS v3 Turbo 48kHz (Universal Multi-Role) • Sâm Kể Chuyện Style</p>
           </div>
         </div>
 
@@ -369,58 +466,58 @@ export default function DashboardPage() {
         <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto">
           <button
             onClick={() => setActiveTab('matrix')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 cursor-pointer ${
               activeTab === 'matrix' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            1. Ma trận Topic & Blueprint
+            1. Ma trận Topic & Blueprint (5 Cụm Xung Đột)
           </button>
           <button
             onClick={() => setActiveTab('stepper')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 cursor-pointer ${
               activeTab === 'stepper' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin text-amber-400' : ''}`} />
-            2. Tiến trình 5-Turn Playwright
+            2. Tiến trình 6-Turn Playwright (1h-1h30)
           </button>
           <button
             onClick={() => setActiveTab('fullscript')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 cursor-pointer ${
               activeTab === 'fullscript' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <FileText className="w-4 h-4" />
-            3. Kịch bản Hoàn chỉnh ({totalWords > 0 ? `${totalWords.toLocaleString()} từ` : '23,617 từ'})
+            3. Kịch bản 10 Chương ({totalWords > 0 ? `${totalWords.toLocaleString()} từ` : '11.850 từ'})
           </button>
           <button
             onClick={() => setActiveTab('seo')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 cursor-pointer ${
               activeTab === 'seo' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Layers className="w-4 h-4" />
-            4. Trọn bộ Metadata SEO & Thumbnail
+            4. Metadata SEO & Outlier Thumbnail
           </button>
           <button
             onClick={() => setActiveTab('audio')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition shrink-0 cursor-pointer ${
               activeTab === 'audio' 
                 ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Headphones className="w-4 h-4 text-amber-400" />
-            5. VieNeu 48kHz Audio Studio (5 Voices)
+            5. VieNeu 48kHz Audio Studio (Universal Voices)
             {audioStatus.hasFullAudio && (
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
@@ -430,18 +527,100 @@ export default function DashboardPage() {
         {/* Tab 1: Topic Matrix */}
         {activeTab === 'matrix' && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Tiêu đề Kịch tính Đã Tối ưu Lách Kiểm duyệt
+            {/* Conflict Cluster Selector */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-bold text-white flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-400" />
+                  Chọn Cụm Đề Tài Xung Đột Xã Hội (Conflict Matrix Clusters):
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRandomizeAllClusters}
+                    className="flex items-center gap-1.5 text-xs text-indigo-300 hover:text-indigo-200 px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Đổi Cụm Xung Đột Ngẫu Nhiên
+                  </button>
+                </div>
+              </div>
+
+              {/* 5 Conflict Clusters Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                {CLUSTERS.map((c, idx) => {
+                  const isSelected = idx === selectedClusterIndex;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => applyCluster(idx)}
+                      className={`text-left p-3.5 rounded-xl border transition flex flex-col justify-between cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-950/40 border-amber-500 text-white shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/50'
+                          : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-2">
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                            isSelected 
+                              ? 'bg-amber-500 text-slate-950 border-amber-400' 
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}>
+                            {c.badge}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            Xưng: <strong className="text-amber-300">{c.default_pronoun}</strong>
+                          </span>
+                        </div>
+                        <div className="font-bold text-xs leading-snug text-slate-100">{c.name}</div>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                        {c.desc}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Dynamic Role Mapping Preview */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  Phân Vai Đang Chọn:
                 </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-500/30">
+                  Nạn nhân: <strong>{currentCluster.victim_role_name}</strong> (Xưng "{currentCluster.default_pronoun}")
+                </span>
+                <span className="px-2 py-0.5 rounded bg-red-950/60 text-red-300 border border-red-500/30">
+                  Đối kháng 1: <strong>{currentCluster.antagonist_1_name}</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded bg-orange-950/60 text-orange-300 border border-orange-500/30">
+                  Đối kháng 2: <strong>{currentCluster.antagonist_2_name}</strong>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={handleRandomize}
+                  onClick={handleRandomizeWithinCluster}
                   className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  Xáo trộn Ma trận
+                  Xáo Trộn Biến Số Cụm Này
                 </button>
+              </div>
+            </div>
+
+            {/* Generated Title Banner */}
+            <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Tiêu đề Kịch tính Chuẩn Outlier Lách Kiểm duyệt
+                </span>
+                <span className="text-xs text-slate-400">
+                  Thời lượng dự kiến: <strong className="text-amber-300 font-mono">1h00 – 1h30</strong> (10 Chương)
+                </span>
               </div>
               <textarea
                 value={generatedTitle}
@@ -453,13 +632,14 @@ export default function DashboardPage() {
 
             {/* Matrix Variables Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Archetypes */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  1. Thân phận & Phẩm chất Nhân vật chính
+                  1. Thân phận & Phẩm chất Nạn nhân / Nhân vật chính
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {ARCHETYPES.map((a) => (
+                  {currentCluster.archetypes.map((a) => (
                     <button
                       key={a.id}
                       onClick={() => setSelectedArch(a)}
@@ -470,19 +650,20 @@ export default function DashboardPage() {
                       }`}
                     >
                       <div className="font-semibold text-slate-200">{a.title}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{a.desc}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{a.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Sacrifices */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <HeartHandshake className="w-4 h-4 text-pink-400" />
                   2. Sự hy sinh ban đầu (Tạo lòng trắc ẩn)
                 </label>
                 <div className="space-y-2">
-                  {SACRIFICES.map((s, idx) => (
+                  {currentCluster.sacrifices.map((s, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedSac(s)}
@@ -498,13 +679,14 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Oppressions */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-red-400" />
                   3. Hành vi áp bức & Bạc bẽo (Xung đột dâng cao)
                 </label>
                 <div className="space-y-2">
-                  {OPPRESSIONS.map((o, idx) => (
+                  {currentCluster.oppressions.map((o, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedOpp(o)}
@@ -520,13 +702,14 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Secrets & Retributions */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                  4. Bí mật & Cú Lật kèo (Thỏa mãn công lý)
+                  4. Cú Lật Kèo & Công Lý Thực Thi
                 </label>
                 <div className="space-y-2">
-                  {RETRIBUTIONS.map((r, idx) => (
+                  {currentCluster.retributions.map((r, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedRet(r)}
@@ -548,10 +731,10 @@ export default function DashboardPage() {
               <button
                 onClick={handleStartGeneration}
                 disabled={isGenerating}
-                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
+                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer disabled:opacity-50"
               >
                 {isGenerating ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                Khởi chạy Playwright ChatGPT Sinh Kịch Bản (5 Turns)
+                Khởi chạy Playwright ChatGPT Sinh Kịch Bản 1h00 – 1h30 (6 Turns)
               </button>
             </div>
           </div>
@@ -563,25 +746,26 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
                 <h3 className="font-bold text-white text-base flex items-center gap-2">
-                  Tiến trình Tự động hóa 5 Lượt (Playwright ChatGPT Session)
+                  Tiến trình Tự động hóa 6 Lượt (Playwright ChatGPT Session • 1h00 – 1h30)
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
                   Đang chạy trên profile <span className="text-indigo-400 font-mono">PROFILE_GPT_1</span> với context liên tục
                 </p>
               </div>
               <div className="text-xs font-mono text-amber-400 px-3 py-1 rounded bg-amber-500/10 border border-amber-500/30">
-                {totalWords.toLocaleString()} từ được tạo
+                {totalWords.toLocaleString()} từ / Mục tiêu: 11.000 – 12.500 từ
               </div>
             </div>
 
-            {/* 5 Turn Steps */}
-            <div className="space-y-4">
+            {/* 6 Turn Steps */}
+            <div className="space-y-3.5">
               {[
-                { turn: 1, name: 'Turn 1: Master Blueprint & Dàn ý 10 Chương', data: turnData.turn1_blueprint },
-                { turn: 2, name: 'Turn 2: Hồi 1 & Hồi 2 (Chương 1 - 4: ~9.000 từ)', data: turnData.turn2_chapters_1_4 },
-                { turn: 3, name: 'Turn 3: Hồi 3 (Chương 5 - 7: ~9.000 từ - Biến cố & Âm mưu)', data: turnData.turn3_chapters_5_7 },
-                { turn: 4, name: 'Turn 4: Hồi 4 & 5 (Chương 8 - 10: ~10.000 từ - Lật kèo & Outro)', data: turnData.turn4_chapters_8_10 },
-                { turn: 5, name: 'Turn 5: Trọn bộ Metadata SEO & Prompt Thumbnail', data: turnData.turn5_metadata_seo },
+                { turn: 1, name: 'Turn 1: Master Blueprint & Dàn ý 10 Chương (Chuẩn 1h00 - 1h30)', data: turnData.turn1_blueprint },
+                { turn: 2, name: 'Turn 2: Hồi 1 & Hồi 2 (Chương 1 - 3: ~3.500 từ - Khởi đầu & Hy sinh)', data: turnData.turn2_chapters_1_3 },
+                { turn: 3, name: 'Turn 3: Hồi 2 & Hồi 3 (Chương 4 - 6: ~3.800 từ - Áp bức & Âm thầm điều tra)', data: turnData.turn3_chapters_4_6 },
+                { turn: 4, name: 'Turn 4: Hồi 4 (Chương 7 - 9: ~3.800 từ - Bắt quả tang, Lật kèo & Công lý)', data: turnData.turn4_chapters_7_9 },
+                { turn: 5, name: 'Turn 5: Hồi 5 (Chương 10 & Lời kết Bác Sâm: ~1.500 từ - Nhân quả & Bình yên)', data: turnData.turn5_chapter_10_outro },
+                { turn: 6, name: 'Turn 6: Trọn bộ Metadata SEO & Prompt Thumbnail Outlier', data: turnData.turn6_metadata_seo },
               ].map((step) => (
                 <div 
                   key={step.turn}
@@ -632,9 +816,9 @@ export default function DashboardPage() {
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
-                <h3 className="font-bold text-white text-base">{generatedTitle || 'Kịch bản Mẫu: Thiếu tá Điều tra Giả Mù Sau Tai Nạn'}</h3>
+                <h3 className="font-bold text-white text-base">{generatedTitle || 'Kịch bản Mẫu: Sâm Kể Chuyện'}</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Độ dài: <span className="text-amber-400 font-semibold">{totalWords > 0 ? totalWords.toLocaleString() : '23,617'} từ</span> (~2.9 giờ đọc audio • 835 phân đoạn thoại)
+                  Độ dài: <span className="text-amber-400 font-semibold">{totalWords > 0 ? totalWords.toLocaleString() : '11.850'} từ</span> (~1.4 giờ audio • Chuẩn 10 Chương Sâm Kể Chuyện)
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -670,7 +854,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-slate-400 mt-1">Đã tối ưu hóa tiêu đề lách kiểm duyệt, mô tả 6 phần kèm Disclaimer và danh sách 20 thẻ tags</p>
               </div>
               <button
-                onClick={() => copyToClipboard(turnData.turn5_metadata_seo || '')}
+                onClick={() => copyToClipboard(turnData.turn6_metadata_seo || '')}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -679,7 +863,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-5 max-h-[600px] overflow-y-auto text-sm text-slate-300 whitespace-pre-wrap font-mono selection:bg-amber-500/20">
-              {turnData.turn5_metadata_seo || "Chưa có dữ liệu Metadata SEO."}
+              {turnData.turn6_metadata_seo || "Chưa có dữ liệu Metadata SEO."}
             </div>
           </div>
         )}
@@ -701,82 +885,112 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-white mt-2">
-                    5 Giọng Lồng Tiếng Biểu Cảm Phong Cách Kịch Truyền Thanh Sâm Kể Chuyện
+                    Ma Trận 9 Giọng Lồng Tiếng Biểu Cảm Cho Mọi Thân Phận Nạn Nhân & Kẻ Đối Kháng
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
                     Ngữ điệu tiếng Việt tự nhiên, trầm ấm lắng đọng ở lời dẫn và sắc thái đối thoại rõ nét theo chuẩn phát thanh EBU R128 (-16 LUFS).
                   </p>
                 </div>
 
-                {/* Demo Players Box */}
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="bg-slate-950/80 border border-amber-500/40 rounded-xl p-3.5 flex flex-col gap-1.5 min-w-[260px]">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-amber-300 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        Demo VieNeu 48kHz (5 Giọng)
-                      </span>
-                      <span className="text-[10px] text-emerald-400 font-mono">48 kHz</span>
-                    </div>
-                    <audio 
-                      controls 
-                      className="w-full h-8"
-                      src="/api/audio?file=test_voices/vieneu_demo_scene_5_voices.mp3"
-                    />
+                {/* Master Audio Demo Player */}
+                <div className="bg-slate-950/80 border border-amber-500/40 rounded-xl p-4 flex flex-col gap-2 md:min-w-[340px]">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-amber-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      Bản Demo Master Đa Phân Vai
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                      48kHz · EBU R128
+                    </span>
                   </div>
+                  <audio 
+                    controls 
+                    className="w-full h-8 mt-1"
+                    src="/api/audio?file=test_voices/new_clones_demo.mp3"
+                  />
                 </div>
               </div>
             </div>
 
-            {/* 5 Voice Character Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {VOICE_CARDS.map((v) => {
-                const isPlaying = playingVoice === v.id;
-                return (
-                  <div 
-                    key={v.id}
-                    className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-xl p-5 space-y-3 transition flex flex-col justify-between"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
-                            <Users className="w-4 h-4 text-amber-400" />
-                            {v.name}
-                          </h4>
-                          <div className="text-xs text-amber-400/90 font-medium mt-0.5">{v.role}</div>
+            {/* 9 Voice Character Cards Grid */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-400" />
+                  Danh Sách 9 Profile Giọng Đọc Đa Dạng (Universal Voice Profiles):
+                </h4>
+                <span className="text-xs text-slate-400">
+                  Cụm đang chọn: <strong className="text-amber-300">{currentCluster.name}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {ALL_VOICE_CARDS.map((v) => {
+                  const isPlaying = playingVoice === v.id;
+                  const isHost = v.id === 'bac_sam';
+                  const isVictim = v.id === currentCluster.voice_preset.victim;
+                  const isAntagonist1 = v.id === currentCluster.voice_preset.antagonist_1;
+                  const isAntagonist2 = v.id === currentCluster.voice_preset.antagonist_2;
+                  const isJustice = v.id === currentCluster.voice_preset.justice;
+                  const isActiveInCurrentCluster = isHost || isVictim || isAntagonist1 || isAntagonist2 || isJustice;
+
+                  return (
+                    <div 
+                      key={v.id}
+                      className={`border rounded-xl p-5 space-y-3 transition flex flex-col justify-between ${
+                        isActiveInCurrentCluster
+                          ? 'bg-slate-900/90 border-amber-500/40 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/20'
+                          : 'bg-slate-900/40 border-slate-800/80 opacity-75 hover:opacity-100 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                              <Users className="w-4 h-4 text-amber-400" />
+                              {v.name}
+                            </h4>
+                            <div className="text-xs text-amber-400/90 font-medium mt-0.5">{v.role}</div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
+                              {v.quality}
+                            </span>
+                            {isActiveInCurrentCluster && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                                {isHost ? 'Host' : isVictim ? 'Nạn Nhân' : isAntagonist1 ? 'Đối Kháng 1' : isAntagonist2 ? 'Đối Kháng 2' : 'Công Lý'}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
-                          {v.quality}
+                        <div className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 px-2 py-1 rounded border border-indigo-500/20">
+                          {v.model}
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          {v.desc}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                        <button
+                          onClick={() => playVoiceSample(v.id, v.file)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                            isPlaying 
+                              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          }`}
+                        >
+                          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                          {isPlaying ? 'Tạm dừng' : 'Nghe giọng mẫu'}
+                        </button>
+                        <span className="text-[10px] text-slate-400">
+                          Style: <strong className="text-slate-200">{v.style}</strong>
                         </span>
                       </div>
-                      <div className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 px-2 py-1 rounded border border-indigo-500/20">
-                        {v.model}
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        {v.desc}
-                      </p>
                     </div>
-
-                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                      <button
-                        onClick={() => playVoiceSample(v.id, v.file)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                          isPlaying 
-                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                        }`}
-                      >
-                        {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        {isPlaying ? 'Tạm dừng' : 'Nghe giọng mẫu'}
-                      </button>
-                      <span className="text-[10px] text-slate-400">
-                        Style: <strong className="text-slate-200">{v.style}</strong>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
 
             {/* Batch Production & Mixing Control Panel */}
@@ -788,7 +1002,7 @@ export default function DashboardPage() {
                     Bảng Điều Khiển Batch Lồng Tiếng & Mix Master (48kHz)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Tự động phân vai 835 phân đoạn thoại, ghép nối micro-pause chuẩn nhịp thở và nén nhạc nền BGM sidechain ducking.
+                    Tự động phân vai linh hoạt theo kịch bản, ghép nối micro-pause chuẩn nhịp thở và nén nhạc nền BGM sidechain ducking.
                   </p>
                 </div>
 
@@ -808,8 +1022,9 @@ export default function DashboardPage() {
                     onChange={(e: any) => setSelectedEngine(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
                   >
-                    <option value="vieneu">VieNeu-TTS v3 Turbo 48kHz (Khuyên dùng)</option>
-                    <option value="omnivoice">OmniVoice Calibrated (24kHz)</option>
+                    <option value="vieneu">VieNeu-TTS v3 Turbo (48kHz Local GPU)</option>
+                    <option value="edge_tts">Edge-TTS Neural (Microsoft Broadcast VTV/VOV)</option>
+                    <option value="omnivoice">OmniVoice (24kHz Fallback)</option>
                   </select>
                 </div>
 

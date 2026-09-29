@@ -1,5 +1,6 @@
 /**
- * 5-Turn Prompt Templates for Vietnamese Long-Form Audio Drama (Sâm Kể Chuyện Style)
+ * 6-Turn Prompt Templates for Vietnamese Long-Form Audio Drama (Sâm Kể Chuyện Style)
+ * Length: 1h00 – 1h30 (11,000 – 12,500 words, 10 chapters)
  * Designed for Playwright ChatGPT Session with full context preservation.
  */
 
@@ -12,73 +13,86 @@ export const PROMPTS_VN = {
     plotSecret: string;
     retribution: string;
     moral: string;
-  }) => `Bạn là chuyên gia biên kịch hàng đầu cho các chương trình truyện audio tâm sự, drama gia đình dài 2.5 giờ trên YouTube (phong cách kênh "Sâm Kể Chuyện"). 
+    defaultPronoun?: string;
+    victimRole?: string;
+    victimRoleName?: string;
+    antagonist1Role?: string;
+    antagonist1Name?: string;
+    antagonist2Role?: string;
+    antagonist2Name?: string;
+    justiceRole?: string;
+    justiceName?: string;
+  }) => `Bạn là chuyên gia biên kịch hàng đầu cho các chương trình truyện audio tâm sự, drama gia đình dài 1h00 đến 1h30 (60 – 90 phút, chuẩn 11.000 – 12.500 từ) trên YouTube (phong cách kênh "Sâm Kể Chuyện"). 
 
-Dựa trên hạt mầm đề tài sau:
-- Thân phận nhân vật chính: ${topicSeed.archetype}
+Dựa trên hạt mầm đề tài mang tính Viral Outlier cao sau:
+- Thân phận nhân vật chính (Nạn nhân): ${topicSeed.archetype} (Đại từ xưng hô tự sự: "${topicSeed.defaultPronoun || 'Cháu'}")
 - Sự hy sinh ban đầu: ${topicSeed.sacrifice}
 - Hành vi áp bức / Bạc bẽo: ${topicSeed.oppression}
 - Bí mật lật kèo: ${topicSeed.plotSecret}
 - Cán cân công lý / Trả giá: ${topicSeed.retribution}
 - Bài học đạo lý: ${topicSeed.moral}
 
-HÃY LẬP BẢN MASTER BLUEPRINT VÀ DÀN Ý 10 CHƯƠNG CHI TIẾT (CHUẨN BỊ CHO BỘ TRUYỆN DÀI 30.000 TỪ):
+HÃY LẬP BẢN MASTER BLUEPRINT VÀ DÀN Ý 10 CHƯƠNG CHI TIẾT (CHUẨN BỊ CHO BỘ TRUYỆN DÀI 11.000 – 12.500 TỪ):
 
 Yêu cầu xuất ra cấu trúc:
-1. TIÊU ĐỀ CHÍNH (Giật gân, đánh vào lòng trắc ẩn và công lý, có dấu chấm lách kiểm duyệt từ khóa nhạy cảm).
-2. HỒ SƠ NHÂN VẬT (Tên tuổi, nghề nghiệp, tính cách của: Nhân vật chính, Người bạn đời phản bội, Tiểu tam, Mẹ chồng/Mẹ đẻ, Đồng đội hỗ trợ).
-3. KHUNG 5 HỒI KỊCH BẢN (Tóm tắt cốt lõi từng hồi từ Hồi 1 đến Hồi 5).
-4. DÀN Ý 10 CHƯƠNG CHI TIẾT:
-   - Mỗi chương ghi rõ: Tên chương, Hồi thuộc về, Mục tiêu kịch tính, Sự kiện chính xảy ra, Dự kiến dung lượng (~2.500 - 3.000 từ).
+1. TIÊU ĐỀ CHÍNH & 3 TIÊU ĐỀ BIẾN THỂ (Giật gân, có chấm lách kiểm duyệt từ khóa nhạy cảm).
+2. HỒ SƠ 5 NHÂN VẬT CHÍNH (Gán mã giọng đọc chuẩn):
+   - [SPEAKER:bac_sam] Bác Sâm - Người dẫn chuyện chiêm nghiệm, trầm ấm.
+   - [SPEAKER:${topicSeed.victimRole || 'nhan_vat_chinh'}] ${topicSeed.victimRoleName || 'Nhân vật chính'} - Tự sự ngôi thứ nhất "${topicSeed.defaultPronoun || 'Cháu'}", tự trọng, kiên cường, giàu đức hy sinh.
+   - [SPEAKER:${topicSeed.antagonist1Role || 'me_chong'}] ${topicSeed.antagonist1Name || 'Kẻ đối kháng 1'} - Tham lam, cay nghiệt hoặc hỗn xược.
+   - [SPEAKER:${topicSeed.antagonist2Role || 'tieu_tam'}] ${topicSeed.antagonist2Name || 'Kẻ đối kháng 2'} - Vô ơn, trơ trẽn hoặc nhu nhược.
+   - [SPEAKER:${topicSeed.justiceRole || 'can_bo'}] ${topicSeed.justiceName || 'Đại diện công lý'} - Công lý phân minh, nghiêm minh.
+3. KHUNG 5 HỒI KỊCH BẢN (Tóm tắt cốt lõi từng hồi: Khởi đầu & Hy sinh -> Áp bức & Bạc bẽo -> Biến cố & Âm thầm điều tra -> Cao trào lật kèo & Công lý -> Nhân quả & Bình yên).
+4. DÀN Ý 10 CHƯƠNG CHI TIẾT (Mỗi chương khoảng 1.100 - 1.300 từ): Tên chương, Mục tiêu kịch tính, Sự kiện chính xảy ra, Cao trào kết chương.
 
-LƯU Ý QUAN TRỌNG:
-- Văn phong tự sự ngôi thứ nhất, bối cảnh gia đình Việt Nam miền Bắc/Bắc Trung Bộ.
-- Giữ vững mạch truyện sâu sắc, nghẹn ngào nhưng kiên cường.
-- Không tóm tắt qua loa. Chỉ xuất nội dung Blueprint sạch sẽ.`,
+OUTPUT: Xuất nội dung Blueprint sạch sẽ, chuyên nghiệp.`,
 
-  TURN_2_CHAPTERS_1_TO_4: `Tuyệt vời! Bây giờ dựa trên Master Blueprint đã duyệt ở trên, bạn hãy viết TOÀN BỘ NỘI DUNG CHI TIẾT CỦA 4 CHƯƠNG ĐẦU TIÊN (Chương 1, Chương 2, Chương 3, Chương 4) với tổng dung lượng khoảng 8.000 - 10.000 từ.
+  TURN_2_CHAPTERS_1_TO_3: `Dựa trên Master Blueprint đã duyệt, bạn hãy viết TOÀN BỘ NỘI DUNG CHI TIẾT CỦA 3 CHƯƠNG ĐẦU TIÊN (Chương 1, Chương 2, Chương 3) với tổng dung lượng khoảng 3.300 - 3.800 từ (~1.100 - 1.300 từ/chương).
 
-QUY TẮC BẮT BUỘC KHI VIẾT:
-1. ĐOẠN MỞ ĐẦU (00:01):
-   - Mở đầu bằng lời dẫn chiêm nghiệm sâu sắc của Bác Sâm: Gắn tag [SPEAKER:bac_sam] "Kính chào quý vị và các bạn đang lắng nghe Sâm kể chuyện. Đêm nay bác Sâm xin mời quý vị ngồi lại thật chậm để nghe một câu chuyện...".
-   - Sau đó chuyển giao sang nhân vật chính: ">> [SPEAKER:nhan_vat_chinh] Cháu chào bác Sâm, cháu chào tất cả cô chú, anh chị đang nghe chương trình...".
-2. VĂN PHONG TỰ SỰ SÂU SẮC (SÂM KỂ CHUYỆN STYLE):
-   - Xưng hô "Cháu" xuyên suốt câu chuyện.
-   - Bơm dày đặc các chi tiết giác quan đời thường: Mâm cơm có đĩa rau muống luộc chấm tương, đôi dép rách buộc dây thép, mùi mồ hôi sau ca trực, tiếng thìa va vào bát sứ, tiếng cười vọng qua cầu thang...
-   - Miêu tả sâu độc thoại nội tâm: Sự dằn vặt, niềm tin ngây thơ ban đầu, cảm giác lạnh sống lưng khi phát hiện sự bất thường đầu tiên.
-3. GÁN NHÃN GIỌNG ĐỌC (SPEAKER TAGS):
-   - Khi có lời đối thoại trực tiếp trong ngoặc kép của nhân vật khác, hãy gán nhãn rõ ràng: [SPEAKER:me_chong], [SPEAKER:tieu_tam], [SPEAKER:nhan_vat_chinh].
-4. DUNG LƯỢNG: Viết cực kỳ chi tiết, chậm rãi, đầy đặn từng phân cảnh, không được tóm tắt lướt qua. Hãy viết đầy đủ từng chương từ Chương 1 đến hết Chương 4.`,
+QUY TẮC BẮT BUỘC VỀ ĐỊNH DẠNG & PHÂN VAI (BẮT BUỘC TUÂN THỦ 100%):
+1. QUY CHUẨN XUỐNG DÒNG & TAG NHÂN VẬT:
+   - MỖI ĐOẠN VĂN HOẶC CÂU THOẠI PHẢI BẮT ĐẦU TRÊN MỘT DÒNG RIÊNG VỚI ĐÚNG TAG CỤ THỂ [SPEAKER:role_id].
+   - TUYỆT ĐỐI KHÔNG xuất thẻ [SPEAKER] trơ trọi không có tên vai! Mọi tag BẮT BUỘC phải có hậu tố role_id (ví dụ: [SPEAKER:nhan_vat_chinh], [SPEAKER:me_chong], [SPEAKER:tieu_tam]...).
+2. MẪU ĐỊNH DẠNG BẮT BUỘC (FEW-SHOT):
+   [SPEAKER:bac_sam] Kính chào quý vị và các bạn đang lắng nghe Sâm Kể Chuyện...
+   [SPEAKER:nhan_vat_chinh] Bước vào phòng khách, tôi sững người khi thấy người phụ nữ lạ mặt đang ngồi gọt táo.
+   [SPEAKER:me_chong] "Con ăn thêm miếng táo đi, đang có bầu thì phải chịu khó bồi dưỡng."
+   [SPEAKER:tieu_tam] "Chị về rồi đấy à? Em xin lỗi vì đã đường đột đến đây."
+   [SPEAKER:nhan_vat_chinh] Tôi siết chặt bàn tay: "Cô đến đây làm gì?"
+3. TUYỆT ĐỐI KHÔNG DÙNG THẺ CẢM XÚC NHÂN TẠO như [thở dài], [cười], [khóc]... Chỉ dùng dấu câu tự nhiên (., ! ? …).
+4. TIÊU ĐỀ CHƯƠNG & NỘI DUNG: Ghi rõ tiêu đề theo Blueprint (CHƯƠNG 1: ..., CHƯƠNG 2: ..., CHƯƠNG 3: ...). Viết chi tiết, giàu hình ảnh đời thực.`,
 
-  TURN_3_CHAPTERS_5_TO_7: `Rất xuất sắc! Mạch truyện đang rất cuốn hút và giàu cảm xúc. Bây giờ hãy viết tiếp TOÀN BỘ NỘI DUNG CHI TIẾT CỦA 3 CHƯƠNG TIẾP THEO (Chương 5, Chương 6, Chương 7) với tổng dung lượng khoảng 8.000 - 10.000 từ.
+  TURN_3_CHAPTERS_4_TO_6: `Mạch truyện rất cuốn hút và cảm xúc! Bây giờ hãy viết tiếp TOÀN BỘ NỘI DUNG CHI TIẾT CỦA 3 CHƯƠNG TIẾP THEO (Chương 4, Chương 5, Chương 6) bám sát Dàn ý Blueprint đã duyệt (HỒI 2 & HỒI 3 - ĐỈNH ĐIỂM ÁP BỨC, BI KỊCH & ÂM THẦM THU THẬP CHỨNG CỨ) với tổng dung lượng khoảng 3.500 - 4.000 từ (~1.200 - 1.350 từ/chương).
 
-TRỌNG TÂM CỦA GIAI ĐOẠN NÀY (HỒI 3 - BIẾN CỐ & ĐIỀU TRA TRONG BÓNG TỐI):
-- Chương 5: Biến cố tai nạn xảy ra / Nhân vật chính giả mù (hoặc giả bệnh). Đêm đầu tiên về nhà, nghe lén toàn bộ cuộc trò chuyện trơ trẽn giữa chồng/vợ và nhân tình ngoài ban công về kế hoạch tẩu tán tài sản tiền tỷ.
-- Chương 6: Thu thập chứng cứ trong bóng tối. Sự phối hợp bí mật với đồng đội, luật sư, trích xuất camera, sao kê ngân hàng, khôi phục dữ liệu tin nhắn bị xóa.
-- Chương 7: Giọt nước tràn ly. Cảnh kẻ phản bội và mẹ chồng lộ rõ bộ mặt tàn nhẫn, ép ký giấy tờ sang nhượng tài sản ngay trước mặt nhân tình. Sự kìm nén đỉnh điểm của nhân vật chính.
+QUY TẮC BẮT BUỘC:
+- MỖI ĐOẠN VĂN HOẶC CÂU THOẠI BẮT BUỘC BẮT ĐẦU TRÊN MỘT DÒNG MỚI VỚI ĐÚNG TAG [SPEAKER:role_id].
+- TUYỆT ĐỐI KHÔNG xuất [SPEAKER] trơ trọi.
+- TUYỆT ĐỐI KHÔNG DÙNG THẺ CẢM XÚC NHÂN TẠO.
+- Viết chi tiết, sâu sắc, đẩy mâu thuẫn lên cao trào kịch tính.`,
 
-QUY TẮC:
-- Tiếp tục duy trì ngôi kể "Cháu" [SPEAKER:nhan_vat_chinh] và các thẻ [SPEAKER:me_chong], [SPEAKER:tieu_tam] khi có đối thoại.
-- Khắc họa chân thực sự đau đớn đến tột cùng chuyển hóa thành sự bình tĩnh, quyết đoán.
-- Viết chi tiết, dài và đầy đặn, không tóm tắt.`,
+  TURN_4_CHAPTERS_7_TO_9: `Rất tuyệt vời! Bây giờ hãy viết TOÀN BỘ NỘI DUNG CHI TIẾT CỦA 3 CHƯƠNG CAO TRÀO (Chương 7, Chương 8, Chương 9) bám sát Dàn ý Blueprint (HỒI 4 - BẮT QUẢ TANG, LẬT KÈO KINH ĐIỂN & PHÁP LUẬT / CÔNG LÝ THỰC THI) với tổng dung lượng khoảng 3.500 - 4.000 từ (~1.200 - 1.350 từ/chương).
 
-  TURN_4_CHAPTERS_8_TO_10: `Rất tuyệt vời! Bây giờ là phần quan trọng nhất: Hãy viết TOÀN BỘ NỘI DUNG CHI TIẾT CỦA 3 CHƯƠNG CUỐI CÙNG (Chương 8, Chương 9, Chương 10) với tổng dung lượng khoảng 8.000 - 10.000 từ để hoàn tất toàn bộ câu chuyện 30.000 từ.
+QUY TẮC BẮT BUỘC:
+- MỖI ĐOẠN VĂN HOẶC CÂU THOẠI BẮT BUỘC BẮT ĐẦU TRÊN MỘT DÒNG MỚI VỚI ĐÚNG TAG [SPEAKER:role_id].
+- TUYỆT ĐỐI KHÔNG xuất [SPEAKER] trơ trọi.
+- TUYỆT ĐỐI KHÔNG DÙNG THẺ CẢM XÚC NHÂN TẠO.
+- Khắc họa cảm xúc đối lập cực mạnh: Từ hả hê trơ trẽn sang bàng hoàng sụp đổ khi công lý được thực thi.`,
 
-TRỌNG TÂM CỦA GIAI ĐOẠN NÀY (HỒI 4 & HỒI 5 - LẬT KÈO, CÔNG LÝ & HẬU VẬN):
-- Chương 8: Khoảnh khắc lật kèo kinh điển. Nhân vật chính dứt khoát bước ra trong bộ sắc phục Sĩ quan Công an/Quân đội hoặc mang hồ sơ pháp lý khẳng định quyền sở hữu. Lực lượng chức năng ập vào bắt quả tang hành vi lừa đảo/làm giả giấy tờ. Sự sụp đổ và "chết lặng" hoàn toàn của kẻ ác.
-- Chương 9: Cái giá phải trả của sự bất nghĩa. Kẻ vong ân nhận bản án nghiêm minh của pháp luật, gia đình chồng tan nát, sự hối hận muộn màng trong trại giam.
-- Chương 10: Bình yên trở về và Bài học nhân sinh:
-  * Nhân vật chính dẫn con nhỏ / cha mẹ già đi ăn bát phở nóng bên đường, tìm lại sự thanh thản trong tâm hồn.
-  * Nhân vật đúc kết đạo lý cuộc đời: "Giá trị của một con người không nằm ở sự cam chịu, mà là dám đứng lên vì danh dự và sự thật...".
-  * [SPEAKER:bac_sam] Bác Sâm quay lại với lời chào kết ấm áp, đúc kết bài học nhân quả cho người nghe, kêu gọi like, chia sẻ và đăng ký kênh Sâm Kể Chuyện.
+  TURN_5_CHAPTER_10_OUTRO: `Rất xuất sắc! Bây giờ hãy viết CHƯƠNG 10 VÀ LỜI KẾT BÁC SÂM (HỒI 5 - NHÂN QUẢ PHÂN MINH, BÌNH YÊN & BÀI HỌC CUỘC ĐỜI) với dung lượng khoảng 1.300 - 1.600 từ:
 
-QUY TẮC:
-- Viết trọn vẹn, xúc động, giàu tính nhân văn và công lý. Đảm bảo dung lượng đầy đặn không rút gọn.`,
+CẤU TRÚC:
+1. CHƯƠNG 10: Theo dàn ý Blueprint (Bản án nghiêm minh cho kẻ ác, nhân vật chính tìm lại sự thanh thản, tự do và phẩm giá).
+2. LỜI CHÀO KẾT CỦA BÁC SÂM: [SPEAKER:bac_sam] Phân tích đạo lý nhân quả, chúc quý khán thính giả an lành, kêu gọi bấm Đăng ký kênh Sâm Kể Chuyện.
 
-  TURN_5_METADATA_SEO: `Hãy tổng hợp và tạo TRỌN BỘ METADATA SEO YOUTUBE HOÀN CHỈNH cho video kịch bản trên:
+QUY TẮC BẮT BUỘC:
+- MỖI ĐOẠN VĂN BẮT ĐẦU TRÊN MỘT DÒNG MỚI VỚI ĐÚNG TAG [SPEAKER:nhan_vat_chinh] HOẶC [SPEAKER:bac_sam].
+- TUYỆT ĐỐI KHÔNG xuất [SPEAKER] trơ trọi.
+- TUYỆT ĐỐI KHÔNG DÙNG THẺ CẢM XÚC NHÂN TẠO.`,
+
+  TURN_6_METADATA_SEO: `Hãy tổng hợp và tạo TRỌN BỘ METADATA SEO YOUTUBE HOÀN CHỈNH cho video kịch bản trên:
 
 CẤU TRÚC BẮT BUỘC:
-1. TIÊU ĐỀ CHÍNH & 5 TIÊU ĐỀ BIẾN THỂ A/B TEST (Chuẩn giật gân, đánh trúng tâm lý, có chấm lách kiểm duyệt từ khóa như: B.ắt, T.ội Á.c, C.hết L.ặng, N.hân T.ình...).
+1. TIÊU ĐỀ CHÍNH & 5 TIÊU ĐỀ BIẾN THỂ A/B TEST (Chuẩn giật gân, đánh trúng tâm lý, có chấm lách kiểm duyệt từ khóa).
 2. MÔ TẢ VIDEO YOUTUBE (Description 6 phần chuẩn SEO):
    - Phần 1: Hook mở đầu 3 dòng tóm tắt kịch tính khơi gợi tò mò.
    - Phần 2: Giới thiệu câu chuyện sâu sắc.
@@ -87,5 +101,5 @@ CẤU TRÚC BẮT BUỘC:
    - Phần 5: Đoạn MIỄN TRỪ TRÁCH NHIỆM (Khẳng định truyện hư cấu, nhân vật tưởng tượng, giọng đọc AI để tuân thủ 100% chính sách YouTube).
    - Phần 6: 10 Hashtags chuẩn (#samkechuyen #tamsucungvansam #truyenaudio...).
 3. DANH SÁCH 20 TAGS SEO YOUTUBE (Dạng danh sách phân cách dấu phẩy để copy dán vào ô Tags).
-4. PROMPT TẠO ẢNH THUMBNAIL (Bằng tiếng Anh cho Midjourney/Flux mô tả chi tiết nhân vật chính mặc sắc phục hoặc gương mặt phụ nữ khắc khổ giàu cảm xúc, nền tương phản cao).`
+4. PROMPT TẠO ẢNH THUMBNAIL (Bằng tiếng Anh cho Midjourney/Flux mô tả chi tiết nhân vật chính mặc trang phục uy nghiêm hoặc gương mặt phụ nữ/người già khắc khổ giàu cảm xúc, nền tương phản cao).`
 };

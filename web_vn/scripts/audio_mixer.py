@@ -22,10 +22,22 @@ logger = logging.getLogger("audio_mixer")
 
 REPO_ROOT = Path(r"D:\VibeCoding\auto_YT")
 
+def get_ffmpeg_bin() -> str:
+    import shutil
+    p = shutil.which("ffmpeg")
+    if p:
+        return p
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    return "ffmpeg"
+
 def create_silence_wav(duration_sec: float, output_path: Path, sample_rate: int = 48000):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "ffmpeg", "-y", "-f", "lavfi", "-i",
+        get_ffmpeg_bin(), "-y", "-f", "lavfi", "-i",
         f"anullsrc=r={sample_rate}:cl=mono",
         "-t", str(duration_sec),
         "-c:a", "pcm_s16le",
@@ -52,7 +64,7 @@ def normalize_audio_chunk(input_wav: Path, output_wav: Path, sample_rate: int = 
     trim_dead_silence(input_wav, temp_trimmed)
 
     cmd = [
-        "ffmpeg", "-y",
+        get_ffmpeg_bin(), "-y",
         "-i", str(temp_trimmed),
         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-ar", str(sample_rate),
@@ -64,63 +76,57 @@ def normalize_audio_chunk(input_wav: Path, output_wav: Path, sample_rate: int = 
     if temp_trimmed.exists():
         temp_trimmed.unlink()
 
-def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path, sample_rate: int = 48000) -> Path:
+def concat_audio_chunks(chunks_dir: Path, manifest_path: Path, output_wav: Path, sample_rate: int = 48000, chapter_filter: Optional[int] = None) -> Path:
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
     lines = [json.loads(line) for line in manifest_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if chapter_filter is not None:
+        lines = [item for item in lines if item.get("chapter") == chapter_filter]
+
     temp_dir = output_wav.parent / "temp_concat"
     temp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Snappy, natural pacing micro-pauses
-    silence_short = temp_dir / "silence_0.18s.wav"
-    silence_change = temp_dir / "silence_0.28s.wav"
-    silence_chapter = temp_dir / "silence_0.80s.wav"
+    silence_cache = {}
 
-    create_silence_wav(0.18, silence_short, sample_rate=sample_rate)
-    create_silence_wav(0.28, silence_change, sample_rate=sample_rate)
-    create_silence_wav(0.80, silence_chapter, sample_rate=sample_rate)
+    def get_silence_file(ms: int) -> Path:
+        if ms not in silence_cache:
+            p = temp_dir / f"silence_{ms}ms.wav"
+            create_silence_wav(ms / 1000.0, p, sample_rate=sample_rate)
+            silence_cache[ms] = p
+        return silence_cache[ms]
 
     concat_list_file = temp_dir / "concat_list.txt"
     with concat_list_file.open("w", encoding="utf-8") as f:
-        prev_speaker = None
-        prev_chapter = None
-
-        for item in lines:
+        for idx, item in enumerate(lines):
             c_id = item["id"]
             c_wav = chunks_dir / f"{c_id}.wav"
             if not c_wav.exists():
                 logger.warning(f"Chunk wav missing: {c_wav}")
                 continue
 
-            curr_speaker = item.get("speaker_id")
-            curr_chapter = item.get("chapter")
-
-            if prev_chapter is not None and curr_chapter != prev_chapter:
-                f.write(f"file '{silence_chapter.resolve()}'\n")
-            elif prev_speaker is not None and curr_speaker != prev_speaker:
-                f.write(f"file '{silence_change.resolve()}'\n")
-            elif prev_speaker is not None:
-                f.write(f"file '{silence_short.resolve()}'\n")
-
             f.write(f"file '{c_wav.resolve()}'\n")
-            prev_speaker = curr_speaker
-            prev_chapter = curr_chapter
+
+            # Add dynamic dramatic silence after chunk
+            silence_ms = int(item.get("silence_after_ms", 200))
+            if silence_ms > 0 and idx < len(lines) - 1:
+                s_file = get_silence_file(silence_ms)
+                f.write(f"file '{s_file.resolve()}'\n")
 
     output_wav.parent.mkdir(parents=True, exist_ok=True)
     temp_raw_wav = temp_dir / "raw_concat.wav"
     cmd = [
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+        get_ffmpeg_bin(), "-y", "-f", "concat", "-safe", "0",
         "-i", str(concat_list_file),
         "-c:a", "pcm_s16le",
         str(temp_raw_wav)
     ]
-    logger.info("Concatenating all speech chunks with snappy micro-pauses...")
+    logger.info("Concatenating all speech chunks with dynamic dramatic silence...")
     subprocess.run(cmd, check=True, capture_output=True)
 
     # Master EBU R128 normalization on narration track
     cmd_norm = [
-        "ffmpeg", "-y",
+        get_ffmpeg_bin(), "-y",
         "-i", str(temp_raw_wav),
         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-ar", str(sample_rate),
@@ -138,7 +144,7 @@ def mix_with_bgm(narration_wav: Path, bgm_path: Optional[Path], output_mp3: Path
     if not bgm_path or not bgm_path.exists():
         logger.info("No BGM provided or BGM not found. Exporting speech-only MP3...")
         cmd = [
-            "ffmpeg", "-y", "-i", str(narration_wav),
+            get_ffmpeg_bin(), "-y", "-i", str(narration_wav),
             "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
             "-b:a", "192k",
             str(output_mp3)
@@ -154,7 +160,7 @@ def mix_with_bgm(narration_wav: Path, bgm_path: Optional[Path], output_mp3: Path
         f"[mixed]loudnorm=I=-16:TP=-1.5:LRA=11[normed]"
     )
     cmd = [
-        "ffmpeg", "-y",
+        get_ffmpeg_bin(), "-y",
         "-i", str(narration_wav),
         "-i", str(bgm_path),
         "-filter_complex", filter_complex,

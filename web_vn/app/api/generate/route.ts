@@ -66,19 +66,25 @@ export async function GET(req: Request) {
       ? String(storyId) 
       : (String(storyId) === 'test_01' ? 'story_test_01' : `story_${storyId}`);
     const outputDir = path.resolve(process.cwd(), 'output', resolvedFolder);
+
+    const readFileIfExists = (...fileNames: string[]) => {
+      for (const name of fileNames) {
+        const p = path.join(outputDir, name);
+        if (fs.existsSync(p)) {
+          return fs.readFileSync(p, 'utf-8');
+        }
+      }
+      return null;
+    };
+
     const turns = {
-      turn1_blueprint: fs.existsSync(path.join(outputDir, 'turn1_blueprint.md')) 
-        ? fs.readFileSync(path.join(outputDir, 'turn1_blueprint.md'), 'utf-8') : null,
-      turn2_chapters_1_4: fs.existsSync(path.join(outputDir, 'turn2_chapters_1_4.md'))
-        ? fs.readFileSync(path.join(outputDir, 'turn2_chapters_1_4.md'), 'utf-8') : null,
-      turn3_chapters_5_7: fs.existsSync(path.join(outputDir, 'turn3_chapters_5_7.md'))
-        ? fs.readFileSync(path.join(outputDir, 'turn3_chapters_5_7.md'), 'utf-8') : null,
-      turn4_chapters_8_10: fs.existsSync(path.join(outputDir, 'turn4_chapters_8_10.md'))
-        ? fs.readFileSync(path.join(outputDir, 'turn4_chapters_8_10.md'), 'utf-8') : null,
-      turn5_metadata_seo: fs.existsSync(path.join(outputDir, 'turn5_metadata_seo.md'))
-        ? fs.readFileSync(path.join(outputDir, 'turn5_metadata_seo.md'), 'utf-8') : null,
-      full_script: fs.existsSync(path.join(outputDir, 'full_story_script.md'))
-        ? fs.readFileSync(path.join(outputDir, 'full_story_script.md'), 'utf-8') : null,
+      turn1_blueprint: readFileIfExists('turn1_blueprint.md'),
+      turn2_chapters_1_3: readFileIfExists('turn2_chapters_1_3.md', 'turn2_chapters_1_4.md'),
+      turn3_chapters_4_6: readFileIfExists('turn3_chapters_4_6.md', 'turn3_chapters_5_7.md'),
+      turn4_chapters_7_9: readFileIfExists('turn4_chapters_7_9.md', 'turn4_chapters_8_10.md'),
+      turn5_chapter_10_outro: readFileIfExists('turn5_chapter_10_outro.md'),
+      turn6_metadata_seo: readFileIfExists('turn6_metadata_seo.md', 'turn5_metadata_seo.md'),
+      full_script: readFileIfExists('full_story_script.md'),
     };
 
     let totalWords = 0;
@@ -86,12 +92,14 @@ export async function GET(req: Request) {
       totalWords = turns.full_script.split(/\s+/).filter(Boolean).length;
     }
 
+    const isCompleted = !!(turns.turn6_metadata_seo && turns.full_script);
+
     return NextResponse.json({
       success: true,
       storyId,
       turns,
       totalWords,
-      isCompleted: !!turns.turn5_metadata_seo,
+      isCompleted,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

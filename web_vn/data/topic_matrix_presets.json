@@ -1,0 +1,290 @@
+{
+  "clusters": [
+    {
+      "id": "cluster_bo_chong_con_dau",
+      "name": "Bố Chồng Thương Binh & Con Dâu Trọc Phú",
+      "badge": "Hot YouTube",
+      "desc": "Xung đột giữa đạo hiếu và sự thực dụng, con dâu cậy giàu ngược đãi bố chồng cựu binh, con trai nhu nhược.",
+      "default_pronoun": "Bố",
+      "victim_role_name": "Bố Chồng / Cựu Binh Già",
+      "antagonist_1_name": "Con Dâu Hỗn Xược",
+      "antagonist_2_name": "Con Trai Nhu Nhược",
+      "voice_preset": {
+        "host": "bac_sam",
+        "victim": "bo_chong",
+        "antagonist_1": "con_dau_hon",
+        "antagonist_2": "chong_boi_bac",
+        "justice": "can_bo"
+      },
+      "archetypes": [
+        { "id": "1", "title": "Bố Chồng Cựu Binh Cụt Tay", "desc": "Thương binh hạng nặng, trầm tính, tự trọng, hết lòng vì con trai" },
+        { "id": "2", "title": "Đại Tá Đặc Công Về Hưu", "desc": "Giản dị, mộc mạc, giấu kín chiến công và các mối quan hệ lớn" },
+        { "id": "3", "title": "Bố Già Làng Quê Chân Đất", "desc": "Tần tảo một đời làm thợ mộc gom góp tiền cho con trai mua nhà phố" },
+        { "id": "4", "title": "Thầy Giáo Làng Nghèo", "desc": "Liêm khiết, giữ gìn gia phong, nhẫn nhịn vì hạnh phúc của con" }
+      ],
+      "sacrifices": [
+        "Bán mảnh đất hương hỏa ở quê được 2 tỷ cho con trai và con dâu làm vốn mua nhà",
+        "Nhận phần nuôi cháu nội từ khi lọt lòng, ngày đêm thức trắng chăm sóc để con dâu rảnh rang thăng tiến",
+        "Giao toàn bộ tiền trợ cấp thương binh và sổ tiết kiệm dưỡng già cho con dâu quản lý",
+        "Âm thầm chịu đựng cơn đau vết thương chiến tranh tái phát mỗi mùa đông để tiết kiệm tiền thuốc cho con"
+      ],
+      "oppressions": [
+        "Con dâu cậy giàu bắt bố chồng ngồi ăn cơm thừa dưới bếp, cấm không cho bế cháu nội vì sợ bẩn",
+        "Con dâu trói bố chồng vào gốc cây giữa trưa nắng, cầm búa đập vỡ hòm gỗ ép giao sổ tiết kiệm 3 tỷ",
+        "Bị con dâu vu oan ăn cắp dây chuyền vàng, đuổi ra khỏi biệt thự giữa đêm giông bão",
+        "Con dâu nhốt bố chồng trong chuồng gà ẩm mốc, bắt làm lụng quần quật như người ở không công"
+      ],
+      "plot_secrets": [
+        "Căn biệt thự 15 tỷ thực chất mua bằng tiền đền bù đất dự án đứng tên riêng của bố chồng từ trước",
+        "Chiếc hòm gỗ cũ rỉ sét chứa Huân chương Quân công Hạng Nhất và cuốn sổ tiết kiệm bảo chứng ngân hàng nhà nước",
+        "Đồng đội cũ của bố chồng hiện là Thiếu tướng - Giám đốc Công an tỉnh đang âm thầm về thăm thủ trưởng",
+        "Bố chồng giả vờ mù sau tai nạn để thử lòng hiếu thảo của các con và ghi lại toàn bộ chứng cứ ngược đãi"
+      ],
+      "retributions": [
+        "20 cán bộ chiến sĩ công an tỉnh đứng nghiêm trang cúi đầu chào 'Thủ trưởng' trước sự chết lặng của con dâu",
+        "Con dâu và thông gia trọc phú quỳ sụp xuống van xin khi biết căn nhà và toàn bộ công ty đều do một tay bố đầu tư",
+        "Cơ quan chức năng vào cuộc bắt giữ con dâu vì tội ngược đãi người có công và lừa đảo chiếm đoạt tài sản",
+        "Con trai nhu nhược bị tước toàn bộ quyền thừa kế, trắng tay sau khi bản di chúc hợp pháp được công bố"
+      ],
+      "morals": [
+        "Bách thiện hiếu vi tiên - Bất hiếu với cha mẹ thì dẫu giàu sang phú quý cũng có ngày sụp đổ tiêu tan",
+        "Công cha như núi Thái Sơn, kẻ đem lòng khinh rẻ đấng sinh thành ắt phải gánh lấy nghiệp báo cay đắng",
+        "Sự giàu có thực sự của một đời người nằm ở nhân cách và đạo đức, chứ không phải căn nhà to hay chiếc xe đẹp"
+      ],
+      "title_templates": [
+        "Con Trai Xa Nhà, Con Dâu Liền T.rói Bố Chồng Vào Cây, Cầm Búa É.p Ông Giao Sổ Tiết Kiệm | Sâm Kể Chuyện",
+        "Bố Chồng Thương Binh Bị Con Dâu Bắt Ngồi Chuồng Gà Ăn Cơm Thừa – 15 Phút Sau 20 Cảnh Sát Cúi Chào Bố",
+        "Đuổi Bố Chồng Cụt Tay Ra Khỏi Biệt Thự 15 Tỷ – Ngày Giờ G Cả Họ Nhà Gái Chết Lặng Khi Thấy Huân Chương Quân Công",
+        "Con Dâu Trọc Phú Bắt Bố Chồng Quỳ Lạy Xin Ăn – Thiếu Tướng Công An Ập Vào Bắt Quả Tang Tại Chỗ"
+      ]
+    },
+    {
+      "id": "cluster_me_gia_con_bat_hieu",
+      "name": "Mẹ Già Quê Nghèo & Đứa Con Vong Ân",
+      "badge": "Triệu View",
+      "desc": "Người mẹ tần tảo một đời nuôi con ăn học thành tài, lên phố thăm con lại bị con dâu và con trai bạc đãi.",
+      "default_pronoun": "Mẹ",
+      "victim_role_name": "Mẹ Già Khắc Khổ",
+      "antagonist_1_name": "Con Dâu Hỗn Xược",
+      "antagonist_2_name": "Con Trai Vong Ân",
+      "voice_preset": {
+        "host": "bac_sam",
+        "victim": "me_gia",
+        "antagonist_1": "con_dau_hon",
+        "antagonist_2": "chong_boi_bac",
+        "justice": "can_bo"
+      },
+      "archetypes": [
+        { "id": "1", "title": "Mẹ Quê Tần Tảo Gánh Rong", "desc": "Cả đời buôn gánh bán bưng nuôi con đỗ thủ khoa đại học, vất vả nén đau" },
+        { "id": "2", "title": "Mẹ Liệt Sĩ Đơn Thân", "desc": "Giàu đức hy sinh, một mình nuôi con khôn lớn, nhẫn nhục chịu đựng" },
+        { "id": "3", "title": "Bà Mẹ Vùng Cao Chân Chất", "desc": "Mộc mạc thật thà, mang từng buồng chuối quả trứng gà lên thành phố cho con" }
+      ],
+      "sacrifices": [
+        "Bán con trâu cày và mảnh vườn cuối cùng ở quê để đóng học phí cho con du học thạc sĩ",
+        "Ăn cơm độn khoai sắn suốt 20 năm để con trai có tiền mua quần áo đẹp không thua kém bạn bè",
+        "Gửi toàn bộ tiền bán đất đền bù 5 tỷ cho con trai mua chung cư cao cấp trên phố",
+        "Thức trắng đêm gánh rau ra chợ từ 3 giờ sáng để kiếm từng đồng lẻ gửi lên thành phố nuôi con"
+      ],
+      "oppressions": [
+        "Mẹ quê lên thăm con, con dâu vứt toàn bộ quà quê vào thùng rác, bắt mẹ ngủ gầm cầu thang",
+        "Con trai sợ mất mặt với nhà vợ giàu có, bắt mẹ già đóng giả người giúp việc làm tiệc đãi khách",
+        "Bị con dâu và con trai ép ký giấy từ bỏ quyền thừa kế căn nhà cổ tích lũy 3 đời của tổ tiên",
+        "Mẹ già bị ốm sốt, con dâu không cho uống thuốc mà đẩy mẹ ra hiên nhà trong đêm mưa lạnh"
+      ],
+      "plot_secrets": [
+        "Mảnh đất quê tưởng nghèo nàn thực chất vừa được quy hoạch thành trung tâm thương mại trị giá 30 tỷ",
+        "Người mẹ từng cứu sống và cưu mang Chủ tịch tập đoàn lớn - người luôn coi bà như mẹ ruột",
+        "Mẹ già âm thầm ghi lại toàn bộ cuốn nhật ký và sao kê số tiền 10 tỷ bà đã gom góp cho con trai",
+        "Bác sĩ Viện trưởng bệnh viện trung ương chính là học trò nghèo từng được mẹ nuôi ăn học 10 năm trước"
+      ],
+      "retributions": [
+        "Chủ tịch tập đoàn nghìn tỷ cùng đoàn xe sang về quỳ gối đón mẹ già, hủy toàn bộ hợp đồng làm ăn với con trai",
+        "Con dâu và con trai quỳ gối van lạy giữa đường khi mẹ già chuyển toàn bộ quyền sở hữu đất 30 tỷ cho viện dưỡng lão",
+        "Con trai bị công ty sa thải, đối tác quay lưng vì tội bất hiếu với đấng sinh thành",
+        "Cơ quan công an khởi tố con dâu và con trai về hành vi ngược đãi mẹ già nghiêm trọng"
+      ],
+      "morals": [
+        "Nước biển mênh mông không đong đầy tình mẹ - Kẻ vong ân phụ mẫu ắt có ngày nhận quả đắng",
+        "Mẹ nuôi con biển hồ lai láng, con nuôi mẹ tính tháng tính ngày; nhân quả báo ứng nhãn tiền",
+        "Đừng vì chút danh vọng hào nhoáng mà đánh mất cội nguồn và người yêu thương mình nhất"
+      ],
+      "title_templates": [
+        "Mẹ Già Quê Lên Thăm Cháu, Con Dâu Bắt Ngủ Gầm Cầu Thang Ăn Cơm Thừa – Chủ Tịch Tập Đoàn Ập Đến Đón Mẹ",
+        "Bắt Mẹ Đẻ Đóng Giả Người Giúp Việc Để Đãi Tiệc Nhà Vợ – Giờ G Đại Gia Nghìn Tỷ Quỳ Lạy Mẹ Giữa Sảnh",
+        "Con Dâu Ném Bọc Tiền Lẻ Của Mẹ Chồng Vào Thùng Rác – 15 Phút Sau Bàng Hoàng Khi Thấy Sổ Đỏ 30 Tỷ",
+        "Đuổi Mẹ Già 70 Tuổi Ra Đường Giữa Đêm Mưa Bão – Cái Kết Đắng Của Đứa Con Trai Vô Ơn Bất Hiếu"
+      ]
+    },
+    {
+      "id": "cluster_chong_cuu_binh_vo_ngoai_tinh",
+      "name": "Chồng Cựu Binh & Vợ Ngoại Tình Chiếm Đoạt",
+      "badge": "Kịch Tính Cao",
+      "desc": "Người chồng lính biên phòng/cựu binh xông pha sương gió, ở nhà vợ ngoại tình rước nhân tình về đuổi chồng.",
+      "default_pronoun": "Tôi",
+      "victim_role_name": "Người Chồng Cựu Binh",
+      "antagonist_1_name": "Người Vợ Ngoại Tình",
+      "antagonist_2_name": "Gã Nhân Tình Lừa Đảo",
+      "voice_preset": {
+        "host": "bac_sam",
+        "victim": "nguoi_chong",
+        "antagonist_1": "vo_ngoai_tinh",
+        "antagonist_2": "nhan_tinh",
+        "justice": "can_bo"
+      },
+      "archetypes": [
+        { "id": "1", "title": "Trung Tá Biên Phòng Biên Cương", "desc": "Cương trực, dũng cảm, phong trần, quen kỷ luật thép và trọng chữ tín" },
+        { "id": "2", "title": "Cựu Binh Công Binh Xây Cầu", "desc": "Chân chất, trầm lặng, chịu thương chịu khó vì tương lai của vợ con" },
+        { "id": "3", "title": "Sĩ Quan An Ninh Kinh Tế", "desc": "Điềm đạm, kín tiếng, sắc sảo, âm thầm theo dõi mọi biến cố" }
+      ],
+      "sacrifices": [
+        "Lặn lội nơi biên cương hải đảo 5 năm ròng rã, gửi 100% lương thưởng về cho vợ xây nhà và mở cửa hàng",
+        "Chấp nhận phần hiểm nguy nơi đầu sóng ngọn gió để vợ con có cuộc sống sung túc đầy đủ ở thành phố",
+        "Vay mượn đồng đội và ngân hàng chính sách 2 tỷ lo vốn cho vợ mở công ty kinh doanh thời trang",
+        "Chăm lo chu đáo cho toàn bộ gia đình bên ngoại, cưu mang em vợ học đại học đến khi có việc làm"
+      ],
+      "oppressions": [
+        "Vừa hoàn thành nhiệm vụ trở về, thấy vợ cùng gã nhân tình tổ chức tiệc sinh nhật trong chính căn nhà mình",
+        "Vợ cấu kết với nhân tình làm giả chữ ký thế chấp sổ đỏ biệt thự 10 tỷ lấy tiền ăn chơi trác táng",
+        "Vợ và nhân tình gọi bảo vệ lăng mạ, ném quân trang và vali của chồng ra đường trong đêm mưa",
+        "Bị vợ vu oan bạo lực gia đình để ép ly hôn đơn phương và cướp quyền nuôi con"
+      ],
+      "plot_secrets": [
+        "Căn biệt thự đứng tên pháp lý do đơn vị quân đội và gia đình người chồng cấp quyền sử dụng hợp pháp",
+        "Người chồng thực chất là Trưởng ban chuyên án đang triệt phá đường dây lừa đảo tài chính của gã nhân tình",
+        "Toàn bộ giao dịch chuyển tiền mờ ám và hình ảnh ngoại tình đã được cơ quan điều tra lập vi bằng",
+        "Gã nhân tình thực chất là con nợ đang bị truy nã, lợi dụng người vợ để tẩu tán tài sản phi pháp"
+      ],
+      "retributions": [
+        "Lực lượng cảnh sát cơ động và đặc nhiệm ập vào phòng công chứng bắt khẩn cấp gã nhân tình lừa đảo",
+        "Người vợ chết lặng khi thấy chồng mặc quân phục Trung tá chỉ huy chuyên án, bàng hoàng nhận ra mình bị lừa",
+        "Gã nhân tình ôm tiền bỏ trốn bị tóm gọn tại sân bay, để lại người vợ với đống nợ và bản án hình sự",
+        "Toàn bộ tài sản bị phong tỏa và hoàn trả cho người chồng hợp pháp; người vợ quỳ khóc van xin tha thứ"
+      ],
+      "morals": [
+        "Tào khang chi thê bất khả hạ đường - Kẻ tham phú phụ bần ắt phải trả giá bằng cả cuộc đời",
+        "Lòng chung thủy là nền tảng của hạnh phúc, sự bội bạc chỉ dẫn đến vực sâu của sự cô độc và ô nhục",
+        "Chân lý và danh dự của người lính luôn đứng vững trước mọi mưu mô tráo trở của kẻ lòng lang dạ sói"
+      ],
+      "title_templates": [
+        "Trung Tá Biên Phòng Đi Vắng 3 Năm Về Thấy Vợ Đang Cưới Nhân Tình – 15 Phút Sau 20 Cảnh Sát Ập Vào Bắt",
+        "Vợ Và Nhân Tình Đuổi Chồng Lính Xuất Ngũ Ra Khỏi Biệt Thự 10 Tỷ – Giờ G Chết Lặng Khi Thấy Thẻ Ngành",
+        "Cựu Binh Già Đi Làm Xa Về Bị Vợ Trẻ Ném Vali Ra Đường Mưa – Lật Kèo Bắt Quả Tang Tại Văn Phòng Công Chứng",
+        "Chồng Gửi Toàn Bộ Lương 5 Năm Cho Vợ Giữ – Ngày Trở Về Bàng Hoàng Thấy Nhân Tình Đang Ở Trong Nhà"
+      ]
+    },
+    {
+      "id": "cluster_nu_can_bo_me_chong",
+      "name": "Nữ Cán Bộ Điều Tra & Mẹ Chồng Cay Nghiệt",
+      "badge": "Kinh Điển",
+      "desc": "Nữ Trung úy/Đại tá công an giấu thân phận, bị mẹ chồng và chồng bội bạc cấu kết với tiểu tam cướp biệt thự 12 tỷ.",
+      "default_pronoun": "Cháu",
+      "victim_role_name": "Nữ Cán Bộ / Minh Hà",
+      "antagonist_1_name": "Mẹ Chồng Cay Nghiệt",
+      "antagonist_2_name": "Tiểu Tam & Chồng Bội Bạc",
+      "voice_preset": {
+        "host": "bac_sam",
+        "victim": "nhan_vat_chinh",
+        "antagonist_1": "me_chong",
+        "antagonist_2": "tieu_tam",
+        "justice": "chong_boi_bac"
+      },
+      "archetypes": [
+        { "id": "1", "title": "Nữ Trung Úy Điều Tra Hình Sự", "desc": "Bản lĩnh, nhẫn nại, nghiệp vụ sắc bén, tự trọng cao" },
+        { "id": "2", "title": "Nữ Bác Sĩ Quân Y", "desc": "Từ tâm, tần tảo, chịu thương chịu khó vì gia đình" },
+        { "id": "3", "title": "Đại Tá An Ninh Ngầm", "desc": "Uy nghiêm, kín tiếng, giấu kín thân phận để thử lòng người" }
+      ],
+      "sacrifices": [
+        "Bán toàn bộ của hồi môn và vàng cưới của mẹ đẻ lo vốn cho chồng lập nghiệp",
+        "Tần tảo chăm sóc mẹ chồng tai biến suốt 6 năm không một lời than vãn",
+        "Gửi toàn bộ lương thưởng và tiền bán đất của gia đình đẻ cho chồng kinh doanh",
+        "Âm thầm gánh món nợ tiền tỷ thay chồng trong những ngày đầu khó khăn"
+      ],
+      "oppressions": [
+        "Chồng rước Tiểu tam có bầu về nhà, mẹ chồng ép con dâu ra đi tay trắng trong đêm mưa bão",
+        "Chồng và Tiểu tam cấu kết làm giả chữ ký ủy quyền để bán căn biệt thự 12 tỷ vốn là tài sản riêng của vợ",
+        "Bị mẹ chồng ép quỳ lạy xin lỗi và xúc phạm danh dự gia đình đẻ vì không sinh được con trai",
+        "Mẹ chồng và tiểu tam bắt ăn cơm thừa dưới bếp, dọn đồ đuổi ra khỏi nhà trong đêm"
+      ],
+      "plot_secrets": [
+        "Căn biệt thự 12 tỷ thực chất đứng tên riêng do bố mẹ đẻ mua từ trước ngày cưới",
+        "Nhân vật chính giả vờ cam chịu để âm thầm thu thập toàn bộ chứng cứ làm giả giấy tờ và tẩu tán tài sản",
+        "Vợ cũ thực chất là Thủ trưởng cơ quan điều tra chuyên án bí mật",
+        "Toàn bộ vi bằng và camera ghi lại hành vi lừa đảo tại phòng công chứng đã được lưu trữ"
+      ],
+      "retributions": [
+        "Cảnh sát kinh tế ập vào phòng công chứng bắt giữ Tiểu tam và Chồng vì tội lừa đảo 15 tỷ",
+        "Mẹ chồng chết lặng khi thấy 20 cán bộ chiến sĩ công an tỉnh cúi chào con dâu là Thủ trưởng",
+        "Gã chồng và tiểu tam bị còng tay ngay trước giờ ký hợp đồng sang nhượng tài sản chiếm đoạt",
+        "Công ty phá sản, kẻ phản bội trắng tay quỳ xin tha thứ nhưng công lý không khoan nhượng"
+      ],
+      "morals": [
+        "Giá trị của người phụ nữ không nằm ở sự cam chịu, mà là dũng cảm sống vì phẩm giá và sự thật",
+        "Gieo nhân nào gặt quả ấy, kẻ lấy sự tàn nhẫn và tham lam làm lẽ sống ắt chuốc lấy bi kịch",
+        "Buông tay là tự cứu lấy mình, tìm lại bình yên mộc mạc bên những người thân yêu chân chính"
+      ],
+      "title_templates": [
+        "Nữ Trung Úy Giả Vờ Trúng Độc, 15 Phút Sau Bật Dậy Vạch Trần Tội Ác Của Mẹ Chồng | Sâm Kể Chuyện",
+        "Chồng và Tiểu Tam Đuổi Vợ Ra Khỏi Biệt Thự 12 Tỷ Giữa Đêm Mưa – Giờ G Bắt Quả Tang Tại Phòng Công Chứng",
+        "Mẹ Chồng Bắt Con Dâu Ăn Cơm Thừa Dưới Bếp – 15 Phút Sau 20 Cảnh Sát Cúi Chào Con Dâu Là Sếp",
+        "Đại Tá Công An Thờ Vợ 3 Năm, Lặng Người Khi Thấy Vợ Bế Búp Bê Ăn Xin Giữa Chợ"
+      ]
+    },
+    {
+      "id": "cluster_an_nhan_ke_vong_on",
+      "name": "Người Ân Nhân Xưa & Kẻ Trọc Phú Vong Ân",
+      "badge": "Nhân Văn Sâu Sắc",
+      "desc": "Người cựu binh từng cứu sống cả gia đình năm xưa, khi già yếu đến tìm lại bị kẻ trọc phú xua đuổi coi khinh.",
+      "default_pronoun": "Tôi",
+      "victim_role_name": "Người Ân Nhân / Cựu Binh",
+      "antagonist_1_name": "Kẻ Trọc Phú Vong Ân",
+      "antagonist_2_name": "Vợ / Con Kẻ Trọc Phú",
+      "voice_preset": {
+        "host": "bac_sam",
+        "victim": "bo_chong",
+        "antagonist_1": "chong_boi_bac",
+        "antagonist_2": "con_dau_hon",
+        "justice": "can_bo"
+      },
+      "archetypes": [
+        { "id": "1", "title": "Bác Cựu Binh Già Nghèo Khổ", "desc": "Giản dị, giữ trọn lời thề đồng đội, tấm lòng bao dung nhân hậu" },
+        { "id": "2", "title": "Người Thầy Thuốc Ẩn Danh", "desc": "Từng cứu mạng nhiều người thời chiến tranh, sống đạm bạc nơi thôn dã" },
+        { "id": "3", "title": "Người Anh Nuôi Tần Tảo", "desc": "Nhường nhịn mọi cơ hội cho em trai nuôi, về già sống mộc mạc" }
+      ],
+      "sacrifices": [
+        "Lao vào bom đạn cõng người bạn chiến đấu bị thương nặng qua sông cứu sống tính mạng",
+        "Nhường toàn bộ suất học bổng và tiền trợ cấp cho người em nuôi ăn học thành tài",
+        "Chăm sóc bố mẹ của đồng đội đã hy sinh suốt 30 năm như cha mẹ ruột của mình",
+        "Cho vay không lấy lãi toàn bộ số tiền dưỡng già để bạn mở nhà máy sản xuất đầu tiên"
+      ],
+      "oppressions": [
+        "Đến thăm nhà bạn giàu có, bị vợ con bạn coi như ăn mày xua đuổi, cho bảo vệ ném quà ra đường",
+        "Kẻ từng được cứu mạng giả vờ không quen biết, ném tờ 500 nghìn xuống đất sỉ nhục người ân nhân",
+        "Bị vu oan là kẻ lừa đảo tống tiền khi đưa ra kỷ vật hẹn ước năm xưa giữa hai gia đình",
+        "Con cái kẻ trọc phú gọi công an phường đến bắt giữ người ân nhân lớn tuổi"
+      ],
+      "plot_secrets": [
+        "Chiếc ba lô cũ rách của người ân nhân chứa bức thư tay và di chúc trao tặng 40% cổ phần tập đoàn",
+        "Người ân nhân thực chất là Cố vấn cấp cao của Hội Cựu chiến binh và các tập đoàn hàng đầu",
+        "Chủ tịch tập đoàn đối tác lớn nhất của kẻ trọc phú chính là con nuôi của người ân nhân",
+        "Cuộc gặp gỡ này là bài kiểm tra đạo đức cuối cùng trước khi trao gói tài trợ 50 tỷ"
+      ],
+      "retributions": [
+        "Đối tác đồng loạt hủy hợp đồng 100 tỷ khi biết hành vi bất nghĩa của kẻ trọc phú",
+        "Chủ tịch và ban giám đốc quỳ sụp dưới chân người ân nhân khóc lóc van xin tha thứ",
+        "Kẻ vong ân phá sản, danh dự bị hủy hoại hoàn toàn trong giới kinh doanh",
+        "Người ân nhân nhẹ nhàng mỉm cười quay lưng, trao toàn bộ quỹ từ thiện cho trẻ em nghèo"
+      ],
+      "morals": [
+        "Uống nước nhớ nguồn, ăn quả nhớ kẻ trồng cây - Vong ân bội nghĩa là tự đào hố chôn mình",
+        "Lòng tốt trao đi có thể không cần đền đáp, nhưng sự bạc bẽo chắc chắn sẽ phải trả giá đắt",
+        "Phẩm giá của con người thể hiện rõ nhất ở cách họ đối xử với những người từng giúp đỡ mình khi hoạn nạn"
+      ],
+      "title_templates": [
+        "Ân Nhân Cứu Mạng 30 Năm Trước Tìm Đến Nhà, Bị Con Dâu Ném 500k Vào Mặt – 15 Phút Sau Cả Họ Quỳ Lạy",
+        "Cựu Binh Già Mặc Áo Rách Đến Đám Cưới Bạn Thân – Chết Lặng Khi Thấy Tên Bác Trên Bằng Khen Cấp Nhà Nước",
+        "Cho Bạn Vay Tiền Mở Công Ty, 20 Năm Sau Đến Thăm Bị Đuổi Như Ăn Mày – Cái Kết Đắng Của Kẻ Trọc Phú",
+        "Thầy Giáo Nghèo Lên Thăm Học Trò Thành Đạt – Bị Vợ Học Trò Nhốt Ngoài Cửa Giữa Đêm Mưa Lạnh"
+      ]
+    }
+  ]
+}

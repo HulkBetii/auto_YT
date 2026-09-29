@@ -16,6 +16,12 @@ export async function GET(req: Request) {
       let audioPath: string;
       if (fileName.startsWith('test_voices/')) {
         audioPath = path.join(webVnDir, 'output', fileName);
+      } else if (fileName.startsWith('samples/')) {
+        audioPath = path.join(webVnDir, 'data', 'voice_profiles', fileName);
+      } else if (fs.existsSync(path.join(webVnDir, 'data', 'voice_profiles', 'samples', fileName))) {
+        audioPath = path.join(webVnDir, 'data', 'voice_profiles', 'samples', fileName);
+      } else if (fs.existsSync(path.join(webVnDir, 'output', 'test_voices', fileName))) {
+        audioPath = path.join(webVnDir, 'output', 'test_voices', fileName);
       } else {
         const resolvedFolder = String(storyId).startsWith('story_')
           ? String(storyId)

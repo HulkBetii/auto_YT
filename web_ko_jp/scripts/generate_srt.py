@@ -49,6 +49,21 @@ def parse_srt_timestamp(ts_str: str) -> float:
     return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
 
 
+def split_japanese_sentences(text: str) -> List[str]:
+    """Splits Japanese text into natural sentence-level subtitle units."""
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = re.split(r"(?<=[。！？\n])", line)
+        for p in parts:
+            p = p.strip()
+            if p:
+                lines.append(p)
+    return lines
+
+
 def align_ground_truth_to_cues(
     gt_text: str,
     raw_cues: List[Dict[str, Any]],
@@ -58,7 +73,7 @@ def align_ground_truth_to_cues(
     Aligns ground truth script lines with raw Whisper cues using character timeline sequence matching.
     Ensures 100% exact ground truth vocabulary, kanji, and grammar while retaining audio sync.
     """
-    gt_lines = [l.strip() for l in gt_text.splitlines() if l.strip()]
+    gt_lines = split_japanese_sentences(gt_text)
     if not gt_lines:
         return raw_cues
 
