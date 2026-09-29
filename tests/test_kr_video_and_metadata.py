@@ -81,8 +81,47 @@ def test_kr_metadata_builder(tmp_path: Path):
     assert "YOUTUBE UPLOAD KIT" in kit_txt.read_text(encoding="utf-8")
 
 
+from auto_yt.kr_metadata_builder import (
+    build_youtube_upload_kit,
+    parse_timestamp_to_seconds,
+    format_seconds_to_timestamp,
+    sync_chapter_timestamps,
+)
+
+
+def test_timestamp_conversions():
+    """Kiểm tra chuyển đổi thời gian hai chiều."""
+    assert parse_timestamp_to_seconds("00:00") == 0
+    assert parse_timestamp_to_seconds("09:15") == 555
+    assert parse_timestamp_to_seconds("1:01:15") == 3675
+
+    assert format_seconds_to_timestamp(0) == "00:00"
+    assert format_seconds_to_timestamp(555) == "09:15"
+    assert format_seconds_to_timestamp(3675) == "1:01:15"
+
+
+def test_sync_chapter_timestamps_scaling():
+    """Kiểm tra co giãn tỷ lệ timestamps không vượt quá thời lượng video."""
+    raw_chapters = [
+        ("00:00", "오프닝"),
+        ("10:00", "1장"),
+        ("30:00", "2장"),
+        ("1:00:00", "3장"),
+        ("1:20:00", "4장"),  # 80 min raw
+    ]
+    # Video thực tế chỉ 60 phút (3600s)
+    synced = sync_chapter_timestamps(raw_chapters, actual_duration_s=3600.0)
+    assert len(synced) == len(raw_chapters)
+    assert synced[0].startswith("00:00")
+    # Mốc cuối cùng phải < 3600s
+    last_time_str = synced[-1].split()[0]
+    last_sec = parse_timestamp_to_seconds(last_time_str)
+    assert last_sec <= 3600
+
+
 def test_kr_video_renderer_components():
     """Kiểm tra khởi tạo engine render video và phát hiện công cụ."""
     renderer = KrVideoRenderer()
     assert renderer.ffmpeg_bin is not None
     assert renderer.ffprobe_bin is not None
+
