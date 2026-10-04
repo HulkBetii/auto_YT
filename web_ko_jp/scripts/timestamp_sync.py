@@ -22,8 +22,10 @@ NUMBER_KANJI_MAP = {
     "10": ["十つ目", "１０つ目", "10つ目", "第十", "第10", "十個目"],
 }
 
-INTRO_KEYWORDS = ["血がつながって", "はじめに", "イントロ", "ふざけるな", "この歳まで生きて", "最初", "まず", "そもそも"]
-SUMMARY_KEYWORDS = ["まとめ", "最後に", "自分の人生を守れ", "付き合い方を変えろ", "決めるのは", "ここまで話した", "結び", "大切にしてくれる人"]
+# Generic closing phrases only. Lines quoted from one past script ("ふざけるな", "自分の人生を守れ")
+# matched nothing in other scripts and silently pushed chapters onto interpolated timestamps.
+SUMMARY_KEYWORDS = ["まとめ", "最後に", "結び", "おわりに", "ここまで話した"]
+INTERPOLATION_MAX_STEP_SEC = 90.0
 
 
 def parse_timestamp_sec(ts_str: str) -> float:
@@ -92,12 +94,14 @@ def find_keywords_for_chapter(chapter_title: str, index: int, total: int) -> Lis
     """Derives search keywords from chapter title and position."""
     keywords = []
     # Check if intro
-    if index == 0 or "はじめに" in chapter_title or "イントロ" in chapter_title:
-        return INTRO_KEYWORDS
+    # The intro is always 00:00 and never searched.
+    if index == 0:
+        return []
 
     # Check if conclusion / summary
+    # Closing chapters also try their own nouns below: generic closers alone rarely occur verbatim.
     if index == total - 1 or "まとめ" in chapter_title or "最後に" in chapter_title or "おわりに" in chapter_title:
-        return SUMMARY_KEYWORDS
+        keywords.extend(SUMMARY_KEYWORDS)
 
     # Look for numbered items (①, 1, 一つ目...)
     num_match = re.search(r"([①-⑩0-9]+)", chapter_title)
@@ -121,14 +125,15 @@ def find_keywords_for_chapter(chapter_title: str, index: int, total: int) -> Lis
     return keywords
 
 
-def sync_chapters_with_srt(
+def sync_chapters_detailed(
     description_jp: str,
     srt_path: Path,
     audio_duration_sec: Optional[float] = None
-) -> Tuple[str, List[str]]:
+) -> Tuple[str, List[Dict[str, Any]]]:
     """
-    Matches chapter definitions in description_jp against SRT subtitles,
-    computes accurate timestamps, and returns (updated_description, synchronized_chapters).
+    Matches chapter definitions in description_jp against SRT subtitles and returns
+    (updated_description, [{title, seconds, source}]) where source is "start", "matched" or
+    "interpolated" (no subtitle cue matched; the timestamp is a proportional guess).
     """
     cues = parse_srt_file(srt_path)
     if not cues and not audio_duration_sec:
@@ -141,18 +146,18 @@ def sync_chapters_with_srt(
         return description_jp, []
 
     total_chapters = len(raw_lines)
-    synchronized_chapters: List[str] = []
+    chapters: List[Dict[str, Any]] = []
     last_sec = 0.0
 
     for i, line in enumerate(raw_lines):
         # Strip existing timestamp or prefix
-        clean_title = re.sub(r"^(?:\d{2}:\d{2}|XX:XX)\s*", "", line).strip()
+        clean_title = re.sub(r"^(?:\d{1,2}:\d{2}(?::\d{2})?|XX:XX)\s*", "", line).strip()
         if not clean_title:
             continue
 
         if i == 0:
             # First chapter is strictly 00:00
-            synchronized_chapters.append(f"00:00 {clean_title}")
+            chapters.append({"title": clean_title, "seconds": 0.0, "source": "start"})
             last_sec = 0.0
             continue
 
@@ -167,14 +172,34 @@ def sync_chapters_with_srt(
                         matched_sec = cue["start_sec"]
                         break
 
+        source = "matched"
         # Fallback if no cue matched: proportional interpolation
         if matched_sec is None or matched_sec <= last_sec:
             proportional_step = (total_duration - last_sec) / max(total_chapters - i, 1)
-            matched_sec = last_sec + min(proportional_step, 90.0)
+            matched_sec = last_sec + min(proportional_step, INTERPOLATION_MAX_STEP_SEC)
+            source = "interpolated"
 
         last_sec = matched_sec
-        synchronized_chapters.append(f"{format_timestamp(matched_sec)} {clean_title}")
+        chapters.append({"title": clean_title, "seconds": matched_sec, "source": source})
 
+    synchronized_chapters = [f"{format_timestamp(ch['seconds'])} {ch['title']}" for ch in chapters]
+    return _replace_toc(description_jp, synchronized_chapters), chapters
+
+
+def sync_chapters_with_srt(
+    description_jp: str,
+    srt_path: Path,
+    audio_duration_sec: Optional[float] = None
+) -> Tuple[str, List[str]]:
+    """
+    Matches chapter definitions in description_jp against SRT subtitles,
+    computes accurate timestamps, and returns (updated_description, synchronized_chapters).
+    """
+    updated_desc, chapters = sync_chapters_detailed(description_jp, srt_path, audio_duration_sec)
+    return updated_desc, [f"{format_timestamp(ch['seconds'])} {ch['title']}" for ch in chapters]
+
+
+def _replace_toc(description_jp: str, synchronized_chapters: List[str]) -> str:
     # Build the updated TOC block
     toc_block = "▼目次\n" + "\n".join(synchronized_chapters)
 
@@ -185,4 +210,4 @@ def sync_chapters_with_srt(
         description_jp
     ).strip()
 
-    return updated_desc, synchronized_chapters
+    return updated_desc

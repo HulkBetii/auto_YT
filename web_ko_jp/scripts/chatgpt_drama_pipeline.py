@@ -32,6 +32,10 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from auto_yt.paths import gpt_profile_dir
+from metadata_rules import clean_description, count_script_items
+from channel_profile import FIXED_HASHTAGS, TIER1_CORE, TITLE_ANCHOR_WINDOW, TITLE_ANCHORS
+from channel_registry import ChannelRegistry
+from title_validator import TitleValidation, reorder_variants, retry_feedback, validate_variants
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 CHATGPT_URL = "https://chatgpt.com/"
@@ -72,7 +76,7 @@ PROMPT_TURN1_TEMPLATE = """Viết lại nội dung đính kèm thành nội dung
 Transcript:
 {transcript}"""
 
-PROMPT_TURN2_TEMPLATE = """Dựa trên kịch bản vừa viết, hãy tạo TIÊU ĐỀ YOUTUBE tiếng Nhật đạt CTR cao nhất cho ngách 処世訓・人生哲学ドラマ (khán giả 50-75 tuổi Nhật Bản).
+PROMPT_TURN2_TEMPLATE = """Dựa trên kịch bản vừa viết, hãy tạo TIÊU ĐỀ YOUTUBE tiếng Nhật đạt CTR cao nhất cho ngách 先人の知恵・処世術 (khán giả 50-75 tuổi Nhật Bản).
 
 QUY TẮC BẮT BUỘC:
 - Tổng độ dài: 32-55 ký tự (không kể khoảng trắng kép).
@@ -81,6 +85,9 @@ QUY TẮC BẮT BUỘC:
 - Sau dấu ｜ là bối cảnh triết lý hoặc hậu quả cụ thể.
 - TUYỆT ĐỐI KHÔNG dùng 【99%が知らない】 (cụm này quá cũ, mất uy tín).
 - Thay thế bằng: 「多くの人が見落とす」「意外と知られていない」「気づかない人が多い」「最後まで気づきにくい」hoặc dạng không prefix.
+- [[ANCHOR_WINDOW]] ký tự đầu (không tính phần 【…】 mở đầu) PHẢI chứa nguyên văn ít nhất 1 cụm người Nhật thực sự tìm kiếm: [[TITLE_ANCHORS]].
+- Con số trong tiêu đề (〇選, 〇種類, 〇つ) PHẢI đúng bằng số mục (一つ目, 二つ目…) trong kịch bản.
+- Chỉ nêu tên kinh điển/danh nhân (論語, 孔子, 老子, 菜根譚…) khi kịch bản hoặc video nguồn thực sự trích dẫn từ đó.
 
 5 FORMULA CHO PHÉP (chọn formula PHÙ HỢP NHẤT với nội dung kịch bản):
 1. 【Yếu tố hiếm/sốc】[Đối tượng]の[Đặc điểm]〇選｜[Hành động mệnh lệnh]と[Hậu quả cụ thể]
@@ -94,7 +101,7 @@ A: [Tiêu đề mạnh nhất — Warning/Conflict hook — dùng formula phù h
 B: [Tiêu đề thứ hai — Paradox/Đảo ngược kỳ vọng — cùng chủ đề nhưng góc khác]
 C: [Tiêu đề thứ ba — Age-specific/Life-stage — nhắm thẳng tuổi 60-70]"""
 
-PROMPT_TURN3_TEMPLATE = """Dựa trên kịch bản vừa viết, tạo MÔ TẢ VIDEO YouTube + TAGS + PINNED COMMENT chuẩn SEO thị trường Nhật Bản (ngách 処世訓・人生哲学ドラマ, khán giả 50-75 tuổi).
+PROMPT_TURN3_TEMPLATE = """Dựa trên kịch bản vừa viết, tạo MÔ TẢ VIDEO YouTube + TAGS + PINNED COMMENT chuẩn SEO thị trường Nhật Bản (ngách 先人の知恵・処世術, khán giả 50-75 tuổi).
 
 ━━━ PHẦN 1: MÔ TẢ VIDEO (Description) ━━━
 
@@ -117,15 +124,15 @@ Liệt kê 4-5 dòng bullet (・) — mỗi dòng là một chân dung cụ th�
 【BLOCK 4 — MỤC LỤC TIMESTAMPS】
 ▼目次
 00:00 はじめに｜[Nội dung chương mở đầu]
-XX:XX [Chương 2 — đặt tên theo đặc điểm/bài học thực tế trong kịch bản, không đặt chung chung kiểu "第1章"]
-XX:XX [Chương 3]
+XX:XX ① [Chương 2 — đặt tên theo đặc điểm/bài học thực tế trong kịch bản, không đặt chung chung kiểu "第1章"; mỗi mục (一つ目, 二つ目…) đánh số ①②③… đúng thứ tự trong kịch bản]
+XX:XX ② [Chương 3]
 (tiếp tục — mỗi bài học/đặc điểm chính là 1 chapter riêng)
 XX:XX まとめ｜[Thông điệp kết]
 (Giữ nguyên XX:XX — script Python sẽ tính và inject timestamps thực tế sau)
 
 【BLOCK 5 — KÊNH + CTA】
 ▼このチャンネルについて
-人生後半を穏やかに、賢く生きるための「処世訓」「先人の知恵」「人間関係の教訓」を、物語とともにお届けしています。
+人生後半を穏やかに、賢く生きるための「処世術」「先人の知恵」「人間関係の教訓」を、物語とともにお届けしています。
 
 動画が心に残りましたら、チャンネル登録と高評価で応援していただけると励みになります。
 
@@ -135,14 +142,14 @@ XX:XX まとめ｜[Thông điệp kết]
 ※本動画は一般的な人生観・人間関係について考えるためのコンテンツです。個別の医療・心理・法律上の助言を目的とするものではありません。
 ※本動画では合成音声を使用しています。脚本・構成・編集は当チャンネル独自のものです。実在人物の発言や音声を再現するものではありません。
 
-#人間関係 #人生哲学 #先人の知恵
+[[FIXED_HASHTAGS]]
 
 ━━━ PHẦN 2: TAGS YOUTUBE ━━━
 
 【BLOCK 7 — TAGS 4 TẦNG】
 Viết đúng format dưới đây (để script Python có thể parse):
 
-TIER1_CORE: 処世訓, 人生哲学, 先人の知恵, 人間関係, 生き方, 人生後半
+TIER1_CORE: [[TIER1_CORE]]
 TIER2_TOPIC: [8-10 tags xoay vòng phù hợp chủ đề video này — ví dụ nếu video về nhận diện kẻ độc hại: 関わってはいけない人, 縁を切るべき人, 信用できない人, 人の本性, 本音を見抜く, 距離を置くべき人, 嫌な人の対処法, 人間関係を整理する]
 TIER3_LONGTAIL: [5-8 tags long-tail đặc thù cho nội dung cụ thể của video này — ví dụ: 60代から関わってはいけない人, 信用できない人の口癖, 人の本性が出る瞬間]
 TIER4_DEMO: 50代, 60代, 70代, シニア, 定年後
@@ -160,7 +167,7 @@ TIER4_DEMO: 50代, 60代, 70代, シニア, 定年後
 - TUYỆT ĐỐI KHÔNG có lời chào AI, không có "以下は" hay "承知しました" hay bất kỳ meta-commentary nào.
 - Giữ đúng format BLOCK với header 【BLOCK X — ...】 để script parse.
 - Timestamps dùng XX:XX làm placeholder — KHÔNG tự bịa timestamps.
-- Hashtags CỐ ĐỊNH ở Block 6: đúng 3 thẻ #人間関係 #人生哲学 #先人の知恵
+- Hashtags CỐ ĐỊNH ở Block 6: đúng 3 thẻ [[FIXED_HASHTAGS]]
 - TIER1_CORE không được thay đổi.
 - Output sạch, sẵn sàng copy-paste."""
 
@@ -270,11 +277,38 @@ CHÚ Ý:
 - Mỗi dòng tối đa 8 ký tự — đọc được ngay trên điện thoại màn hình nhỏ.
 - KHÔNG thêm dấu câu thừa, không bọc trong 【】hay 「」.
 - Chọn mệnh lệnh dòng 3 PHÙ HỢP với chủ đề của kịch bản vừa viết.
+- Thumbnail BỔ SUNG cho tiêu đề A, KHÔNG lặp lại cụm từ (từ 4 ký tự trở lên) đã có trong tiêu đề A.
+- Nếu dùng con số thì phải đúng con số trong tiêu đề A.
 
 OUTPUT FORMAT BẮT BUỘC (3 dòng, không giải thích, không thêm gì khác):
 Dòng 1: [text dòng 1]
 Dòng 2: [text dòng 2]
 Dòng 3: [text dòng 3]"""
+
+PROMPT_TURN2_RETRY_TEMPLATE = """Các tiêu đề vừa rồi bị hệ thống kiểm tra tự động loại vì:
+{feedback}
+
+Viết lại 3 tiêu đề A/B/C MỚI, giữ mọi QUY TẮC BẮT BUỘC ở lượt trước và sửa đúng các lỗi trên:
+- {anchor_window} ký tự đầu (không tính phần 【…】 mở đầu) phải chứa nguyên văn 1 trong các cụm: {anchors}
+- Con số trong tiêu đề phải đúng bằng số mục trong kịch bản{items_hint}.
+- Không gần giống các tiêu đề kênh đã đăng.
+
+OUTPUT FORMAT BẮT BUỘC (3 dòng, không giải thích, không thêm gì khác):
+A: [tiêu đề]
+B: [tiêu đề]
+C: [tiêu đề]"""
+
+# Channel vocabulary lives in channel_profile so prompts, validator and gate agree.
+PROMPT_TURN2_TEMPLATE = (
+    PROMPT_TURN2_TEMPLATE
+    .replace("[[ANCHOR_WINDOW]]", str(TITLE_ANCHOR_WINDOW))
+    .replace("[[TITLE_ANCHORS]]", "、".join(TITLE_ANCHORS))
+)
+PROMPT_TURN3_TEMPLATE = (
+    PROMPT_TURN3_TEMPLATE
+    .replace("[[TIER1_CORE]]", ", ".join(TIER1_CORE))
+    .replace("[[FIXED_HASHTAGS]]", FIXED_HASHTAGS)
+)
 
 
 # =============================================================================
@@ -310,6 +344,10 @@ def parse_turn2_result(raw_text: str) -> dict:
     return result
 
 
+# Tolerates markdown decoration ChatGPT adds around headers: **【BLOCK 1 — HOOK】**, ### BLOCK 2.
+BLOCK_HEADER_RE = re.compile(r'^[\s*#>\-]*[【\[]?\s*BLOCK\s*(\d+)', re.IGNORECASE)
+
+
 def parse_turn3_result(raw_text: str) -> dict:
     """
     Parse description, tags (tiered), pinned comment from Turn 3 response.
@@ -328,7 +366,7 @@ def parse_turn3_result(raw_text: str) -> dict:
     buffer: list = []
 
     for line in raw_text.splitlines():
-        m = re.match(r'[【\[]?BLOCK\s+(\d+)', line, re.IGNORECASE)
+        m = BLOCK_HEADER_RE.match(line)
         if m:
             if current_block > 0:
                 block_texts[current_block] = "\n".join(buffer).strip()
@@ -344,7 +382,7 @@ def parse_turn3_result(raw_text: str) -> dict:
     if not block_texts:
         logger.warning("parse_turn3_result: No BLOCK markers found, returning raw text as description.")
         return {
-            "description_jp": raw_text.strip(),
+            "description_jp": clean_description(raw_text),
             "tags_tiered": {"tier1": [], "tier2": [], "tier3": [], "tier4": []},
             "tags_flat": "",
             "pinned_comment": "",
@@ -364,7 +402,8 @@ def parse_turn3_result(raw_text: str) -> dict:
             text = "\n".join(cleaned_lines).strip()
             if text:
                 desc_parts.append(text)
-    description_jp = "\n\n".join(desc_parts).strip()
+    # Final pass: drops any header or Vietnamese hint line the block split missed.
+    description_jp = clean_description("\n\n".join(desc_parts))
 
     # Parse tags from block 7 (TIER lines) — also scan full raw as fallback
     tags_tiered: dict = {"tier1": [], "tier2": [], "tier3": [], "tier4": []}
@@ -818,6 +857,54 @@ def parse_thumbnail_response(raw_text: str) -> Tuple[str, List[str]]:
     return chosen_text, options
 
 
+def _variants(parsed: Dict[str, str]) -> Dict[str, str]:
+    return {"A": parsed.get("title_a", ""), "B": parsed.get("title_b", ""), "C": parsed.get("title_c", "")}
+
+
+def apply_title_validation(parsed: Dict[str, str], validation: TitleValidation) -> Dict[str, str]:
+    """Moves the best passing variant into slot A (the kit's primary title)."""
+    ordered = reorder_variants(_variants(parsed), validation)
+    return {
+        "title_a": ordered["A"], "title_b": ordered["B"], "title_c": ordered["C"],
+        "title_primary": ordered["A"] or parsed.get("title_primary", ""),
+    }
+
+
+async def generate_validated_titles(
+    page: Page, script_jp: str, transcript: str
+) -> Tuple[Dict[str, str], TitleValidation]:
+    """Turn 2 plus at most one retry in the same chat when no variant passes the validator."""
+    registry_titles = ChannelRegistry.load().titles_for_dedup()
+    raw = await send_chatgpt_message(page, PROMPT_TURN2_TEMPLATE, timeout_seconds=180)
+    parsed = parse_turn2_result(raw)
+    validation = validate_variants(
+        _variants(parsed), script_jp=script_jp, transcript=transcript, registry_titles=registry_titles
+    )
+    if validation.status != "validated":
+        logger.warning("[TURN 2] No title passed validation, asking once more:\n%s", retry_feedback(validation))
+        items = count_script_items(script_jp)
+        retry_prompt = PROMPT_TURN2_RETRY_TEMPLATE.format(
+            feedback=retry_feedback(validation),
+            anchor_window=TITLE_ANCHOR_WINDOW,
+            anchors="、".join(TITLE_ANCHORS),
+            items_hint=f" ({items} mục)" if items else "",
+        )
+        await asyncio.sleep(2)
+        retry_parsed = parse_turn2_result(await send_chatgpt_message(page, retry_prompt, timeout_seconds=180))
+        retry_validation = validate_variants(
+            _variants(retry_parsed), script_jp=script_jp, transcript=transcript,
+            registry_titles=registry_titles, retried=True,
+        )
+        # Keep the original drafts when the retry is no better, so the kit still has titles to fix by hand.
+        if retry_validation.status == "validated" or not validation.checks:
+            parsed, validation = retry_parsed, retry_validation
+        else:
+            validation.retried = True
+    if validation.status != "validated":
+        logger.error("[TURN 2] Titles still fail validation; the upload kit will be marked FAIL.")
+    return apply_title_validation(parsed, validation), validation
+
+
 async def execute_full_drama_workflow(
     title: str,
     url: str,
@@ -879,10 +966,10 @@ async def execute_full_drama_workflow(
 
         # TURN 2: Title — 3 variants A/B/C, SEO JP
         logger.info("[TURN 2/5] Generating Japanese title variants (A/B/C)...")
-        raw_title_response = await send_chatgpt_message(page, PROMPT_TURN2_TEMPLATE, timeout_seconds=180)
-        title_parsed = parse_turn2_result(raw_title_response)
+        title_parsed, title_validation = await generate_validated_titles(page, script_jp, transcript)
         title_jp = title_parsed["title_primary"]
-        logger.info(f"[TURN 2 DONE] Title A: {title_parsed['title_a']}")
+        logger.info(f"[TURN 2 DONE] Title validation: {title_validation.status} (retried={title_validation.retried})")
+        logger.info(f"              Title A: {title_parsed['title_a']}")
         logger.info(f"              Title B: {title_parsed['title_b']}")
         logger.info(f"              Title C: {title_parsed['title_c']}")
         await asyncio.sleep(2)
@@ -906,7 +993,9 @@ async def execute_full_drama_workflow(
 
         # TURN 4: Thumbnail text — 3 lines with formula heuristic
         logger.info("[TURN 4/5] Generating 3-line thumbnail text with formula heuristic...")
-        raw_thumb_response = await send_chatgpt_message(page, PROMPT_TURN4_TEMPLATE, timeout_seconds=180)
+        # The validator may have promoted B/C to slot A, so name the title the thumbnail must complement.
+        prompt_turn4 = f"Tiêu đề A đã chốt: {title_jp}\n\n{PROMPT_TURN4_TEMPLATE}"
+        raw_thumb_response = await send_chatgpt_message(page, prompt_turn4, timeout_seconds=180)
         chosen_thumb_text, thumb_options = parse_thumbnail_response(raw_thumb_response)
         logger.info(f"[TURN 4 DONE] Chosen Thumbnail Text:\n{chosen_thumb_text}")
         await asyncio.sleep(2)
@@ -956,6 +1045,7 @@ async def execute_full_drama_workflow(
             "title_a_jp": title_parsed["title_a"],
             "title_b_jp": title_parsed["title_b"],
             "title_c_jp": title_parsed["title_c"],
+            "title_validation": title_validation.model_dump(),
             # Script
             "script_jp": script_jp,
             # Description & metadata

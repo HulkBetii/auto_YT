@@ -35,7 +35,7 @@ for p in [str(SRC_DIR), str(SCRIPTS_DIR)]:
 import psycopg2
 from youtube_extractor import extract_youtube_info
 from chatgpt_drama_pipeline import execute_full_drama_workflow
-from timestamp_sync import sync_chapters_with_srt
+from timestamp_sync import extract_raw_chapter_lines, format_timestamp, sync_chapters_detailed
 
 
 def get_db_connection():
@@ -180,6 +180,7 @@ async def run_master_pipeline(
     kit_txt_file = video_out_dir / f"youtube_upload_kit_v{video_id}.txt"
 
     audio_duration_actual = None
+    chapter_sync: list = []
 
     if not skip_tts:
         # ---------------------------------------------------------------------
@@ -222,12 +223,12 @@ async def run_master_pipeline(
         # ---------------------------------------------------------------------
         print("\n[STAGE 6/8] Synchronizing Chapter Timestamps from .srt...")
         if srt_file.exists():
-            updated_desc, syncd_chapters = sync_chapters_with_srt(description_jp, srt_file)
+            updated_desc, chapter_sync = sync_chapters_detailed(description_jp, srt_file)
             if updated_desc:
                 description_jp = updated_desc
-                print(f"  ✅ Synchronized {len(syncd_chapters)} chapters with audio timeline:")
-                for ch in syncd_chapters:
-                    print(f"     {ch}")
+                print(f"  ✅ Synchronized {len(chapter_sync)} chapters with audio timeline:")
+                for ch in chapter_sync:
+                    print(f"     {format_timestamp(ch['seconds'])} {ch['title']} [{ch['source']}]")
 
                 # Update DB with synced description
                 conn = get_db_connection()
@@ -271,7 +272,10 @@ async def run_master_pipeline(
         "title_a_jp": title_a_jp,
         "title_b_jp": title_b_jp,
         "title_c_jp": title_c_jp,
+        "title_validation": ai_result.get("title_validation"),
         "description_jp": description_jp,
+        "chapters_raw": extract_raw_chapter_lines(description_jp),
+        "chapter_sync": chapter_sync,
         "youtube_tags": youtube_tags,
         "tags_tiered": tags_tiered,
         "pinned_comment": pinned_comment,
