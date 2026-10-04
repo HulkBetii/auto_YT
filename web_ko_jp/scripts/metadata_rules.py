@@ -11,7 +11,8 @@ import unicodedata
 from typing import List, Set
 
 BLOCK_LINE_RE = re.compile(r"BLOCK\s*\d", re.IGNORECASE)
-PLACEHOLDER_TIMESTAMP_RE = re.compile(r"XX:XX")
+# ChatGPT sometimes shortens the XX:XX placeholder to a bare "XX" at line start (v6, 2026-10-04).
+PLACEHOLDER_TIMESTAMP_RE = re.compile(r"XX[:：]XX|^\s*XX(?=\s)", re.MULTILINE)
 # Latin letters that only Vietnamese uses; Japanese descriptions never contain them, so any hit
 # means a Vietnamese prompt hint leaked into the copy-paste text.
 VIETNAMESE_CHAR_RE = re.compile(

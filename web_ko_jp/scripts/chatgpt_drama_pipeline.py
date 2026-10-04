@@ -32,7 +32,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from auto_yt.paths import gpt_profile_dir
-from metadata_rules import clean_description, count_script_items
+from metadata_rules import clean_description, count_script_items, has_vietnamese
 from channel_profile import FIXED_HASHTAGS, TIER1_CORE, TITLE_ANCHOR_WINDOW, TITLE_ANCHORS
 from channel_registry import ChannelRegistry
 from title_validator import TitleValidation, reorder_variants, retry_feedback, validate_variants
@@ -443,7 +443,7 @@ def parse_turn3_result(raw_text: str) -> dict:
     # Extract chapter lines from block 4
     chapters_raw: list = []
     for ln in block_texts.get(4, "").splitlines():
-        if re.match(r'^(?:00:00|XX:XX|\d{2}:\d{2})', ln.strip()):
+        if re.match(r'^(?:\d{2}:\d{2}|XX(?:[:：]XX)?\s)', ln.strip()):
             chapters_raw.append(ln.strip())
 
     # Extract and clean pinned comment from block 8
@@ -825,6 +825,12 @@ def clean_thumbnail_line(line: str) -> str:
     return cleaned.strip()
 
 
+def is_thumbnail_candidate(line: str) -> bool:
+    """Japanese overlay text only: lines carrying Vietnamese are echoed prompt rules (v6 shipped
+    "Tiêu đề A đã chốt: …" as its thumbnail text)."""
+    return is_japanese_line(line) and not has_vietnamese(line)
+
+
 def parse_thumbnail_response(raw_text: str) -> Tuple[str, List[str]]:
     raw_lines = [clean_thumbnail_line(line) for line in raw_text.splitlines() if line.strip()]
     chosen_lines = []
@@ -838,18 +844,18 @@ def parse_thumbnail_response(raw_text: str) -> Tuple[str, List[str]]:
     if match_strong:
         strong_block = match_strong.group(1).strip()
         strong_lines = [clean_thumbnail_line(l) for l in strong_block.splitlines() if clean_thumbnail_line(l)]
-        jp_strong_lines = [l for l in strong_lines if is_japanese_line(l)]
+        jp_strong_lines = [l for l in strong_lines if is_thumbnail_candidate(l)]
         if jp_strong_lines:
             chosen_lines = jp_strong_lines[:3]
             
     option_blocks = re.findall(r"(?:\d+\.\s*)([\s\S]*?)(?=(?:\d+\.\s*|\Z))", raw_text)
     for opt in option_blocks:
-        clean_opt_lines = [clean_thumbnail_line(l) for l in opt.splitlines() if clean_thumbnail_line(l) and is_japanese_line(l)]
+        clean_opt_lines = [clean_thumbnail_line(l) for l in opt.splitlines() if clean_thumbnail_line(l) and is_thumbnail_candidate(l)]
         if clean_opt_lines:
             options.append("\n".join(clean_opt_lines[:3]))
             
     if not chosen_lines:
-        candidates = [l for l in raw_lines if is_japanese_line(l)]
+        candidates = [l for l in raw_lines if is_thumbnail_candidate(l)]
         if candidates:
             chosen_lines = candidates[:3]
         

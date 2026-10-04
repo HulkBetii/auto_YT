@@ -26,6 +26,9 @@ NUMBER_KANJI_MAP = {
 # matched nothing in other scripts and silently pushed chapters onto interpolated timestamps.
 SUMMARY_KEYWORDS = ["まとめ", "最後に", "結び", "おわりに", "ここまで話した"]
 INTERPOLATION_MAX_STEP_SEC = 90.0
+MIN_CHAPTER_GAP_SEC = 10.0
+CIRCLED_NUMBERS = "①②③④⑤⑥⑦⑧⑨⑩"
+GENERIC_TITLE_WORDS = {"特徴", "人間", "理由", "チャプター", "目次"}
 
 
 def parse_timestamp_sec(ts_str: str) -> float:
@@ -85,44 +88,56 @@ def extract_raw_chapter_lines(description_jp: str) -> List[str]:
             if not stripped or stripped.startswith("【") or stripped.startswith("▼このチャンネル"):
                 break
             # Match lines that look like a chapter
-            if re.search(r"^(?:\d{2}:\d{2}|XX:XX|[①-⑩0-9])", stripped) or "｜" in stripped or "・" in stripped:
+            if re.search(r"^(?:\d{2}:\d{2}|XX(?:[:：]XX)?\s|[①-⑩0-9])", stripped) or "｜" in stripped or "・" in stripped:
                 lines.append(stripped)
     return lines
 
 
-def find_keywords_for_chapter(chapter_title: str, index: int, total: int) -> List[str]:
-    """Derives search keywords from chapter title and position."""
-    keywords = []
-    # Check if intro
-    # The intro is always 00:00 and never searched.
-    if index == 0:
-        return []
+def is_closing_chapter(chapter_title: str, index: int, total: int) -> bool:
+    return index == total - 1 or any(k in chapter_title for k in ("まとめ", "最後に", "おわりに", "結び"))
 
-    # Check if conclusion / summary
-    # Closing chapters also try their own nouns below: generic closers alone rarely occur verbatim.
-    if index == total - 1 or "まとめ" in chapter_title or "最後に" in chapter_title or "おわりに" in chapter_title:
-        keywords.extend(SUMMARY_KEYWORDS)
 
-    # Look for numbered items (①, 1, 一つ目...)
-    num_match = re.search(r"([①-⑩0-9]+)", chapter_title)
+def chapter_search_terms(chapter_title: str, index: int, total: int) -> Tuple[List[str], List[str]]:
+    """
+    (strong, weak) subtitle search terms for a chapter.
+    Strong: the script's own ordinal (三つ目), phrases quoted in 「」 (the narration says them
+    verbatim) and, for the closing chapter, generic closers. Weak: kanji/katakana words of the
+    title, tried only when no strong term matches. Bare hiragana fragments ("るの", "けど") are
+    never used: on v6 they matched unrelated lines and pulled chapters minutes early.
+    """
+    if index == 0:  # the intro is always 00:00 and never searched
+        return [], []
+    strong: List[str] = []
+    weak: List[str] = []
+
+    if is_closing_chapter(chapter_title, index, total):
+        strong.extend(SUMMARY_KEYWORDS)
+
+    num_match = re.search(r"([①-⑩]|\d+)", chapter_title)
     if num_match:
         raw_num = num_match.group(1)
-        # Convert circled number to digit string
-        circled = "①②③④⑤⑥⑦⑧⑨⑩"
-        if raw_num in circled:
-            digit = str(circled.index(raw_num) + 1)
-        else:
-            digit = raw_num
-        if digit in NUMBER_KANJI_MAP:
-            keywords.extend(NUMBER_KANJI_MAP[digit])
+        digit = str(CIRCLED_NUMBERS.index(raw_num) + 1) if raw_num in CIRCLED_NUMBERS else raw_num
+        for variant in NUMBER_KANJI_MAP.get(digit, []):
+            (strong if "目" in variant else weak).append(variant)
 
-    # Extract meaningful Japanese nouns / phrases (2-6 chars)
-    words = re.findall(r"[\u4e00-\u9fff\u3040-\u30ff]{2,6}", chapter_title)
-    for w in words:
-        if w not in ["特徴", "人間", "理由", "チャプター", "目次"]:
-            keywords.append(w)
+    strong.extend(re.findall(r"「([^」]{2,})」", chapter_title))
+    for word in re.findall(r"[一-鿿゠-ヿ]{2,}", chapter_title):
+        if word not in GENERIC_TITLE_WORDS:
+            weak.append(word)
+    return strong, weak
 
-    return keywords
+
+def find_keywords_for_chapter(chapter_title: str, index: int, total: int) -> List[str]:
+    """Derives search keywords from chapter title and position (strong terms first)."""
+    strong, weak = chapter_search_terms(chapter_title, index, total)
+    return strong + weak
+
+
+def _first_cue(cues: List[Dict[str, Any]], terms: List[str], from_end: bool) -> Optional[float]:
+    for cue in (reversed(cues) if from_end else cues):
+        if any(term in cue["text"] for term in terms):
+            return cue["start_sec"]
+    return None
 
 
 def sync_chapters_detailed(
@@ -151,7 +166,7 @@ def sync_chapters_detailed(
 
     for i, line in enumerate(raw_lines):
         # Strip existing timestamp or prefix
-        clean_title = re.sub(r"^(?:\d{1,2}:\d{2}(?::\d{2})?|XX:XX)\s*", "", line).strip()
+        clean_title = re.sub(r"^(?:\d{1,2}:\d{2}(?::\d{2})?|XX(?:[:：]XX)?)\s*", "", line).strip()
         if not clean_title:
             continue
 
@@ -161,16 +176,18 @@ def sync_chapters_detailed(
             last_sec = 0.0
             continue
 
-        # Search in cues after last_sec
-        kws = find_keywords_for_chapter(clean_title, i, total_chapters)
-        matched_sec = None
-
-        if cues:
-            for cue in cues:
-                if cue["start_sec"] >= last_sec:
-                    if any(kw in cue["text"] for kw in kws):
-                        matched_sec = cue["start_sec"]
-                        break
+        # Search cues at least MIN_CHAPTER_GAP_SEC after the previous chapter (YouTube needs >= 10s).
+        # The closing chapter takes the LAST closer in the script: "最後に" also appears mid-story.
+        strong, weak = chapter_search_terms(clean_title, i, total_chapters)
+        candidates = [c for c in cues if c["start_sec"] >= last_sec + MIN_CHAPTER_GAP_SEC]
+        if is_closing_chapter(clean_title, i, total_chapters):
+            # Title nouns (自分, 人生) recur everywhere; on v5 they put the summary 19s before the end.
+            # Without a closer phrase the chapter is interpolated so the gate warns instead.
+            matched_sec = _first_cue(candidates, strong, from_end=True)
+        else:
+            matched_sec = _first_cue(candidates, strong, from_end=False)
+            if matched_sec is None:
+                matched_sec = _first_cue(candidates, weak, from_end=False)
 
         source = "matched"
         # Fallback if no cue matched: proportional interpolation

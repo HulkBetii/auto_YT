@@ -101,3 +101,9 @@ def test_hashtag_rules(count, fail_id, warn_id):
                       chapter_lines=["00:00 a", "01:00 b", "02:00 c"], script_jp="")
     assert ("hashtags_ignored" in _ids(report, "fail")) is (fail_id is not None)
     assert ("hashtags_3_to_5" in _ids(report, "warn")) is (warn_id is not None)
+
+
+def test_vietnamese_thumbnail_text_fails(v5):
+    report = _gate(v5, description_jp=clean_description(v5["description_jp"]),
+                   thumbnail_text="Tiêu đề A đã chốt: 関わってはいけない人\n(Trắng, cỡ lớn): 悪い人は")
+    assert "thumbnail_clean" in _ids(report, "fail")

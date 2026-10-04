@@ -64,3 +64,35 @@ def test_no_block_fallback_is_still_cleaned():
 def test_clean_description_keeps_japanese_lines():
     text = "【BLOCK 1 — HOOK】\n本文\n\n\n\nLiệt kê 4-5 dòng\n・項目"
     assert clean_description(text) == "本文\n\n・項目"
+
+
+# Regression from the v6 end-to-end run (2026-10-04): ChatGPT wrote "XX ①" instead of "XX:XX ①".
+V6_TOC = """▼目次
+00:00 はじめに｜味方の顔をした相手ほど見抜きにくい
+XX ① 「正直に言うけど」で人を傷つける人
+XX ② 「あなたのため」で人生を支配する人
+XX まとめ｜優しくしても、人生まで差し出してはいけない
+
+▼このチャンネルについて"""
+
+
+def test_bare_xx_placeholder_chapters_are_kept():
+    from timestamp_sync import extract_raw_chapter_lines
+    from metadata_rules import PLACEHOLDER_TIMESTAMP_RE
+
+    assert len(extract_raw_chapter_lines(V6_TOC)) == 4
+    assert PLACEHOLDER_TIMESTAMP_RE.search(V6_TOC)
+    raw = "【BLOCK 4 — MỤC LỤC】\n" + V6_TOC.split("\n\n")[0]
+    assert len(parse_turn3_result(raw)["chapters_raw"]) == 4
+
+
+def test_thumbnail_parser_ignores_echoed_vietnamese_rules():
+    from chatgpt_drama_pipeline import parse_thumbnail_response
+
+    raw = (
+        "Tiêu đề A đã chốt: 関わってはいけない人が必ず口にする危険な言葉7選\n"
+        "DÒNG 1 (Trắng, cỡ lớn): Mô tả chủ thể — Ví dụ: 悪い人は / 本性は\n"
+        "Dòng 1: その口癖\nDòng 2: 本性が出る\nDòng 3: 近づくな"
+    )
+    chosen, _ = parse_thumbnail_response(raw)
+    assert chosen == "その口癖\n本性が出る\n近づくな"

@@ -129,6 +129,12 @@ def check_limits(title: str, description: str, tags_flat: str) -> GateCheck:
     return GateCheck(id="youtube_limits", severity="fail", passed=not problems, detail="; ".join(problems))
 
 
+def check_thumbnail_clean(thumbnail_text: str) -> GateCheck:
+    passed = bool(thumbnail_text.strip()) and not has_vietnamese(thumbnail_text)
+    detail = "" if passed else ("missing" if not thumbnail_text.strip() else "contains Vietnamese prompt text")
+    return GateCheck(id="thumbnail_clean", severity="fail", passed=passed, detail=detail)
+
+
 def check_thumbnail(title: str, thumbnail_text: str) -> GateCheck:
     if not thumbnail_text.strip():
         return GateCheck(id="thumbnail_repeats_title", severity="warn", passed=True, detail="no thumbnail text")
@@ -199,6 +205,7 @@ def run_gate(
             detail=("guessed timestamps: " + ", ".join(interpolated)) if interpolated
             else ("" if chapter_sync is not None else "no sync record (older output)"),
         ),
+        check_thumbnail_clean(thumbnail_text),
         check_thumbnail(title, thumbnail_text),
         check_promise_in_opening(title, script_jp),
         GateCheck(id="captions_file", severity="warn", passed=srt_exists,

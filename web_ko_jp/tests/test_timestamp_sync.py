@@ -63,3 +63,45 @@ def test_legacy_wrapper_keeps_its_contract(tmp_path):
 def test_no_script_specific_keywords_left():
     assert not hasattr(timestamp_sync, "INTRO_KEYWORDS")
     assert "ふざけるな" not in timestamp_sync.SUMMARY_KEYWORDS
+
+
+def _srt_from(tmp_path, lines):
+    """lines: [(seconds, text)] -> SRT file with 5s cues."""
+    def ts(x):
+        return f"00:{int(x // 60):02d}:{int(x % 60):02d},000"
+    body = "\n".join(f"{i}\n{ts(s)} --> {ts(s + 5)}\n{t}\n" for i, (s, t) in enumerate(lines, 1))
+    path = tmp_path / "sim.srt"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+V6_STYLE_DESC = """▼目次
+00:00 はじめに｜味方の顔をした相手ほど見抜きにくい
+XX ① 「正直に言うけど」で人を傷つける人
+XX ② 「まだ気にしてるの？」で責任をすり替える人
+XX まとめ｜優しくしても、人生まで差し出してはいけない
+
+#人間関係"""
+
+
+def test_v6_regression_quotes_ordinals_and_last_closer(tmp_path):
+    srt = _srt_from(tmp_path, [
+        (0, "人間はな、言葉で殺すんだ。"),
+        (30, "あの人は何を言ってるの？"),            # hiragana fragment "るの" must not match ②
+        (60, "「正直に言うけど」と前置きする奴だ。"),
+        (200, "二つ目。"),
+        (210, "「まだ気にしてるの？」と言う奴だ。"),
+        (300, "最後には家の鍵まで欲しがる。"),        # mid-item "最後に" must not open the summary
+        (500, "わしが最後に言いたいのは一つだけだ。"),
+    ])
+    _, chapters = sync_chapters_detailed(V6_STYLE_DESC, srt, audio_duration_sec=560)
+    assert [(c["seconds"], c["source"]) for c in chapters] == [
+        (0.0, "start"), (60.0, "matched"), (200.0, "matched"), (500.0, "matched"),
+    ]
+
+
+def test_closing_without_closer_phrase_is_interpolated(tmp_path):
+    """v5: title nouns (人生) recur near the end; matching them faked a confident timestamp."""
+    srt = _srt_from(tmp_path, [(60, "「正直に言うけど」"), (200, "二つ目。"), (500, "自分の人生を差し出すな。")])
+    _, chapters = sync_chapters_detailed(V6_STYLE_DESC, srt, audio_duration_sec=560)
+    assert chapters[-1]["source"] == "interpolated"
