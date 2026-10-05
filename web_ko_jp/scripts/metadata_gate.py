@@ -40,6 +40,11 @@ MIN_CHAPTER_SECONDS = 10            # YouTube ignores chapter lists with shorter
 CHAPTER_LINE_RE = re.compile(r"^(\d{1,2}:\d{2}(?::\d{2})?) (?![—–])\S")
 AI_DISCLOSURE_PHRASES = ("合成音声", "AI音声", "音声合成")
 THUMBNAIL_REPEAT_MIN_CHARS = 4
+# Calibrated on the 2026-10-05 A/B run over v8's hardest passage (2 seeds each): per-sentence TTS
+# pieces read 69-79% of kana / 36-42% of onsets; joined text + cut1 read 94-95% / 82-84%.
+VOICE_READING_MIN = 0.88
+VOICE_ONSET_MIN = 0.75
+VOICE_FLAG_LIST_MAX = 8
 THUMBNAIL_LINES = 3
 THUMBNAIL_LINE_MAX_CHARS = 10        # prompt asks <= 8; small slack before blocking
 OPENING_CHARS = 400                  # ~first 60-90 seconds of narration
@@ -172,6 +177,28 @@ def check_promise_in_opening(title: str, script_jp: str) -> GateCheck:
     )
 
 
+def check_voice(voice_qa: Optional[Dict[str, Any]]) -> List[GateCheck]:
+    """Read quality from voice_qa.py (raw ASR vs script). The SRT cannot show this: it is the script."""
+    if voice_qa is None:
+        return [GateCheck(id="voice_read_quality", severity="warn", passed=False,
+                          detail="voice QA not run (no voice_qa_v*.json)")]
+    reading = voice_qa.get("reading_match", 0.0)
+    onset = voice_qa.get("onset_match", 0.0)
+    flagged = voice_qa.get("flagged", [])
+    detail = f"reading {reading:.0%}, sentence onsets {onset:.0%}, {len(flagged)} sentences to re-listen"
+    times = ", ".join(_mmss(f["time"]) for f in flagged[:VOICE_FLAG_LIST_MAX])
+    return [
+        GateCheck(id="voice_read_quality", severity="fail",
+                  passed=reading >= VOICE_READING_MIN and onset >= VOICE_ONSET_MIN, detail=detail),
+        GateCheck(id="voice_flagged_sentences", severity="warn", passed=not flagged,
+                  detail=f"re-listen at {times}{' …' if len(flagged) > VOICE_FLAG_LIST_MAX else ''}" if flagged else ""),
+    ]
+
+
+def _mmss(seconds: float) -> str:
+    return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
+
+
 def run_gate(
     *,
     title: str,
@@ -186,6 +213,7 @@ def run_gate(
     thumbnail_text: str = "",
     pinned_comment: str = "",
     srt_exists: bool = False,
+    voice_qa: Optional[Dict[str, Any]] = None,
 ) -> GateReport:
     interpolated = [c["title"] for c in (chapter_sync or []) if c.get("source") == "interpolated"]
     hashtags = count_hashtags(description)
@@ -225,6 +253,7 @@ def run_gate(
                   detail="" if srt_exists else "no SRT to upload as Japanese captions"),
         GateCheck(id="pinned_comment", severity="warn", passed=bool(pinned_comment.strip()),
                   detail="" if pinned_comment.strip() else "missing"),
+        *check_voice(voice_qa),
     ]
     if any(not c.passed and c.severity == "fail" for c in checks):
         status: GateStatus = "FAIL"

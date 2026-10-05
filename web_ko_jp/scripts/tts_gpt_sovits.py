@@ -26,6 +26,11 @@ GPT_SOVITS_DIR = Path(r"D:\VibeCoding\GPT-SoVITS")
 GPT_SOVITS_PY = GPT_SOVITS_DIR / ".venv" / "Scripts" / "python.exe"
 GPT_SOVITS_SCRIPT = GPT_SOVITS_DIR / "scripts" / "tts_drama.py"
 
+# "cut1" = 4 sentences per synthesis piece. cut_drama_cadence made one piece per sentence, and
+# short isolated pieces swallowed their first syllables (see prepare_tts_text).
+TTS_SPLIT_METHOD = "cut1"
+LINE_END_PUNCTUATION = "。！？!?」』、…"
+
 
 def slugify_title(title: Optional[str], max_words: int = 6, max_chars: int = 35) -> str:
     """Normalizes title into a clean, filesystem-safe alphanumeric slug."""
@@ -166,6 +171,22 @@ def update_audio_in_db(video_id: int, audio_url: str, audio_path: str):
     subprocess.run(cmd, capture_output=True)
 
 
+def prepare_tts_text(script: str) -> str:
+    """
+    Joins the script's one-sentence lines into running text for GPT-SoVITS.
+
+    Why: GPT-SoVITS always splits its input on newlines, whatever text_split_method says, and
+    synthesizes each piece without context. The drama scripts put every short sentence on its own
+    line (「だから何だ。」「車を出す。」), and those isolated pieces lost or garbled their onsets:
+    v8 read 73% of the script's kana as written, 37% of sentence onsets intact. With the lines
+    joined and TTS_SPLIT_METHOD grouping sentences, the same voice and settings read 95% / 83%
+    (A/B test 2026-10-05, 2 seeds each).
+    """
+    lines = [line.strip() for line in (script or "").splitlines() if line.strip()]
+    # A line without closing punctuation would run into the next sentence when joined.
+    return "".join(line if line[-1] in LINE_END_PUNCTUATION else line + "。" for line in lines)
+
+
 def generate_japanese_narration(
     text: Optional[str] = None,
     text_file: Optional[str] = None,
@@ -182,7 +203,7 @@ def generate_japanese_narration(
     top_p: float = 0.85,
     repetition_penalty: float = 1.35,
     fragment_interval: float = 0.50,
-    text_split_method: str = "cut_drama_cadence",
+    text_split_method: str = TTS_SPLIT_METHOD,
     seed: int = -1,
 ) -> str:
     if not GPT_SOVITS_PY.exists():
@@ -206,13 +227,13 @@ def generate_japanese_narration(
             source_url = meta.get("source_url")
 
     if text_file and Path(text_file).exists():
-        input_file_arg = str(Path(text_file).resolve())
-    elif text:
+        text = Path(text_file).read_text(encoding="utf-8")
+    if text:
         # Write to temporary file to safely handle any text length on Windows
         renders_dir = BASE_DIR / "data" / "renders"
         renders_dir.mkdir(parents=True, exist_ok=True)
         temp_file = renders_dir / f"temp_input_{int(time.time()*1000)}.txt"
-        temp_file.write_text(text, encoding="utf-8")
+        temp_file.write_text(prepare_tts_text(text), encoding="utf-8")
         temp_text_path = temp_file
         input_file_arg = str(temp_file.resolve())
     else:

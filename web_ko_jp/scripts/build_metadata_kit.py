@@ -100,6 +100,16 @@ def load_data_json(folder: Path) -> dict:
 # Kit builder
 # ---------------------------------------------------------------------------
 
+def load_voice_qa(folder: Optional[Path]) -> Optional[dict]:
+    """voice_qa_v*.json written by run_pipeline stage 6b (None when the check never ran)."""
+    for f in (folder.glob("voice_qa_v*.json") if folder else []):
+        try:
+            return json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as err:
+            print(f"[WARN] Unreadable {f.name}: {err}")
+    return None
+
+
 def collect_kit_inputs(record: dict, data: dict, folder: Optional[Path]) -> dict:
     """Single view of the kit fields: data.json first, DB as fallback. Chapters always come from
     the description, the text that is actually pasted into YouTube."""
@@ -120,6 +130,7 @@ def collect_kit_inputs(record: dict, data: dict, folder: Optional[Path]) -> dict
         "transcript": record.get("transcript_text") or "",
         "duration": float(duration) if duration else None,
         "srt_exists": bool(folder and any(folder.glob("sub_*.srt"))),
+        "voice_qa": load_voice_qa(folder),
     }
 
 
@@ -139,6 +150,7 @@ def build_gate(
         thumbnail_text=inputs["thumbnail_text"],
         pinned_comment=inputs["pinned_comment"],
         srt_exists=inputs["srt_exists"],
+        voice_qa=inputs.get("voice_qa"),
     )
 
 
@@ -196,7 +208,19 @@ def build_kit_content(video_id: int, record: dict, inputs: dict, gate: GateRepor
     ]
     lines += [f"  {ch}" for ch in inputs["chapter_lines"]] or ["  (no chapters found in description)"]
 
-    lines += ["", sep, "[7. PRE-PUBLISH GATE — ALL CHECKS]", sep]
+    voice_qa = inputs.get("voice_qa")
+    lines += ["", "[7. VOICE QA — RE-LISTEN BEFORE UPLOAD]"]
+    if voice_qa is None:
+        lines.append("  (voice QA not run)")
+    else:
+        lines.append(
+            f"  Reading match {voice_qa['reading_match']:.0%} · sentence onsets {voice_qa['onset_match']:.0%}"
+            f" · {len(voice_qa['flagged'])} flagged"
+        )
+        for f in voice_qa["flagged"]:
+            lines.append(f"  {int(f['time'] // 60):02d}:{int(f['time'] % 60):02d}  {f['sentence']}")
+
+    lines += ["", sep, "[8. PRE-PUBLISH GATE — ALL CHECKS]", sep]
     for check in gate.checks:
         icon = "✅" if check.passed else ("❌" if check.severity == "fail" else "⚠")
         lines.append(f"  {icon} {check.id}" + (f": {check.detail}" if check.detail else ""))

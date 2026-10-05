@@ -36,6 +36,7 @@ import psycopg2
 from youtube_extractor import extract_youtube_info
 from chatgpt_drama_pipeline import execute_full_drama_workflow
 from timestamp_sync import extract_raw_chapter_lines, format_timestamp, sync_chapters_detailed
+from tts_gpt_sovits import GPT_SOVITS_PY
 
 
 def get_db_connection():
@@ -243,6 +244,23 @@ async def run_master_pipeline(
                         conn.commit()
                 finally:
                     conn.close()
+
+        # ---------------------------------------------------------------------
+        # STAGE 6b: Voice QA — raw ASR vs script (the SRT is the script itself, so it cannot tell)
+        # ---------------------------------------------------------------------
+        print("\n[STAGE 6b/8] Checking narration read quality (raw ASR vs script)...")
+        voice_qa_file = video_out_dir / f"voice_qa_v{video_id}.json"
+        if audio_file.exists():
+            script_tmp = video_out_dir / f"voice_qa_script_v{video_id}.txt"
+            script_tmp.write_text(script_jp, encoding="utf-8")
+            res = subprocess.run(
+                [str(GPT_SOVITS_PY), str(SCRIPTS_DIR / "voice_qa.py"), "--audio", str(audio_file),
+                 "--script_file", str(script_tmp), "--output", str(voice_qa_file)],
+                cwd=str(REPO_ROOT), text=True, encoding="utf-8", errors="replace", capture_output=True,
+            )
+            script_tmp.unlink(missing_ok=True)
+            # Non-fatal: the gate reports a missing QA file as a warning.
+            print(res.stdout.strip() or f"  ⚠ voice QA failed: {res.stderr.strip()[-500:]}")
 
     # -------------------------------------------------------------------------
     # STAGE 7: Consolidate Output Assets & Save Artifacts
