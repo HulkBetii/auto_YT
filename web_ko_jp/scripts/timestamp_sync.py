@@ -29,6 +29,7 @@ INTERPOLATION_MAX_STEP_SEC = 90.0
 MIN_CHAPTER_GAP_SEC = 10.0
 CIRCLED_NUMBERS = "①②③④⑤⑥⑦⑧⑨⑩"
 GENERIC_TITLE_WORDS = {"特徴", "人間", "理由", "チャプター", "目次"}
+_ORDINAL_TERMS = {v for variants in NUMBER_KANJI_MAP.values() for v in variants if "目" in v}
 
 
 def parse_timestamp_sec(ts_str: str) -> float:
@@ -149,6 +150,13 @@ def sync_chapters_detailed(
     Matches chapter definitions in description_jp against SRT subtitles and returns
     (updated_description, [{title, seconds, source}]) where source is "start", "matched" or
     "interpolated" (no subtitle cue matched; the timestamp is a proportional guess).
+
+    Three passes, because chapter titles are ChatGPT paraphrases while ordinals are said verbatim:
+      1. anchors: the script's ordinal (三つ目) or, for the closing chapter, its last closer phrase;
+         kept only while strictly increasing.
+      2. the remaining chapters take the earliest cue with a 「」 phrase or title word, searched only
+         between their neighbours (v7: 「正直だから」 also occurs in the 20:31 recap).
+      3. still unmatched chapters are spread evenly between their neighbours.
     """
     cues = parse_srt_file(srt_path)
     if not cues and not audio_duration_sec:
@@ -160,45 +168,63 @@ def sync_chapters_detailed(
     if not raw_lines:
         return description_jp, []
 
-    total_chapters = len(raw_lines)
-    chapters: List[Dict[str, Any]] = []
-    last_sec = 0.0
+    titles = [
+        t for t in (re.sub(r"^(?:\d{1,2}:\d{2}(?::\d{2})?|XX(?:[:：]XX)?)\s*", "", line).strip() for line in raw_lines)
+        if t
+    ]
+    total = len(titles)
+    times: List[Optional[float]] = [0.0] + [None] * (total - 1)
+    sources: List[str] = ["start"] + ["interpolated"] * (total - 1)
+    terms = [chapter_search_terms(t, i, total) for i, t in enumerate(titles)]
 
-    for i, line in enumerate(raw_lines):
-        # Strip existing timestamp or prefix
-        clean_title = re.sub(r"^(?:\d{1,2}:\d{2}(?::\d{2})?|XX(?:[:：]XX)?)\s*", "", line).strip()
-        if not clean_title:
-            continue
-
-        if i == 0:
-            # First chapter is strictly 00:00
-            chapters.append({"title": clean_title, "seconds": 0.0, "source": "start"})
-            last_sec = 0.0
-            continue
-
-        # Search cues at least MIN_CHAPTER_GAP_SEC after the previous chapter (YouTube needs >= 10s).
-        # The closing chapter takes the LAST closer in the script: "最後に" also appears mid-story.
-        strong, weak = chapter_search_terms(clean_title, i, total_chapters)
-        candidates = [c for c in cues if c["start_sec"] >= last_sec + MIN_CHAPTER_GAP_SEC]
-        if is_closing_chapter(clean_title, i, total_chapters):
-            # Title nouns (自分, 人生) recur everywhere; on v5 they put the summary 19s before the end.
-            # Without a closer phrase the chapter is interpolated so the gate warns instead.
-            matched_sec = _first_cue(candidates, strong, from_end=True)
+    # Pass 1: anchors.
+    last_anchor = 0.0
+    for i in range(1, total):
+        strong, _ = terms[i]
+        after = [c for c in cues if c["start_sec"] >= last_anchor + MIN_CHAPTER_GAP_SEC]
+        if is_closing_chapter(titles[i], i, total):
+            hit = _first_cue(after, [k for k in strong if k in SUMMARY_KEYWORDS], from_end=True)
         else:
-            matched_sec = _first_cue(candidates, strong, from_end=False)
-            if matched_sec is None:
-                matched_sec = _first_cue(candidates, weak, from_end=False)
+            hit = _first_cue(after, [k for k in strong if k in _ORDINAL_TERMS], from_end=False)
+        if hit is not None:
+            times[i], sources[i], last_anchor = hit, "matched", hit
 
-        source = "matched"
-        # Fallback if no cue matched: proportional interpolation
-        if matched_sec is None or matched_sec <= last_sec:
-            proportional_step = (total_duration - last_sec) / max(total_chapters - i, 1)
-            matched_sec = last_sec + min(proportional_step, INTERPOLATION_MAX_STEP_SEC)
-            source = "interpolated"
+    # Pass 2: earliest quote / title word between the neighbours.
+    for i in range(1, total):
+        if times[i] is not None:
+            continue
+        low = times[i - 1] + MIN_CHAPTER_GAP_SEC if times[i - 1] is not None else None
+        high = next((times[j] for j in range(i + 1, total) if times[j] is not None), total_duration)
+        if low is None:
+            continue
+        strong, weak = terms[i]
+        phrases = [k for k in strong if k not in _ORDINAL_TERMS and k not in SUMMARY_KEYWORDS] + weak
+        if is_closing_chapter(titles[i], i, total):
+            phrases = []  # title nouns recur everywhere (v5 put the summary 19s before the end)
+        window = [c for c in cues if low <= c["start_sec"] <= high - MIN_CHAPTER_GAP_SEC]
+        hit = _first_cue(window, phrases, from_end=False)
+        if hit is not None:
+            times[i], sources[i] = hit, "matched"
 
-        last_sec = matched_sec
-        chapters.append({"title": clean_title, "seconds": matched_sec, "source": source})
+    # Pass 3: spread the rest evenly between known neighbours.
+    i = 1
+    while i < total:
+        if times[i] is not None:
+            i += 1
+            continue
+        j = i
+        while j < total and times[j] is None:
+            j += 1
+        left = times[i - 1]
+        right = times[j] if j < total else total_duration
+        step = (right - left) / (j - i + 1)
+        if j == total:
+            step = min(step, INTERPOLATION_MAX_STEP_SEC)
+        for k in range(i, j):
+            times[k] = left + step * (k - i + 1)
+        i = j
 
+    chapters = [{"title": t, "seconds": s, "source": src} for t, s, src in zip(titles, times, sources)]
     synchronized_chapters = [f"{format_timestamp(ch['seconds'])} {ch['title']}" for ch in chapters]
     return _replace_toc(description_jp, synchronized_chapters), chapters
 

@@ -51,3 +51,9 @@ def test_prompt_placeholders_are_resolved():
         assert "[[" not in prompt
     assert "TIER1_CORE: 処世術" in pipeline.PROMPT_TURN3_TEMPLATE
     assert "関わってはいけない人" in pipeline.PROMPT_TURN2_TEMPLATE
+
+
+def test_turn1_requires_spoken_ordinals():
+    """Chapter timestamps anchor on 一つ目/二つ目; v6/v7 scripts opened items with まず/次は instead."""
+    assert "一つ目。二つ目。三つ目。" in pipeline.PROMPT_TURN1_TEMPLATE
+    pipeline.PROMPT_TURN1_TEMPLATE.format(title="t", url="u", transcript="x")  # still a valid template

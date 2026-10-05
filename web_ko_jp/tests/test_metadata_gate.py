@@ -107,3 +107,14 @@ def test_vietnamese_thumbnail_text_fails(v5):
     report = _gate(v5, description_jp=clean_description(v5["description_jp"]),
                    thumbnail_text="Tiêu đề A đã chốt: 関わってはいけない人\n(Trắng, cỡ lớn): 悪い人は")
     assert "thumbnail_clean" in _ids(report, "fail")
+
+
+@pytest.mark.parametrize("thumb, ok", [
+    ("善人の仮面\n本性が出る\n縁を切れ", True),
+    ("YouTube動画説明・SEOタグ・固定コメント", False),   # v7: writing-block title read as the answer
+    ("身内でも\nこの8人は", False),
+])
+def test_thumbnail_must_be_three_short_lines(thumb, ok):
+    report = run_gate(title="関わってはいけない人の口癖7選", description="#a #b #c 合成音声",
+                      chapter_lines=["00:00 a", "01:00 b", "02:00 c"], script_jp="", thumbnail_text=thumb)
+    assert ("thumbnail_clean" not in _ids(report, "fail")) is ok

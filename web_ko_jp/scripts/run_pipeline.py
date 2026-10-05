@@ -207,12 +207,17 @@ async def run_master_pipeline(
         # STAGE 5: Generate Subtitles (.srt) via faster-whisper GPU
         # ---------------------------------------------------------------------
         print("\n[STAGE 5/8] Generating Synchronized Subtitles (.srt) via Whisper GPU...")
-        srt_script = SCRIPTS_DIR / "generate_srt.py"
-        run_command_live(
-            ["uv", "run", "python", str(srt_script), "--video_id", str(video_id)],
-            REPO_ROOT,
-            "STAGE 5 Whisper SRT"
-        )
+        # tts_gpt_sovits.py already writes sub_*.srt next to the audio; regenerating it needs
+        # faster_whisper, which the uv env lacks (v7 run died here after a finished TTS).
+        if srt_file.exists():
+            print(f"  ✅ SRT already produced by the TTS stage: {srt_file.name}")
+        else:
+            srt_script = SCRIPTS_DIR / "generate_srt.py"
+            run_command_live(
+                ["uv", "run", "python", str(srt_script), "--video_id", str(video_id)],
+                REPO_ROOT,
+                "STAGE 5 Whisper SRT"
+            )
 
         public_srt = BASE_DIR / "public" / "subtitles" / f"sub_v{video_id}_{source_video_id}.srt"
         if public_srt.exists() and public_srt != srt_file:

@@ -40,6 +40,8 @@ MIN_CHAPTER_SECONDS = 10            # YouTube ignores chapter lists with shorter
 CHAPTER_LINE_RE = re.compile(r"^(\d{1,2}:\d{2}(?::\d{2})?) (?![—–])\S")
 AI_DISCLOSURE_PHRASES = ("合成音声", "AI音声", "音声合成")
 THUMBNAIL_REPEAT_MIN_CHARS = 4
+THUMBNAIL_LINES = 3
+THUMBNAIL_LINE_MAX_CHARS = 10        # prompt asks <= 8; small slack before blocking
 OPENING_CHARS = 400                  # ~first 60-90 seconds of narration
 MIN_PROMISE_COVERAGE = 0.3
 DUPLICATE_REASON_PREFIX = "near-duplicate"
@@ -130,9 +132,20 @@ def check_limits(title: str, description: str, tags_flat: str) -> GateCheck:
 
 
 def check_thumbnail_clean(thumbnail_text: str) -> GateCheck:
-    passed = bool(thumbnail_text.strip()) and not has_vietnamese(thumbnail_text)
-    detail = "" if passed else ("missing" if not thumbnail_text.strip() else "contains Vietnamese prompt text")
-    return GateCheck(id="thumbnail_clean", severity="fail", passed=passed, detail=detail)
+    """The overlay must be exactly the 3 lines the image template expects. v6/v7 shipped echoed
+    prompt rules and the Turn 3 writing-block title ("YouTube動画説明・SEOタグ・固定コメント")."""
+    lines = [line for line in thumbnail_text.splitlines() if line.strip()]
+    problems = []
+    if not lines:
+        problems.append("missing")
+    elif len(lines) != THUMBNAIL_LINES:
+        problems.append(f"{len(lines)} lines (expected {THUMBNAIL_LINES})")
+    if has_vietnamese(thumbnail_text):
+        problems.append("contains Vietnamese prompt text")
+    long_lines = [line for line in lines if len(line.strip()) > THUMBNAIL_LINE_MAX_CHARS]
+    if long_lines:
+        problems.append(f"lines longer than {THUMBNAIL_LINE_MAX_CHARS} chars: {long_lines}")
+    return GateCheck(id="thumbnail_clean", severity="fail", passed=not problems, detail="; ".join(problems))
 
 
 def check_thumbnail(title: str, thumbnail_text: str) -> GateCheck:

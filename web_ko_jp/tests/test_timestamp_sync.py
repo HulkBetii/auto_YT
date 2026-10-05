@@ -105,3 +105,26 @@ def test_closing_without_closer_phrase_is_interpolated(tmp_path):
     srt = _srt_from(tmp_path, [(60, "「正直に言うけど」"), (200, "二つ目。"), (500, "自分の人生を差し出すな。")])
     _, chapters = sync_chapters_detailed(V6_STYLE_DESC, srt, audio_duration_sec=560)
     assert chapters[-1]["source"] == "interpolated"
+
+
+def test_recap_quotes_do_not_steal_chapters(tmp_path):
+    """v7: the title quote 「正直だから」 only occurs verbatim in the 20:31 recap; the ordinal
+    anchors and neighbour windows must keep ① near the start."""
+    desc = """▼目次
+00:00 はじめに｜本性
+XX ① 「正直だから」と言って人を傷つける
+XX ② 「あなたのため」と言って支配する
+XX ③ 「運」で片づける人
+XX まとめ｜自分を踏ませるな
+
+#a"""
+    srt = _srt_from(tmp_path, [
+        (0, "笑顔で刺す人間がいる。"),
+        (80, "「正直に言っただけ」と平気で人を傷つける。"),
+        (260, "二つ目。「あなたのためを思って」"),
+        (500, "三つ目。「運がいいよね」"),
+        (900, "「俺は正直だから」「あなたのため」「運」"),     # recap
+        (1400, "最後に、もう一度だけ言う。"),
+    ])
+    _, chapters = sync_chapters_detailed(desc, srt, audio_duration_sec=1500)
+    assert [c["seconds"] for c in chapters] == [0.0, 80.0, 260.0, 500.0, 1400.0]

@@ -39,8 +39,13 @@ from title_validator import TitleValidation, reorder_variants, retry_feedback, v
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 CHATGPT_URL = "https://chatgpt.com/"
-PROMPT_INPUT_SELECTOR = 'div[contenteditable="true"][role="textbox"], #prompt-textarea, [data-composer-markdown], div.ProseMirror'
-ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]'
+# Scoped to the composer: ChatGPT can answer with an editable "writing block" (a ProseMirror
+# contenteditable inside the reply). The old generic selector's .first hit that block, so the
+# Turn 4/5 prompts were pasted over the Turn 3 answer instead of being sent (v6/v7, 2026-10-04).
+PROMPT_INPUT_SELECTOR = '[data-chatgpt-composer] [contenteditable="true"], #prompt-textarea, [data-composer-markdown]'
+# data-message-author-role disappeared in the 2026-10 app-shell UI; assistant replies now carry
+# data-chatgpt-selection-message-id.
+ASSISTANT_SELECTOR = '[data-message-author-role="assistant"], [data-chatgpt-selection-message-id]'
 STOP_SELECTOR = 'button[data-testid="stop-button"], button[aria-label="Stop generating"], button[aria-label*="Stop"]'
 SEND_SELECTORS = (
     'button[data-testid="send-button"]',
@@ -68,7 +73,7 @@ RENDERED_MESSAGE_TEXT_SCRIPT = """
 }
 """
 
-PROMPT_TURN1_TEMPLATE = """Viết lại nội dung đính kèm thành nội dung kịch bản tiếng Nhật theo văn nói (với hook gây sốc để giữ chân người xem), giọng NGƯỜI GIÀ NHẬT BẢN, ngôi thứ nhất (giới tính là Nam) (người trong chuyện tự kể, XƯNG HÔ nhất quán toàn bài), GAY GẮT, KHẲNG ĐỊNH, THÔ RÁP, DRAMA. Không nêu tuổi cụ thể, bối cảnh trong nước Nhật, KHÔNG dùng 日本人の私たち／我々日本人 hay bất kỳ cách nói đứng ngoài nhìn vào. Được phóng đại, mệnh lệnh ném thẳng, phán dứt khoát, không hedging. Câu ngắn dồn dập xen câu dài. Không đều nhịp. Không viết như bài giảng. Đặc biệt phải phù hợp với văn hóa và con người nước Nhật Bản. OUTPUT: chỉ text tiếng Nhật sạch, không tiêu đề, không giải thích, không markdown. Viết kanji + kana bình thường như văn bản Nhật tự nhiên, chỉ ép sang kana riêng những từ bị đọc sai (số, lượng từ, tên riêng, chuỗi thuần kanji) (không nhắc đến tên kênh).
+PROMPT_TURN1_TEMPLATE = """Viết lại nội dung đính kèm thành nội dung kịch bản tiếng Nhật theo văn nói (với hook gây sốc để giữ chân người xem), giọng NGƯỜI GIÀ NHẬT BẢN, ngôi thứ nhất (giới tính là Nam) (người trong chuyện tự kể, XƯNG HÔ nhất quán toàn bài), GAY GẮT, KHẲNG ĐỊNH, THÔ RÁP, DRAMA. Không nêu tuổi cụ thể, bối cảnh trong nước Nhật, KHÔNG dùng 日本人の私たち／我々日本人 hay bất kỳ cách nói đứng ngoài nhìn vào. Được phóng đại, mệnh lệnh ném thẳng, phán dứt khoát, không hedging. Câu ngắn dồn dập xen câu dài. Không đều nhịp. Không viết như bài giảng. Đặc biệt phải phù hợp với văn hóa và con người nước Nhật Bản. Nếu nội dung gồm nhiều điều/kiểu người, mỗi điều PHẢI mở đầu bằng số thứ tự nói thành lời, đứng riêng một câu: 一つ目。二つ目。三つ目。… (đúng thứ tự, không bỏ số nào, kể cả điều đầu tiên). OUTPUT: chỉ text tiếng Nhật sạch, không tiêu đề, không giải thích, không markdown. Viết kanji + kana bình thường như văn bản Nhật tự nhiên, chỉ ép sang kana riêng những từ bị đọc sai (số, lượng từ, tên riêng, chuỗi thuần kanji) (không nhắc đến tên kênh).
 
 {title} - YouTube
 {url}
@@ -582,7 +587,16 @@ GET_LATEST_ASSISTANT_TEXT_SCRIPT = """
         const last = roleNodes[roleNodes.length - 1];
         return last.innerText || last.textContent || "";
     }
-    
+
+    // 1b. App-shell UI (2026-10): the reply body carries data-chatgpt-selection-message-id;
+    // user bubbles never do, but exclude them in case that changes.
+    const msgNodes = Array.from(document.querySelectorAll('[data-chatgpt-selection-message-id]'))
+        .filter(n => !n.closest('[data-user-message-bubble]'));
+    if (msgNodes.length > 0) {
+        const last = msgNodes[msgNodes.length - 1];
+        return last.innerText || last.textContent || "";
+    }
+
     // 2. Find by 'You said:' boundaries
     const all = Array.from(document.querySelectorAll('*'));
     const userSaidNodes = all.filter(el => el.textContent.trim() === 'You said:' && el.children.length === 0);
