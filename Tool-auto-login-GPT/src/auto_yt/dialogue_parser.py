@@ -126,6 +126,9 @@ def clean_turn_text_for_tts(text: str) -> str:
     cleaned = re.sub(r'[—–]', ', ', cleaned)
     # Loại bỏ dấu gạch ngang đầu dòng hoặc thừa
     cleaned = re.sub(r'^\s*[-*•]\s*', '', cleaned, flags=re.MULTILINE)
+    # Chuẩn hóa dấu câu lặp: ?? -> ?, !! -> ! để tránh lỗi ngắt nhịp TTS
+    cleaned = re.sub(r'\?{2,}', '?', cleaned)
+    cleaned = re.sub(r'!{2,}', '!', cleaned)
     # Gộp nhiều khoảng trắng liên tiếp
     cleaned = re.sub(r'[ \t]+', ' ', cleaned)
     # Loại bỏ khoảng trắng trước dấu câu và chuẩn hóa khoảng trắng sau dấu câu

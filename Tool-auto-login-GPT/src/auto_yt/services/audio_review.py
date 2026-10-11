@@ -234,7 +234,7 @@ def audit_script_for_audio(script_text: str) -> dict:
     audio_script = get_audio_script(script_text)
     if audio_script and (
         "\ufffd" in audio_script
-        or re.search(r"(?:\w\?\w|\?{2,}\w|\w\?{2,})", audio_script, re.UNICODE)
+        or re.search(r"(?:[^\W\d_]\?+[^\W\d_]|(?:\s|^)\?{2,}[^\W\d_])", audio_script, re.UNICODE)
     ):
         errors.append(
             _issue(

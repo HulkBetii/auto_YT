@@ -157,3 +157,44 @@ def test_auto_repair_metadata_helpers():
     assert "Đáp án đúng:" in state["quiz"]
 
 
+def test_slug_unaccents_vietnamese_characters():
+    state = {
+        "title": "Nữ Thiếu Tá Giả Chết | MC Văn Sâm",
+        "slug": "nữ-thiếu-tá-giả-chết-bật-dậy-giữa-đám-tang-mc-văn-sâm",
+    }
+    sanitize_and_repair_metadata(state)
+    assert "thi-u-t" not in state["slug"]
+    assert "thieu-ta" in state["slug"]
+    assert "dam-tang" in state["slug"]
+
+
+def test_auto_repair_hashtags_rejects_sentence_hashtags():
+    from auto_yt.services.chatgpt_worker import auto_repair_hashtags
+    raw_sentence_hashtags = (
+        "#TrongMộtĐêmMưaTầmTã #ThiếuTáTrầnMinhChiếnCứuNữBácSĩNguyễnNgọcAnBấtTỉnhBênVệĐường "
+        "#ĐừngBỏEmKhiếnAnhSữngNgười #BởiĐóLàCâuNóiCủaThảo"
+    )
+    repaired = auto_repair_hashtags(raw_sentence_hashtags, "Cứu Nữ Bác Sĩ")
+    # All of the sentence tags were > 32 chars, so it should fall back safely to valid short tags
+    for tag in repaired.split():
+        assert len(tag) <= 32
+
+
+def test_audio_review_allows_emphasis_question_marks():
+    from auto_yt.services.audio_review import audit_script_for_audio
+    test_script = (
+        "### [INTRO]\n"
+        "[MC]: Chào quý vị.\n\n"
+        "[KHACH_1]: Cháu chào chú Sâm. Cháu có một câu chuyện muốn kể.\n\n"
+        "### [BODY]\n"
+        "[KHACH_1]: " + ("Lời xin lỗi ấy làm sao trả lại được 24 năm?? " * 15) + "\n\n"
+        "[MC]: " + ("Bác rất hiểu nỗi lòng của cháu. " * 15) + "\n\n"
+        "### [OUTRO]\n"
+        "[MC]: " + ("Cảm ơn quý vị đã theo dõi chương trình hôm nay. " * 15) + "\n"
+    )
+    report = audit_script_for_audio(test_script)
+    error_codes = [e["code"] for e in report["errors"]]
+    assert "corrupted_unicode" not in error_codes
+
+
+

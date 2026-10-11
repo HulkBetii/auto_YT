@@ -153,6 +153,13 @@ def extract_generated_video_title(generated_script: str) -> str:
             if cleaned and not _looks_like_outro_or_cta(cleaned):
                 return cleaned
 
+        # Fallback: if lines in TITLE section were long paragraphs, extract the first sentence
+        for line in lines:
+            line_clean = line.strip("#*` ")
+            first_sentence = _clean_generated_title(re.split(r"[.!?\n]", line_clean)[0])
+            if first_sentence and len(first_sentence) <= 100 and not _looks_like_outro_or_cta(first_sentence):
+                return first_sentence
+
     # Fallback: Check if SLUG section contains a title if title section was empty or outro
     slug_match = SLUG_SECTION_PATTERN.search(generated_script)
     if slug_match:

@@ -2009,6 +2009,9 @@ def clean_text(text: str) -> str:
     # 2. Normalize special Unicode spaces and characters (\u00a0 -> space, remove zero-width chars)
     text = text.replace("\u00a0", " ").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").replace("\ufeff", "")
     text = unicodedata.normalize("NFC", text)
+    # Normalize multiple consecutive question/exclamation marks (e.g. "??", "!!") to avoid TTS errors
+    text = re.sub(r"\?{2,}", "?", text)
+    text = re.sub(r"!{2,}", "!", text)
 
     # 3. Strip Canvas / Document container directives (e.g. :::writing{variant="document" id="58341"}, :::document{...}, :::artifact, etc.)
     text = re.sub(r":::[a-zA-Z0-9_\-]*(?:\{[^}]*\})?", "", text, flags=re.DOTALL)
@@ -4183,8 +4186,9 @@ def auto_repair_hashtags(raw_hashtags: str, fallback_title: str = "") -> str:
     cleaned = clean_text(str(raw_hashtags or "")).strip()
     if "#" in cleaned:
         tags = re.findall(r"#[A-Za-z0-9_À-ỹ]+", cleaned)
-        if tags:
-            return " ".join(tags)
+        valid_tags = [t for t in tags if 2 <= len(t) <= 32]
+        if len(valid_tags) >= 2:
+            return " ".join(valid_tags[:8])
 
     if cleaned and not looks_like_chatgpt_error(cleaned) and not _is_pure_thinking_indicator(cleaned):
         words = re.split(r"[,;\n]+", cleaned)
@@ -4193,9 +4197,9 @@ def auto_repair_hashtags(raw_hashtags: str, fallback_title: str = "") -> str:
             w_clean = re.sub(r"[^\w\sÀ-ỹ]", "", w).strip()
             if w_clean:
                 tag = "#" + "".join(part.capitalize() for part in w_clean.split())
-                if len(tag) > 1 and tag not in formatted:
+                if 2 <= len(tag) <= 32 and tag not in formatted:
                     formatted.append(tag)
-        if formatted:
+        if len(formatted) >= 2:
             return " ".join(formatted[:8])
 
     return "#SamAudio #MCVanSam #TamSuGiaDinh #TruyenNhanQua #ChuyenDoiSong"
@@ -4218,7 +4222,12 @@ def auto_repair_tags(raw_tags: str, fallback_title: str = "", hashtags: str = ""
     if fallback_title:
         clean_title = re.sub(r"[^\w\sÀ-ỹ]", " ", fallback_title).strip()
         if clean_title:
-            base_tags.insert(0, clean_title[:60])
+            truncated = clean_title[:60]
+            if len(clean_title) > 60 and " " in truncated:
+                truncated = truncated.rsplit(" ", 1)[0]
+            clean_tag = re.sub(r"\s+", " ", truncated).strip()
+            if clean_tag:
+                base_tags.insert(0, clean_tag)
     return ", ".join(base_tags)
 
 
@@ -4240,6 +4249,12 @@ def auto_repair_quiz(raw_quiz: str, fallback_title: str = "") -> str:
         "C. Cả A và B đều đúng\n\n"
         "Đáp án đúng: C. Cả A và B đều đúng. Lòng tốt và tình thương chỉ thực sự trọn vẹn khi chúng ta biết tự bảo vệ mình và người thân."
     )
+
+
+def remove_vietnamese_accents(text: str) -> str:
+    text = text.replace("đ", "d").replace("Đ", "D")
+    text = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in text if not unicodedata.combining(c))
 
 
 def sanitize_and_repair_metadata(state: dict) -> None:
@@ -4284,6 +4299,13 @@ def sanitize_and_repair_metadata(state: dict) -> None:
         cleaned_title = re.sub(r"[ \t]*\|[ \t]*", " | ", cleaned_title)
         if len(cleaned_title) > 120 and looks_like_outro_or_cta(cleaned_title):
             pass
+        elif len(cleaned_title) > 100:
+            first_sentence = re.split(r"[.!?\n]", cleaned_title)[0].strip()
+            candidate = first_sentence if 10 <= len(first_sentence) <= 90 else cleaned_title[:85].rsplit(" ", 1)[0]
+            channel_suffix = " | MC Văn Sâm" if "MC Văn Sâm" in cleaned_title or "Sâm" in cleaned_title else ""
+            if channel_suffix and not candidate.endswith(channel_suffix.strip()):
+                candidate = f"{candidate[:80].rsplit(' ', 1)[0]}{channel_suffix}"
+            state["title"] = candidate
         else:
             state["title"] = cleaned_title
 
@@ -4292,7 +4314,9 @@ def sanitize_and_repair_metadata(state: dict) -> None:
         cleaned_slug = clean_text(str(state["slug"])).strip("`*#\"' ")
         cleaned_slug = re.sub(r"^(?:url\s*slug|slug)\s*:\s*", "", cleaned_slug, flags=re.IGNORECASE).strip()
         if not is_likely_slug(cleaned_slug):
+            cleaned_slug = remove_vietnamese_accents(cleaned_slug)
             cleaned_slug = re.sub(r"[^a-zA-Z0-9\-_]+", "-", cleaned_slug.lower()).strip("-")
+            cleaned_slug = re.sub(r"-{2,}", "-", cleaned_slug)
         state["slug"] = cleaned_slug[:80]
 
     # Description & other metadata cleanup
