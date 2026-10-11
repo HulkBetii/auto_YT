@@ -359,6 +359,7 @@ def test_delete_trust_plan_removes_activity_logs_atomically(tmp_path, monkeypatc
         """
         CREATE TABLE channel_trust_plans (id INTEGER PRIMARY KEY);
         CREATE TABLE trust_activity_log (id INTEGER PRIMARY KEY, plan_id INTEGER NOT NULL);
+        CREATE TABLE trust_guided_sessions (id INTEGER PRIMARY KEY, plan_id INTEGER NOT NULL);
         INSERT INTO channel_trust_plans(id) VALUES (7);
         INSERT INTO trust_activity_log(id, plan_id) VALUES (1, 7), (2, 7);
         """

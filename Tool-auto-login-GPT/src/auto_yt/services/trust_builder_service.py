@@ -216,7 +216,7 @@ def validate_plan_browser_configuration(plan: dict[str, Any]) -> str:
     """Return the dedicated proxied GPM profile id or raise a safe validation error."""
     channel_db_id = int(plan.get("channel_db_id") or 0)
     channel = db.get_youtube_channel(channel_db_id) if channel_db_id else None
-    profile_id = str((channel or {}).get("gpm_profile_id") or plan.get("gpm_profile_id") or "").strip()
+    profile_id = str(plan.get("gpm_profile_id") or (channel or {}).get("gpm_profile_id") or "").strip()
     if not profile_id:
         raise ValueError(
             "Kênh chưa được gán Profile GPM. Vui lòng cấu hình trong Channel Hub."
@@ -225,7 +225,7 @@ def validate_plan_browser_configuration(plan: dict[str, Any]) -> str:
     if parsed.get("type") != "gpm":
         raise ValueError("Trust Builder chỉ cho phép Profile GPM chuyên dụng.")
     proxy_info = str(
-        (channel or {}).get("gpm_proxy_info") or plan.get("gpm_proxy_info") or parsed.get("proxy_info") or ""
+        plan.get("gpm_proxy_info") or (channel or {}).get("gpm_proxy_info") or parsed.get("proxy_info") or ""
     ).strip()
     if not parse_proxy_url(proxy_info):
         raise ValueError("Profile GPM phải có proxy riêng; kết nối Direct bị từ chối.")

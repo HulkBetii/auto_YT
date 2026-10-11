@@ -477,11 +477,11 @@ class YouTubeCommentHelperTests(unittest.TestCase):
         self.assertEqual(parsed["a"], "Đúng bạn nhé")
         self.assertEqual(parsed["b"], "Cảm ơn bạn")
 
-    def test_rejects_partial_chatgpt_reply_batch(self):
-        with self.assertRaises(youtube_comments.YouTubeCommentsError):
-            youtube_comments.parse_comment_reply_response(
-                '[{"comment_id":"a","reply":"OK"}]', {"a", "b"}
-            )
+    def test_accepts_partial_chatgpt_reply_batch(self):
+        parsed = youtube_comments.parse_comment_reply_response(
+            '[{"comment_id":"a","reply":"OK"}]', {"a", "b"}
+        )
+        self.assertEqual(parsed, {"a": "OK"})
 
     def test_auto_reply_priority_skips_noise_and_prioritizes_questions(self):
         question = youtube_comments.assess_auto_reply_priority(

@@ -30,12 +30,11 @@ def _public_plan(plan: dict | None) -> dict | None:
     if plan is None:
         return None
     public_plan = dict(plan)
-    public_plan.pop("gpm_proxy_info", None)
+    raw_proxy = public_plan.pop("gpm_proxy_info", None)
     public_plan.pop("gpm_proxy_info_encrypted", None)
     channel = db.get_youtube_channel(int(public_plan.get("channel_db_id") or 0))
-    public_plan["gpm_proxy_configured"] = bool(
-        parse_proxy_url(str((channel or {}).get("gpm_proxy_info") or ""))
-    )
+    proxy_val = str((channel or {}).get("gpm_proxy_info") or raw_proxy or "")
+    public_plan["gpm_proxy_configured"] = bool(parse_proxy_url(proxy_val))
     return public_plan
 
 
