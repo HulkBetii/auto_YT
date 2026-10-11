@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSubRoute } from './router.js'
 import { extractErrorMessage } from './apiError'
+import { findMarketByTimezone, getMarketLocalTime } from './marketConstants'
 import './TrustBuilder.css'
 
 const API_BASE = 'http://127.0.0.1:8080'
@@ -584,6 +585,9 @@ export default function TrustBuilder() {
   const currentChannel = channels.find(c => c.id === selectedChannelId)
   const trustScore = selectedPlan ? (selectedPlan.trust_score_estimated || 0) : 0
   const phaseInfo = getPhaseLabel(selectedPlan?.warmup_phase)
+  const targetTimezone = selectedPlan?.publication_timezone || currentChannel?.publication_timezone || 'Asia/Ho_Chi_Minh'
+  const planMarket = useMemo(() => findMarketByTimezone(targetTimezone), [targetTimezone])
+  const planMarketTime = useMemo(() => getMarketLocalTime(targetTimezone), [targetTimezone])
   const checklist = selectedPlan?.branding_checklist || {}
   const checklistStates = {
     avatar: getChecklistState(checklist.avatar),
@@ -758,6 +762,30 @@ export default function TrustBuilder() {
                       <span className={`trust-status-pill status-${selectedPlan.status}`}>
                         {getStatusLabel(selectedPlan.status)}
                       </span>
+                      {planMarket && (
+                        <span
+                          className="trust-market-pill"
+                          title={`Kênh đang chạy theo thị trường: ${planMarket.name} (${planMarket.timezone})`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#1a202c',
+                            border: '1px solid #2d3748',
+                            borderRadius: '12px',
+                            padding: '3px 10px',
+                            fontSize: '11px',
+                            color: '#e2e8f0'
+                          }}
+                        >
+                          <span>{planMarket.flag}</span>
+                          <strong>{planMarket.name}</strong>
+                          <span style={{ color: '#63b3ed', fontFamily: 'monospace' }}>{planMarketTime.timeStr}</span>
+                          <span style={{ fontSize: '10px', color: planMarketTime.isDaytime ? '#68d391' : '#f6ad55' }}>
+                            ({planMarketTime.statusLabel})
+                          </span>
+                        </span>
+                      )}
                     </div>
                     <div className="trust-progress-bar-bg">
                       <div

@@ -3,6 +3,7 @@ import './ChannelManager.css'
 import { useSubRoute } from './router.js'
 import './Settings.css'
 import OAuthGuideBox from './OAuthGuideBox'
+import MarketSelect from './MarketSelect'
 
 const API_BASE = 'http://127.0.0.1:8080'
 const WEEKDAYS = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật']
@@ -1774,15 +1775,13 @@ export default function ChannelManager({
                   Chỉ dùng khi bộ prompt bật “Đặt lịch đăng”. Slot được giữ cục bộ và đối chiếu lại với YouTube.
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 12 }}>
-                  <label style={{ color: '#aaa' }}>
-                    Timezone IANA
-                    <input
-                      className="version-select"
+                  <div style={{ minWidth: 260 }}>
+                    <MarketSelect
+                      label="Thị trường mục tiêu (Timezone)"
                       value={channel.publication_timezone || 'Asia/Ho_Chi_Minh'}
-                      onChange={event => changeChannel(channel.id, 'publication_timezone', event.target.value)}
-                      placeholder="Asia/Ho_Chi_Minh"
+                      onChange={eventValue => changeChannel(channel.id, 'publication_timezone', eventValue)}
                     />
-                  </label>
+                  </div>
                   <label style={{ color: '#aaa' }}>
                     Tối đa video / ngày
                     <input

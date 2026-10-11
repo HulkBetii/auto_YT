@@ -4081,7 +4081,16 @@ def _parse_utc_datetime(value: str) -> datetime.datetime | None:
 def _move_into_channel_reply_window(
     value: datetime.datetime, channel: dict
 ) -> datetime.datetime:
-    local_value = value.astimezone()
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    tz_name = str(channel.get("publication_timezone") or "Asia/Ho_Chi_Minh").strip()
+    try:
+        channel_tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        channel_tz = ZoneInfo("Asia/Ho_Chi_Minh")
+
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    local_value = value.astimezone(channel_tz)
     start_hour, start_minute = map(
         int, str(channel.get("reply_window_start") or "08:00").split(":")
     )
@@ -4091,7 +4100,7 @@ def _move_into_channel_reply_window(
     start_time = datetime.time(start_hour, start_minute)
     end_time = datetime.time(end_hour, end_minute)
     if start_time == end_time:
-        return value
+        return value.astimezone(datetime.timezone.utc)
 
     today = local_value.date()
     if start_time < end_time:
@@ -4104,13 +4113,13 @@ def _move_into_channel_reply_window(
                 today + datetime.timedelta(days=1), start_time, local_value.tzinfo
             )
             return next_start.astimezone(datetime.timezone.utc)
-        return value
+        return value.astimezone(datetime.timezone.utc)
 
     # An overnight window such as 20:00-02:00.
     if end_time <= local_value.time() < start_time:
         start = datetime.datetime.combine(today, start_time, local_value.tzinfo)
         return start.astimezone(datetime.timezone.utc)
-    return value
+    return value.astimezone(datetime.timezone.utc)
 
 
 def _next_comment_publish_time(
