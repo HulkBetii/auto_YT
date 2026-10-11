@@ -4069,6 +4069,10 @@ def _execute_comment_draft_job(job: dict) -> bool:
         db.update_system_job(job["id"], progress="ChatGPT đang soạn câu trả lời theo Chat Gốc")
         from auto_yt.services.chatgpt_worker import generate_comment_replies
 
+        channel_id_val = comments[0].get("youtube_channel_id")
+        ch_meta = db.get_youtube_channel(int(channel_id_val)) if channel_id_val else None
+        channel_tz = str((ch_meta or {}).get("publication_timezone") or "").strip()
+
         replies = generate_comment_replies(
             comments[0]["chat_url"],
             comments,
@@ -4076,6 +4080,7 @@ def _execute_comment_draft_job(job: dict) -> bool:
             db.list_recent_channel_reply_texts(
                 int(comments[0]["youtube_channel_id"]), limit=20
             ),
+            market_timezone=channel_tz,
         )
         auto_publish_ids = []
         for comment in comments:
