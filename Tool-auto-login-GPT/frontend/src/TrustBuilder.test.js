@@ -21,3 +21,14 @@ test('Trust Builder exposes automated quotas and lifecycle controls', async () =
   assert.match(source, /selectedPlan\.status === 'paused' \? 'resume' : 'start'/)
   assert.doesNotMatch(source, /Guided Routine|guided-session|readiness-check/)
 })
+
+test('Trust Builder handleCreatePlan resolves channel publication timezone safely', async () => {
+  const source = await readFile(new URL('./TrustBuilder.jsx', import.meta.url), 'utf8')
+
+  // Must not have undeclared selectedChannel
+  assert.doesNotMatch(source, /!selectedChannel\?\.publication_timezone/)
+  // Must safely find channel from channels state
+  assert.match(source, /const channel = channels\.find\(c => c\.id === selectedChannelId\)/)
+  assert.match(source, /const isVN = !channel\?\.publication_timezone \|\| channel\?\.publication_timezone === 'Asia\/Ho_Chi_Minh'/)
+})
+

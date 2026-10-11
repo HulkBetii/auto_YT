@@ -378,8 +378,9 @@ export default function TrustBuilder() {
   const handleCreatePlan = async () => {
     if (!selectedChannelId) return
     setActionBusy(true)
-    const isVN = !selectedChannel?.publication_timezone || selectedChannel?.publication_timezone === 'Asia/Ho_Chi_Minh'
     try {
+      const channel = channels.find(c => c.id === selectedChannelId)
+      const isVN = !channel?.publication_timezone || channel?.publication_timezone === 'Asia/Ho_Chi_Minh'
       const res = await fetch(`${API_BASE}/api/trust-builder/plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -404,7 +405,8 @@ export default function TrustBuilder() {
       } else {
         showFeedback(extractErrorMessage(data, 'Không thể tạo Kế hoạch.'), 'error')
       }
-    } catch {
+    } catch (err) {
+      console.error('Lỗi khi tạo plan:', err)
       showFeedback('Lỗi kết nối khi tạo plan.', 'error')
     } finally {
       setActionBusy(false)
