@@ -788,6 +788,7 @@ class GpmProfileStartRequest(BaseModel):
     window_size: Optional[str] = Field(default=None, max_length=50)
     skip_proxy_check: bool = False
     addition_args: Optional[str] = Field(default=None, max_length=1000)
+    market_timezone: Optional[str] = Field(default=None, max_length=100)
 
 
 class GpmOpenUrlRequest(BaseModel):
@@ -1164,6 +1165,18 @@ def update_youtube_comment_channel(
         update_data["auto_heart"] = int(bool(request.auto_heart))
 
     channel = db.update_youtube_channel(channel_db_id, **update_data)
+    if channel:
+        target_profile_id = str(channel.get("gpm_profile_id") or "").strip()
+        target_timezone = str(channel.get("publication_timezone") or "").strip()
+        if target_profile_id and target_timezone:
+            try:
+                gpm_service.patch_gpm_profile_language(target_profile_id, target_timezone)
+            except Exception as exc:
+                logger.warning(
+                    "Không thể tự động cập nhật ngôn ngữ GPM profile %s: %s",
+                    target_profile_id,
+                    exc,
+                )
     if not request.reply_paused:
         _kick_comment_queue()
     return db.public_youtube_channel(channel)
@@ -1313,6 +1326,18 @@ def start_gpm_profile_endpoint(
                 preferred_port=req.remote_debugging_port,
                 require_cdp=True,
             )
+        resolved_tz = req.market_timezone
+        if not resolved_tz:
+            try:
+                for ch in db.list_youtube_channels():
+                    if str(ch.get("gpm_profile_id") or "").strip() == profile_id:
+                        ch_tz = str(ch.get("publication_timezone") or "").strip()
+                        if ch_tz:
+                            resolved_tz = ch_tz
+                            break
+            except Exception:
+                pass
+
         return gpm_service.start_gpm_profile(
             profile_id,
             remote_debugging_port=req.remote_debugging_port,
@@ -1321,6 +1346,7 @@ def start_gpm_profile_endpoint(
             window_size=req.window_size,
             skip_proxy_check=req.skip_proxy_check,
             addition_args=req.addition_args,
+            market_timezone=resolved_tz,
             api_url=api_url,
         )
     except gpm_service.GpmProfileNotFoundError as exc:
@@ -1400,6 +1426,17 @@ def update_channel_gpm_mapping(
     )
     if not channel:
         raise HTTPException(status_code=404, detail="Không tìm thấy kênh YouTube.")
+    target_profile_id = str(channel.get("gpm_profile_id") or "").strip()
+    target_timezone = str(channel.get("publication_timezone") or "").strip()
+    if target_profile_id and target_timezone:
+        try:
+            gpm_service.patch_gpm_profile_language(target_profile_id, target_timezone)
+        except Exception as exc:
+            logger.warning(
+                "Không thể tự động cập nhật ngôn ngữ GPM profile %s: %s",
+                target_profile_id,
+                exc,
+            )
     return db.public_youtube_channel(channel)
 
 

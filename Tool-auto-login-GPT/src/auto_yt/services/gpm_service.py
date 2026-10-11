@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from auto_yt.paths import DATA_DIR
@@ -707,6 +708,7 @@ def start_gpm_profile(
     addition_args: str | None = None,
     require_cdp: bool = True,
     api_url: str | None = None,
+    market_timezone: str | None = None,
 ) -> dict[str, Any]:
     """Start a GPM profile browser or reuse an existing running instance, returning CDP coordinates."""
     clean_id = str(profile_id).strip()
@@ -728,6 +730,19 @@ def start_gpm_profile(
         )
         return running_info
 
+    if market_timezone:
+        try:
+            patch_gpm_profile_language(clean_id, market_timezone, api_url=api_url)
+        except Exception as exc:
+            logger.debug("Lỗi khi patch Preferences language cho GPM %s: %s", clean_id, exc)
+
+    final_addition_args = addition_args or ""
+    if market_timezone:
+        lang_config = resolve_market_language_config(market_timezone)
+        primary_lang = lang_config.get("primary_lang")
+        if primary_lang and "--lang=" not in final_addition_args:
+            final_addition_args = f"{final_addition_args} --lang={primary_lang}".strip()
+
     params: dict[str, Any] = {}
     if remote_debugging_port is not None and remote_debugging_port > 0:
         params["remote_debugging_port"] = remote_debugging_port
@@ -742,9 +757,9 @@ def start_gpm_profile(
         params["win_size"] = window_size
     if skip_proxy_check:
         params["skip_proxy_check"] = "true"
-    if addition_args:
-        params["addition_args"] = addition_args
-        params["add_args"] = addition_args
+    if final_addition_args:
+        params["addition_args"] = final_addition_args
+        params["add_args"] = final_addition_args
 
     logger.info("Khởi chạy GPM Profile %s (params=%s)", clean_id, params)
     resp = _request_gpm_api(f"/profiles/start/{clean_id}", api_url=api_url, params=params, timeout=45.0)
@@ -841,6 +856,7 @@ async def gpm_browser_session(
     skip_proxy_check: bool = False,
     addition_args: str | None = None,
     api_url: str | None = None,
+    market_timezone: str | None = None,
 ) -> AsyncGenerator[Any, None]:
     """Async context manager that starts a GPM profile (or connects to an existing running one),
 
@@ -865,6 +881,7 @@ async def gpm_browser_session(
         addition_args=addition_args,
         require_cdp=True,
         api_url=api_url,
+        market_timezone=market_timezone,
     )
 
     if launch_info.get("already_running_no_cdp"):
@@ -949,3 +966,162 @@ async def gpm_browser_session(
             await playwright.stop()
         except Exception:
             pass
+
+
+TIMEZONE_LANGUAGE_CONFIG: dict[str, dict[str, str]] = {
+    # Vietnam
+    "Asia/Ho_Chi_Minh": {"primary_lang": "vi-VN", "accept_languages": "vi-VN,vi,en-US,en", "lang_code": "vi"},
+    # North America
+    "America/New_York": {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"},
+    "America/Chicago": {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"},
+    "America/Denver": {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"},
+    "America/Los_Angeles": {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"},
+    "America/Anchorage": {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"},
+    "Pacific/Honolulu": {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"},
+    "America/Toronto": {"primary_lang": "en-CA", "accept_languages": "en-CA,en,fr-CA,fr", "lang_code": "en"},
+    "America/Vancouver": {"primary_lang": "en-CA", "accept_languages": "en-CA,en", "lang_code": "en"},
+    "America/Mexico_City": {"primary_lang": "es-MX", "accept_languages": "es-MX,es,en-US,en", "lang_code": "es"},
+    # Europe
+    "Europe/London": {"primary_lang": "en-GB", "accept_languages": "en-GB,en,en-US", "lang_code": "en"},
+    "Europe/Madrid": {"primary_lang": "es-ES", "accept_languages": "es-ES,es,en-US,en", "lang_code": "es"},
+    "Europe/Berlin": {"primary_lang": "de-DE", "accept_languages": "de-DE,de,en-US,en", "lang_code": "de"},
+    "Europe/Paris": {"primary_lang": "fr-FR", "accept_languages": "fr-FR,fr,en-US,en", "lang_code": "fr"},
+    "Europe/Rome": {"primary_lang": "it-IT", "accept_languages": "it-IT,it,en-US,en", "lang_code": "it"},
+    "Europe/Amsterdam": {"primary_lang": "nl-NL", "accept_languages": "nl-NL,nl,en-US,en", "lang_code": "nl"},
+    "Europe/Warsaw": {"primary_lang": "pl-PL", "accept_languages": "pl-PL,pl,en-US,en", "lang_code": "pl"},
+    "Europe/Stockholm": {"primary_lang": "sv-SE", "accept_languages": "sv-SE,sv,en-US,en", "lang_code": "sv"},
+    "Europe/Zurich": {"primary_lang": "de-CH", "accept_languages": "de-CH,de,fr-CH,fr,en-US,en", "lang_code": "de"},
+    "Europe/Moscow": {"primary_lang": "ru-RU", "accept_languages": "ru-RU,ru,en-US,en", "lang_code": "ru"},
+    # Asia - Pacific
+    "Asia/Tokyo": {"primary_lang": "ja-JP", "accept_languages": "ja-JP,ja,en-US,en", "lang_code": "ja"},
+    "Asia/Seoul": {"primary_lang": "ko-KR", "accept_languages": "ko-KR,ko,en-US,en", "lang_code": "ko"},
+    "Asia/Taipei": {"primary_lang": "zh-TW", "accept_languages": "zh-TW,zh,en-US,en", "lang_code": "zh"},
+    "Asia/Singapore": {"primary_lang": "en-SG", "accept_languages": "en-SG,en,zh-SG,zh", "lang_code": "en"},
+    "Asia/Bangkok": {"primary_lang": "th-TH", "accept_languages": "th-TH,th,en-US,en", "lang_code": "th"},
+    "Asia/Jakarta": {"primary_lang": "id-ID", "accept_languages": "id-ID,id,en-US,en", "lang_code": "id"},
+    "Asia/Manila": {"primary_lang": "en-PH", "accept_languages": "en-PH,en,tl-PH,tl", "lang_code": "en"},
+    "Asia/Kolkata": {"primary_lang": "en-IN", "accept_languages": "en-IN,en,hi-IN,hi", "lang_code": "en"},
+    "Australia/Sydney": {"primary_lang": "en-AU", "accept_languages": "en-AU,en,en-US", "lang_code": "en"},
+    "Australia/Perth": {"primary_lang": "en-AU", "accept_languages": "en-AU,en,en-US", "lang_code": "en"},
+    "Pacific/Auckland": {"primary_lang": "en-NZ", "accept_languages": "en-NZ,en,en-US", "lang_code": "en"},
+    # Latin America & Middle East
+    "America/Sao_Paulo": {"primary_lang": "pt-BR", "accept_languages": "pt-BR,pt,en-US,en", "lang_code": "pt"},
+    "America/Argentina/Buenos_Aires": {"primary_lang": "es-AR", "accept_languages": "es-AR,es,en-US,en", "lang_code": "es"},
+    "Asia/Dubai": {"primary_lang": "ar-AE", "accept_languages": "ar-AE,ar,en-US,en", "lang_code": "ar"},
+    "Asia/Riyadh": {"primary_lang": "ar-SA", "accept_languages": "ar-SA,ar,en-US,en", "lang_code": "ar"},
+    "Africa/Johannesburg": {"primary_lang": "en-ZA", "accept_languages": "en-ZA,en", "lang_code": "en"},
+}
+
+
+def resolve_market_language_config(timezone_name: str | None) -> dict[str, str]:
+    """Resolve primary UI language, HTTP Accept-Language, and ISO lang code for a timezone."""
+    tz = str(timezone_name or "").strip()
+    if tz in TIMEZONE_LANGUAGE_CONFIG:
+        return TIMEZONE_LANGUAGE_CONFIG[tz]
+    if tz.startswith("Europe/"):
+        return {"primary_lang": "en-GB", "accept_languages": "en-GB,en,en-US", "lang_code": "en"}
+    if tz.startswith("America/"):
+        return {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"}
+    if tz.startswith("Asia/"):
+        if "Ho_Chi_Minh" in tz:
+            return {"primary_lang": "vi-VN", "accept_languages": "vi-VN,vi,en-US,en", "lang_code": "vi"}
+        return {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"}
+    return {"primary_lang": "en-US", "accept_languages": "en-US,en", "lang_code": "en"}
+
+
+def patch_gpm_profile_language(
+    profile_id: str,
+    timezone_name: str,
+    *,
+    api_url: str | None = None,
+    custom_profile_dir: Path | str | None = None,
+) -> bool:
+    """Permanently patch Chromium preferences for the given GPM profile to match market language.
+
+    Safely creates Preferences.bak before writing atomically.
+    """
+    clean_id = str(profile_id or "").strip()
+    if not clean_id or clean_id.startswith("local_"):
+        return False
+
+    lang_config = resolve_market_language_config(timezone_name)
+    accept_languages = lang_config["accept_languages"]
+
+    # 1. Resolve profile directory on disk
+    profile_dir: Path | None = None
+    if custom_profile_dir:
+        profile_dir = Path(custom_profile_dir)
+    else:
+        try:
+            detail = get_gpm_profile_detail(clean_id, api_url=api_url)
+            profile_path_name = str(detail.get("profile_path") or "").strip()
+            if profile_path_name:
+                candidates = [
+                    Path("D:/GPM/Profiles") / profile_path_name,
+                    Path.home() / "AppData/Roaming/gpm/Profiles" / profile_path_name,
+                    Path("C:/GPM/Profiles") / profile_path_name,
+                ]
+                for cand in candidates:
+                    if cand.is_dir():
+                        profile_dir = cand
+                        break
+        except Exception as exc:
+            logger.debug("Không thể lấy profile detail qua API để patch language: %s", exc)
+
+    if not profile_dir or not profile_dir.is_dir():
+        logger.debug("Không tìm thấy thư mục profile GPM trên đĩa cho ID %s", clean_id)
+        return False
+
+    prefs_path = profile_dir / "Default" / "Preferences"
+    if not prefs_path.is_file():
+        prefs_path = profile_dir / "Preferences"
+    if not prefs_path.is_file():
+        logger.debug("Không tìm thấy file Preferences trong profile GPM %s", clean_id)
+        return False
+
+    # 2. Read existing preferences
+    try:
+        raw_text = prefs_path.read_text(encoding="utf-8", errors="replace")
+        data = json.loads(raw_text)
+        if not isinstance(data, dict):
+            return False
+    except Exception as exc:
+        logger.warning("Lỗi đọc file Preferences profile GPM %s: %s", clean_id, exc)
+        return False
+
+    # 3. Create .bak backup safely
+    bak_path = prefs_path.with_suffix(".bak")
+    try:
+        bak_path.write_text(raw_text, encoding="utf-8")
+    except Exception:
+        pass
+
+    # 4. Modify intl settings
+    intl = data.setdefault("intl", {})
+    if not isinstance(intl, dict):
+        intl = {}
+        data["intl"] = intl
+
+    intl["selected_languages"] = accept_languages
+    intl["accept_languages"] = accept_languages
+
+    # 5. Write back atomically
+    temp_path = prefs_path.with_suffix(".tmp")
+    try:
+        temp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        temp_path.replace(prefs_path)
+        logger.info(
+            "Đã cập nhật vĩnh viễn ngôn ngữ profile GPM %s thành '%s' (Preferences patched)",
+            clean_id,
+            accept_languages,
+        )
+        return True
+    except Exception as exc:
+        logger.error("Lỗi ghi file Preferences profile GPM %s: %s", clean_id, exc)
+        if temp_path.is_file():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        return False
+

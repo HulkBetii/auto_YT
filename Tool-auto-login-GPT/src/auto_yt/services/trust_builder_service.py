@@ -21,7 +21,7 @@ from auto_yt.services.channel_scanner_service import (
     is_profile_browser_busy,
     parse_profile_target,
 )
-from auto_yt.services.gpm_service import get_gpm_profile_detail
+from auto_yt.services.gpm_service import get_gpm_profile_detail, resolve_market_language_config
 from auto_yt.services.gpm_youtube_automation import verify_youtube_login
 from auto_yt.services.proxy_utils import parse_proxy_url
 from auto_yt.services.trust_builder_actions import (
@@ -108,36 +108,107 @@ def calculate_trust_score(plan: dict[str, Any], stats: dict[str, Any]) -> int:
     return final_score
 
 
+LANGUAGE_COMMENT_TEMPLATES: dict[str, list[str]] = {
+    "vi": [
+        "Video phân tích rất chi tiết và dễ hiểu, cảm ơn kênh nhiều!",
+        "Nội dung chia sẻ rất thực tế và giá trị. Hóng các video tiếp theo của kênh.",
+        "Góc nhìn rất hay và sâu sắc, giải thích rất rõ ràng ạ.",
+        "Thông tin rất hữu ích cho người mới tìm hiểu như mình. Like mạnh!",
+        "Cảm ơn bạn đã tổng hợp đầy đủ và dễ nắm bắt.",
+        "Kênh làm nội dung ngày càng chất lượng. Chúc kênh ngày càng phát triển!",
+    ],
+    "es": [
+        "¡Excelente video! La explicación es súper clara y concisa.",
+        "Muy buen análisis, me sirvió muchísimo la información. ¡Gracias por compartir!",
+        "Gran contenido, directo al punto y con datos muy útiles. ¡Un like bien merecido!",
+        "Me gustó mucho este enfoque, aprendí cosas nuevas. Esperando el próximo video.",
+        "Explicado de una forma muy didáctica y agradable. ¡Felicidades por el trabajo!",
+        "Muy buen resumen de este tema, me suscribo para no perderme lo siguiente.",
+    ],
+    "de": [
+        "Sehr gut erklärt und auf den Punkt gebracht! Vielen Dank fürs Teilen.",
+        "Tolles Video mit sehr wertvollen Einblicken. Hat mir wirklich sehr geholfen!",
+        "Super strukturierte Übersicht, genau das habe ich gesucht. Daumen hoch!",
+        "Sehr informative Zusammenfassung, freue mich schon auf das nächste Video.",
+        "Klasse Analyse, verständlich und nachvollziehbar dargestellt. Weiter so!",
+    ],
+    "fr": [
+        "Excellente vidéo, très claire et bien structurée ! Merci pour le partage.",
+        "Analyse très pertinente, j'ai beaucoup appris grâce à cette explication.",
+        "Contenu de grande qualité, simple à comprendre et direct au but. Bravo !",
+        "Super travail, les points abordés sont rất instructifs. Hâte de voir la suite !",
+        "Merci pour ce résumé complet et limpide. Un like bien mérité !",
+    ],
+    "pt": [
+        "Vídeo excelente, explicação muito clara e direta ao ponto! Parabéns pelo trabalho.",
+        "Conteúdo muito agregador, aprendi bastante aqui. Já deixei o like!",
+        "Análise sensacional e super fácil de compreender. Valeu por compartilhar!",
+        "Muito bem explicado, tirou várias dúvidas que eu tinha. Aguardo o próximo!",
+        "Parabéns pelo canal, conteúdo de altíssimo nível. Continuem assim!",
+    ],
+    "ja": [
+        "とても分かりやすい解説で勉強になりました！ありがとうございます。",
+        "ポイントが整理されていて非常に見やすかったです。次回の動画も楽しみにしています！",
+        "知りたい情報がコンパクトにまとまっていて助かりました。高評価押しました！",
+        "丁寧な説明で理解が深まりました。素晴らしいコンテンツですね！",
+        "すごく参考になりました！これからも応援しています。",
+    ],
+    "ko": [
+        "핵심만 쏙쏙 짚어서 설명해주셔서 정말 유익했습니다! 감사합니다.",
+        "내용이 너무 알차고 이해하기 쉽네요. 다음 영상도 기대하겠습니다!",
+        "궁금했던 부분이었는데 깔끔하게 정리해주셔서 큰 도움이 되었습니다. 좋아요 누르고 가요!",
+        "설명이 명확해서 귀에 쏙쏙 들어오네요. 응원합니다!",
+        "좋은 정보 공유해주셔서 감사합니다. 채널 번창하세요!",
+    ],
+    "it": [
+        "Video davvero ben fatto, spiegazione chiarissima ed efficace! Grazie mille.",
+        "Ottima analisi e punti di vista molto interessanti. Mi è stato utilissimo!",
+        "Contenuto di alta qualità, dritto al punto senza giri di parole. Gran lavoro!",
+    ],
+    "ru": [
+        "Отличный разбор, все четко и по делу! Спасибо за полезный материал.",
+        "Очень качественное видео, объяснено доступно и понятно. Жду продолжения!",
+        "Спасибо за информативный ролик, почерпнул для себя много нового. Лайк!",
+    ],
+    "en": [
+        "Great analysis and very well explained! Thanks for sharing.",
+        "Super insightful video, really appreciate the detailed breakdown.",
+        "Solid points made here. Looking forward to your next upload!",
+        "Very informative content, explained in a simple and clear way.",
+        "Thanks for breaking this down so clearly. High quality work!",
+        "Awesome video, learned a lot from this breakdown!",
+    ],
+}
+
+
 def generate_contextual_comment(
     video_title: str,
     excluded_comments: set[str] | None = None,
+    market_timezone: str | None = None,
 ) -> str:
     """Choose a non-repeated, language-matched comment template."""
     clean_title = video_title.strip()
-    
-    # Check language
-    is_vietnamese = bool(re.search(r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]", clean_title, re.IGNORECASE))
-    
-    if is_vietnamese:
-        templates = [
-            "Video phân tích rất chi tiết và dễ hiểu, cảm ơn kênh nhiều!",
-            "Nội dung chia sẻ rất thực tế và giá trị. Hóng các video tiếp theo của kênh.",
-            "Góc nhìn rất hay và sâu sắc, giải thích rất rõ ràng ạ.",
-            "Thông tin rất hữu ích cho người mới tìm hiểu như mình. Like mạnh!",
-            "Cảm ơn bạn đã tổng hợp đầy đủ và dễ nắm bắt.",
-            "Kênh làm nội dung ngày càng chất lượng. Chúc kênh ngày càng phát triển!",
-        ]
+
+    lang_code = "en"
+    if market_timezone:
+        lang_config = resolve_market_language_config(market_timezone)
+        lang_code = lang_config.get("lang_code", "en")
     else:
-        templates = [
-            "Great analysis and very well explained! Thanks for sharing.",
-            "Super insightful video, really appreciate the detailed breakdown.",
-            "Solid points made here. Looking forward to your next upload!",
-            "Very informative content, explained in a simple and clear way.",
-            "Thanks for breaking this down so clearly. High quality work!",
-            "Awesome video, learned a lot from this breakdown!",
-        ]
+        # Fallback language detection based on video title characters
+        if re.search(r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]", clean_title, re.IGNORECASE):
+            lang_code = "vi"
+        elif re.search(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]", clean_title):
+            lang_code = "ja"
+        elif re.search(r"[\uac00-\ud7af]", clean_title):
+            lang_code = "ko"
+        elif re.search(r"[\u0400-\u04ff]", clean_title):
+            lang_code = "ru"
+
+    templates = LANGUAGE_COMMENT_TEMPLATES.get(lang_code) or LANGUAGE_COMMENT_TEMPLATES["en"]
     excluded = {item.strip().casefold() for item in (excluded_comments or set())}
     available = [item for item in templates if item.casefold() not in excluded]
+    if not available:
+        available = templates
     return random.choice(available) if available else ""
 
 
@@ -515,14 +586,28 @@ async def run_warmup_session(
                 "message": "Đã đạt quota Search/Watch hôm nay.",
             }
 
-        keywords = plan.get("niche_keywords") or []
-        target_channels = plan.get("target_channels") or []
+        keywords = [k.strip() for k in (plan.get("niche_keywords") or []) if k.strip()]
+        target_channels = [c.strip() for c in (plan.get("target_channels") or []) if c.strip()]
         if not keywords:
-            keywords = ["công nghệ", "tin tức xu hướng", "kiến thức thú vị"]
+            if timezone_name == "Asia/Ho_Chi_Minh":
+                keywords = ["công nghệ", "tin tức xu hướng", "kiến thức thú vị"]
+            elif not target_channels:
+                logger.info(
+                    "Kế hoạch nuôi kênh %s chưa cấu hình từ khóa ngách cho thị trường %s. Bỏ qua phiên tìm kiếm.",
+                    plan_id,
+                    timezone_name,
+                )
+                return {
+                    "success": True,
+                    "skipped": True,
+                    "message": f"Kênh chưa có từ khóa ngách cho thị trường {timezone_name}. Vui lòng cấu hình từ khóa ngách.",
+                }
 
-        selected_keyword = random.choice(keywords)
-        if target_channels and (not keywords or random.random() < 0.60):
+        selected_keyword = random.choice(keywords) if keywords else ""
+        if target_channels and (not selected_keyword or random.random() < 0.60):
             selected_target_channel = random.choice(target_channels)
+            if not selected_keyword:
+                selected_keyword = selected_target_channel
         else:
             selected_target_channel = ""
         warmup_phase = str(plan.get("warmup_phase") or "phase_1_consumer")
@@ -651,6 +736,7 @@ async def run_warmup_session(
                             comment_text = generate_contextual_comment(
                                 video_title,
                                 excluded_comments=used_comments,
+                                market_timezone=timezone_name,
                             )
                             comment_status = (
                                 await action_comment_video(page, comment_text)

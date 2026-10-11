@@ -378,13 +378,14 @@ export default function TrustBuilder() {
   const handleCreatePlan = async () => {
     if (!selectedChannelId) return
     setActionBusy(true)
+    const isVN = !selectedChannel?.publication_timezone || selectedChannel?.publication_timezone === 'Asia/Ho_Chi_Minh'
     try {
       const res = await fetch(`${API_BASE}/api/trust-builder/plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channel_db_id: selectedChannelId,
-          niche_keywords: ['công nghệ', 'xu hướng', 'kiến thức thú vị'],
+          niche_keywords: isVN ? ['công nghệ', 'xu hướng', 'kiến thức thú vị'] : [],
           target_channels: [],
           daily_watch_target: 5,
           daily_search_target: 3,
@@ -1028,12 +1029,18 @@ export default function TrustBuilder() {
                       <button type="button" onClick={addKeyword} className="tag-add-btn">+</button>
                     </div>
                     <div className="tags-cloud">
-                      {(selectedPlan.niche_keywords || []).map((kw, i) => (
-                        <span key={i} className="niche-tag">
-                          {kw}
-                          <button type="button" onClick={() => removeKeyword(kw)}>×</button>
-                        </span>
-                      ))}
+                      {(selectedPlan.niche_keywords || []).length === 0 ? (
+                        <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: '4px 0', fontStyle: 'italic' }}>
+                          Chưa có từ khóa ngách. Hãy thêm từ khóa phù hợp với thị trường của kênh.
+                        </p>
+                      ) : (
+                        (selectedPlan.niche_keywords || []).map((kw, i) => (
+                          <span key={i} className="niche-tag">
+                            {kw}
+                            <button type="button" onClick={() => removeKeyword(kw)}>×</button>
+                          </span>
+                        ))
+                      )}
                     </div>
                   </div>
 
