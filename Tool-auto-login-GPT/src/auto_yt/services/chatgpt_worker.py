@@ -5213,6 +5213,7 @@ def generate_comment_replies(
     comments: list[dict],
     reply_instruction: str = "",
     recent_replies: list[str] | None = None,
+    market_timezone: str | None = None,
 ) -> dict[str, str]:
     """Draft replies inside the video's existing ChatGPT conversation only."""
     from auto_yt.services.youtube_comments import (
@@ -5242,7 +5243,12 @@ def generate_comment_replies(
         wait_for_conversation_history(page)
         response_text = send_prompt(
             page,
-            build_comment_reply_prompt(comments, reply_instruction, recent_replies),
+            build_comment_reply_prompt(
+                comments,
+                reply_instruction,
+                recent_replies,
+                market_timezone=market_timezone,
+            ),
         )
         return parse_comment_reply_response(response_text, expected_ids)
 
