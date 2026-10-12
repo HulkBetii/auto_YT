@@ -873,31 +873,6 @@ export default function Settings({
     });
   };
 
-  const handleDeleteVersion = () => {
-    if (activeVersion === lockedPromptVersion) {
-      alert('Bộ prompt này đang được job sử dụng nên chưa thể xóa.');
-      return;
-    }
-    if (Object.keys(promptsData.versions).length <= 1) {
-      alert("Không thể xóa phiên bản duy nhất!");
-      return;
-    }
-    
-    if (!confirm("Bạn có chắc muốn xóa phiên bản này?")) return;
-    
-    setPromptsData(prev => {
-      const newData = { ...prev };
-      delete newData.versions[activeVersion];
-      
-      const remainingVersions = Object.keys(newData.versions);
-      const nextVersion = remainingVersions[0];
-      
-      newData.active_version = nextVersion;
-      setActiveVersion(nextVersion);
-      return newData;
-    });
-  };
-
   const saveSection = async (sectionKey, loadingText, successText, request) => {
     try {
       setSavingSection(sectionKey);
@@ -926,6 +901,43 @@ export default function Settings({
     } finally {
       setSavingSection('');
       setLoadingMsg('');
+    }
+  };
+
+  const handleDeleteVersion = async () => {
+    if (activeVersion === lockedPromptVersion) {
+      alert('Bộ prompt này đang được job sử dụng nên chưa thể xóa.');
+      return;
+    }
+    if (Object.keys(promptsData?.versions || {}).length <= 1) {
+      alert("Không thể xóa phiên bản duy nhất!");
+      return;
+    }
+    
+    if (!confirm("Bạn có chắc muốn xóa vĩnh viễn bộ prompt này?")) return;
+
+    const versionToDelete = activeVersion;
+    const result = await saveSection(
+      'delete-version',
+      'Đang xóa bộ prompt...',
+      'Đã xóa bộ prompt thành công.',
+      () => fetch(`http://127.0.0.1:8080/api/prompts/${encodeURIComponent(versionToDelete)}`, {
+        method: 'DELETE'
+      })
+    );
+
+    if (result && result.success) {
+      const nextActive = result.active_version || 'default';
+      setPromptsData(prev => {
+        const nextVersions = { ...(prev?.versions || {}) };
+        delete nextVersions[versionToDelete];
+        return {
+          ...prev,
+          active_version: nextActive,
+          versions: result.versions || nextVersions
+        };
+      });
+      setActiveVersion(nextActive);
     }
   };
 
@@ -1550,14 +1562,14 @@ export default function Settings({
           <button
             className="btn-danger"
             onClick={handleDeleteVersion}
-            disabled={activeVersionLocked}
+            disabled={activeVersionLocked || Boolean(savingSection)}
             title={
               activeVersionLocked
                 ? 'Bộ prompt này đang được job sử dụng'
                 : 'Xóa bộ prompt hiện tại'
             }
           >
-            🗑️ Xóa Bản Này
+            🗑️ {savingSection === 'delete-version' ? 'Đang xóa...' : 'Xóa Bản Này'}
           </button>
         </div>
       </div>

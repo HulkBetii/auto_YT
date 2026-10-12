@@ -10650,6 +10650,33 @@ def save_prompts(data: PromptsData):
         return _write_prompts_config(incoming_data)
 
 
+@app.delete("/api/prompts/{version_id}")
+def delete_prompt_version(version_id: str):
+    with _prompts_config_lock:
+        _assert_prompt_version_editable(version_id)
+        data = _read_prompts_config()
+        versions = data.get("versions", {})
+        if not isinstance(versions, dict) or version_id not in versions:
+            raise HTTPException(status_code=404, detail="Không tìm thấy bộ prompt.")
+        if len(versions) <= 1:
+            raise HTTPException(
+                status_code=400, detail="Không thể xóa phiên bản duy nhất."
+            )
+        del versions[version_id]
+        active_version = str(data.get("active_version") or "").strip()
+        if active_version == version_id:
+            remaining_keys = list(versions.keys())
+            next_active = "default" if "default" in versions else remaining_keys[0]
+            data["active_version"] = next_active
+        saved_data = _write_prompts_config(data)
+        return {
+            "success": True,
+            "deleted_version": version_id,
+            "active_version": saved_data.get("active_version", data.get("active_version")),
+            "versions": saved_data.get("versions", versions),
+        }
+
+
 @app.patch("/api/prompts/{version_id}/name")
 def save_prompt_version_name(version_id: str, payload: PromptVersionNameData):
     name = payload.name.strip()

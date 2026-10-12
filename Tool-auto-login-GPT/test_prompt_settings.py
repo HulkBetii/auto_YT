@@ -394,6 +394,7 @@ class PromptSettingsTests(unittest.TestCase):
             {
                 **pipeline,
                 "video_render": False,
+                "visual_research": False,
                 "youtube_upload": False,
                 "youtube_schedule": False,
             },
@@ -805,6 +806,43 @@ class PromptSettingsTests(unittest.TestCase):
             if res.get("job_id"):
                 main.db.update_system_job(res["job_id"], status="canceled")
                 main.db.delete_system_job(res["job_id"])
+
+
+    def test_delete_prompt_version_success(self):
+        res = main.delete_prompt_version("second")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["deleted_version"], "second")
+        saved = self.read_saved_data()
+        self.assertNotIn("second", saved["versions"])
+        self.assertIn("default", saved["versions"])
+
+    def test_delete_active_prompt_version_updates_active_version(self):
+        res = main.delete_prompt_version("default")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["deleted_version"], "default")
+        saved = self.read_saved_data()
+        self.assertNotIn("default", saved["versions"])
+        self.assertEqual(saved["active_version"], "second")
+
+    def test_delete_single_remaining_prompt_version_fails(self):
+        main.delete_prompt_version("second")
+        with self.assertRaises(HTTPException) as ctx:
+            main.delete_prompt_version("default")
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Không thể xóa", ctx.exception.detail)
+
+    def test_delete_locked_prompt_version_fails(self):
+        with patch.object(main, "_get_locked_prompt_version", return_value="second"):
+            with self.assertRaises(HTTPException) as ctx:
+                main.delete_prompt_version("second")
+            self.assertEqual(ctx.exception.status_code, 409)
+        saved = self.read_saved_data()
+        self.assertIn("second", saved["versions"])
+
+    def test_delete_nonexistent_prompt_version_fails(self):
+        with self.assertRaises(HTTPException) as ctx:
+            main.delete_prompt_version("non_existent")
+        self.assertEqual(ctx.exception.status_code, 404)
 
 
 if __name__ == "__main__":

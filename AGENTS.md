@@ -73,6 +73,14 @@
 - Credential-related changes require regression coverage for response filtering, plaintext persistence, redaction, cache control, and proxy fail-closed behavior.
 - If exposure is discovered, stop further exposure, report affected locations, and add a regression test. Do not delete backups or revoke, rotate, or otherwise modify external credentials without explicit user authorization.
 
-## 9. Tool availability
+## 9. Prompt privacy and zero-leak invariant
+
+- Prompt suites, system prompt templates, creative instructions, cast settings, and channel configurations (including `default_prompts.py`, `prompts.json`, and prompt asset definitions) are proprietary and confidential.
+- Never stage, commit, or push prompt files or modifications to prompt configurations to Git.
+- Prompt data must persist only in local, gitignored runtime storage (`Tool-auto-login-GPT/data/prompts.json`).
+- If prompt changes occur locally or files like `default_prompts.py` are touched, they must remain protected (via `skip-worktree` or `.gitignore`) and strictly excluded from all commits and pushes.
+
+## 10. Tool availability
 
 - Use project memory or browser-research tooling only when it is available and relevant. If a named tool is unavailable, use the safest supported alternative and report any resulting limitation.
+
