@@ -638,6 +638,7 @@ async def run_warmup_session(
                 raise asyncio.CancelledError
             async with channel_browser_session(profile_id) as (context, _browser, _profile_meta):
                 page = await context.new_page()
+                preserve_page = True
                 try:
                     pick_res = await action_search_and_pick_video(
                         page,
@@ -774,8 +775,9 @@ async def run_warmup_session(
                                     success=True,
                                 )
 
+                    preserve_page = False
                 finally:
-                    await cleanup_owned_page(context, page)
+                    await cleanup_owned_page(context, page, preserve=preserve_page)
 
             stats = db.get_trust_activity_stats(plan_id)
             updated_score = calculate_trust_score(plan, stats)
@@ -856,10 +858,12 @@ async def audit_channel_branding_for_plan(plan_id: int) -> dict[str, Any]:
     try:
         async with channel_browser_session(profile_id) as (context, _browser, _profile_meta):
             page = await context.new_page()
+            preserve_page = True
             try:
                 checklist = await action_audit_channel_branding(page, channel_id=channel_ucid)
+                preserve_page = False
             finally:
-                await cleanup_owned_page(context, page)
+                await cleanup_owned_page(context, page, preserve=preserve_page)
 
         stats = db.get_trust_activity_stats(plan_id)
         plan["branding_checklist"] = checklist
@@ -901,13 +905,15 @@ async def audit_feature_eligibility_for_plan(plan_id: int) -> dict[str, Any]:
     try:
         async with channel_browser_session(profile_id) as (context, _browser, _profile_meta):
             page = await context.new_page()
+            preserve_page = True
             try:
                 feature_result = await action_audit_feature_eligibility(
                     page,
                     channel_id=channel_ucid,
                 )
+                preserve_page = False
             finally:
-                await cleanup_owned_page(context, page)
+                await cleanup_owned_page(context, page, preserve=preserve_page)
 
         checklist = dict(plan.get("branding_checklist") or {})
         checklist["feature_level"] = feature_result.get("feature_level", "unknown")

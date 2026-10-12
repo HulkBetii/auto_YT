@@ -251,8 +251,13 @@ async def _profile_browser_operation(profile_id: str) -> AsyncGenerator[None, No
 
 
 async def cleanup_owned_page(context: Any, page: Any, *, preserve: bool = False) -> None:
-    """Clean up only a task-owned page while keeping the browser process alive."""
+    """Clean up only a task-owned page while respecting session preservation."""
     if preserve or page is None:
+        if context is not None:
+            try:
+                setattr(context, "_preserve_session", True)
+            except Exception:
+                pass
         return
     try:
         page_closed = page.is_closed()
@@ -264,19 +269,7 @@ async def cleanup_owned_page(context: Any, page: Any, *, preserve: bool = False)
         return
 
     try:
-        other_pages = []
-        for candidate in context.pages:
-            if candidate is page:
-                continue
-            candidate_closed = candidate.is_closed()
-            if inspect.isawaitable(candidate_closed):
-                candidate_closed = await candidate_closed
-            if not candidate_closed:
-                other_pages.append(candidate)
-        if other_pages:
-            await page.close()
-        else:
-            await page.goto("about:blank")
+        await page.close()
     except Exception as exc:
         logger.debug("Không thể cleanup tab tác vụ: %s", exc)
 
@@ -779,6 +772,7 @@ async def scan_youtube_channel(
     try:
         async with channel_browser_session(profile_id) as (context, _browser, p_info):
             page = await context.new_page()
+            preserve_page = True
             try:
                 await page.goto("https://studio.youtube.com", wait_until="domcontentloaded", timeout=min(int(timeout_seconds * 1000), 15000))
             except Exception as nav_exc:
@@ -866,6 +860,7 @@ async def scan_youtube_channel(
                     )
                     logger.info("Engine 2: Đã lưu kênh YouTube %s (%s) vào cơ sở dữ liệu", title, channel_id)
 
+                preserve_page = False
                 return {
                     "success": True,
                     "logged_in": True,
@@ -874,7 +869,7 @@ async def scan_youtube_channel(
                     "message": f"🟢 Đã quét và liên kết thành công kênh '{title}' ({channel_id})!",
                 }
             finally:
-                await cleanup_owned_page(context, page)
+                await cleanup_owned_page(context, page, preserve=preserve_page)
     except Exception as exc:
         logger.error("Lỗi khi quét kênh YouTube: %s", exc)
         return {
@@ -948,6 +943,7 @@ async def scan_facebook_pages(
     try:
         async with channel_browser_session(profile_id) as (context, _browser, p_info):
             page = await context.new_page()
+            preserve_page = True
             try:
                 await page.goto("https://www.facebook.com/pages/?category=your_pages", wait_until="domcontentloaded", timeout=min(int(timeout_seconds * 1000), 15000))
             except Exception:
@@ -1015,6 +1011,7 @@ async def scan_facebook_pages(
                             "status": "active",
                         })
 
+                preserve_page = False
                 return {
                     "success": True,
                     "logged_in": True,
@@ -1023,7 +1020,7 @@ async def scan_facebook_pages(
                     "message": f"🟢 Quét thành công! Tìm thấy {len(pages)} Fanpage đang quản lý trong trình duyệt.",
                 }
             finally:
-                await cleanup_owned_page(context, page)
+                await cleanup_owned_page(context, page, preserve=preserve_page)
     except Exception as exc:
         logger.error("Lỗi khi quét Facebook Pages: %s", exc)
         return {
@@ -1097,6 +1094,7 @@ async def scan_tiktok_account(
     try:
         async with channel_browser_session(profile_id) as (context, _browser, p_info):
             page = await context.new_page()
+            preserve_page = True
             try:
                 await page.goto("https://www.tiktok.com/creator-center/upload", wait_until="domcontentloaded", timeout=min(int(timeout_seconds * 1000), 15000))
             except Exception:
@@ -1163,6 +1161,7 @@ async def scan_tiktok_account(
                     "status": "active",
                 }
 
+                preserve_page = False
                 return {
                     "success": True,
                     "logged_in": True,
@@ -1171,7 +1170,7 @@ async def scan_tiktok_account(
                     "message": f"🟢 Quét thành công Kênh TikTok '{name}' ({handle})!",
                 }
             finally:
-                await cleanup_owned_page(context, page)
+                await cleanup_owned_page(context, page, preserve=preserve_page)
     except Exception as exc:
         logger.error("Lỗi khi quét TikTok: %s", exc)
         return {

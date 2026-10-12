@@ -868,11 +868,6 @@ async def gpm_browser_session(
     clean_id = str(profile_id).strip()
     if not clean_id:
         raise ValueError("Profile ID không được để trống.")
-    if auto_stop:
-        logger.info(
-            "Bỏ qua auto_stop=True cho Profile GPM %s; browser luôn được giữ hoạt động.",
-            clean_id,
-        )
 
     launch_info = await asyncio.to_thread(
         start_gpm_profile,
@@ -938,6 +933,8 @@ async def gpm_browser_session(
     playwright_cm = async_playwright()
     playwright = await playwright_cm.start()
     browser = None
+    context = None
+    has_error = False
     try:
         last_conn_err = None
         for attempt in range(1, 4):
@@ -960,12 +957,36 @@ async def gpm_browser_session(
 
         contexts = browser.contexts
         context = contexts[0] if contexts else await browser.new_context()
-        yield context, browser
+        try:
+            yield context, browser
+        except Exception:
+            has_error = True
+            raise
+    except Exception:
+        has_error = True
+        raise
     finally:
         try:
             await playwright.stop()
         except Exception:
             pass
+
+        should_preserve = has_error or (context is not None and getattr(context, "_preserve_session", None) is True)
+        if auto_stop is not False and not was_already_running and not should_preserve:
+            logger.info("Tác vụ thành công & Profile GPM %s được mở mới -> Tự động đóng profile", clean_id)
+            await asyncio.to_thread(stop_gpm_profile, clean_id, api_url=api_url)
+            _active_gpm_profiles.pop(clean_id, None)
+        else:
+            if should_preserve:
+                logger.warning(
+                    "Tác vụ gặp lỗi hoặc yêu cầu giữ phiên -> GIỮ NGUYÊN Profile GPM %s để người dùng đối soát",
+                    clean_id,
+                )
+            else:
+                logger.info(
+                    "Profile GPM %s đã mở sẵn từ trước -> Giữ nguyên profile",
+                    clean_id,
+                )
 
 
 TIMEZONE_LANGUAGE_CONFIG: dict[str, dict[str, str]] = {

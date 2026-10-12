@@ -60,6 +60,7 @@
 - Browser operations, including YouTube Studio uploads and UI verification, must run inside the assigned GPM profile through Playwright CDP.
 - All authenticated background HTTP operations for a channel, including token refresh, synchronization, resumable uploads, captions, and thumbnails, must use the assigned proxy through `Tool-auto-login-GPT/src/auto_yt/services/proxy_utils.py`.
 - Missing or unusable channel isolation must fail closed. Never fall back to the host machine's direct WAN connection.
+- GPM profiles are not required to remain persistent: stopping, closing, or recycling a GPM profile after task completion or when idle is permitted.
 
 ## 8. Credential security
 

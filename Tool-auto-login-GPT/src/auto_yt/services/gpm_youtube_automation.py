@@ -42,6 +42,7 @@ async def verify_youtube_login(
     async with channel_browser_session(profile_id) as (context, _browser, _profile_meta):
         page = await context.new_page()
         await page.bring_to_front()
+        preserve_page = True
         try:
             await page.goto("https://studio.youtube.com", wait_until="domcontentloaded", timeout=int(timeout_seconds * 1000))
             await asyncio.sleep(2.0)
@@ -91,6 +92,7 @@ async def verify_youtube_login(
                 else:
                     message = "Đã đăng nhập và xác minh đúng YouTube Studio."
 
+                preserve_page = False
                 return {
                     "logged_in": True,
                     "identity_verified": identity_verified,
@@ -119,7 +121,7 @@ async def verify_youtube_login(
                 "message": f"Không thể kết nối YouTube Studio: {exc}",
             }
         finally:
-            await cleanup_owned_page(context, page)
+            await cleanup_owned_page(context, page, preserve=preserve_page)
 
 
 async def post_comment_reply_via_gpm(

@@ -541,8 +541,8 @@ def test_gpm_session_reuses_running_profile_without_duplicate_window():
     print("✓ test_gpm_session_reuses_running_profile_without_duplicate_window passed")
 
 
-def test_gpm_session_keeps_profile_running_when_started_by_session():
-    """A profile started by Auto_YT remains open after the CDP client disconnects."""
+def test_gpm_session_stops_profile_when_started_by_session_on_success():
+    """A profile started by Auto_YT is automatically stopped on success when it was originally closed."""
     mock_launch_data = {
         "success": True,
         "data": {
@@ -576,17 +576,69 @@ def test_gpm_session_keeps_profile_running_when_started_by_session():
         mock_pw_factory.return_value = mock_pw_cm
 
         async def run_session():
-            async with gpm_service.gpm_browser_session("temp-profile", auto_stop=True) as (ctx, br):
+            async with gpm_service.gpm_browser_session("temp-profile") as (ctx, br):
                 assert ctx is mock_context
 
         asyncio.run(run_session())
 
-        # The session starts once, disconnects Playwright, and never calls stop.
+        # The session starts once, disconnects Playwright, and stops the profile on success.
+        assert any("start" in call for call in api_calls), f"Expected start call in {api_calls}"
+        assert any("stop" in call for call in api_calls), f"Expected stop call in {api_calls}"
+        mock_playwright.stop.assert_called_once()
+
+    print("✓ test_gpm_session_stops_profile_when_started_by_session_on_success passed")
+
+
+def test_gpm_session_preserves_profile_when_started_by_session_on_error():
+    """A profile started by Auto_YT is preserved (Option B) if an error occurs during the session."""
+    mock_launch_data = {
+        "success": True,
+        "data": {
+            "remote_debugging_port": 19997,
+            "websocket_debugging_url": "ws://127.0.0.1:19997/devtools/browser/abc",
+            "selenium_remote_debug_address": "127.0.0.1:19997",
+            "profile_id": "temp-profile-err",
+        }
+    }
+
+    mock_browser = AsyncMock()
+    mock_context = AsyncMock()
+    mock_playwright = AsyncMock()
+    mock_playwright.chromium.connect_over_cdp = AsyncMock(return_value=mock_browser)
+    mock_browser.contexts = [mock_context]
+
+    api_calls = []
+    def fake_request_api(endpoint, *args, **kwargs):
+        api_calls.append(endpoint)
+        if "start" in endpoint:
+            return mock_launch_data
+        return {"success": True, "data": {}}
+
+    with patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=None), \
+         patch("auto_yt.services.gpm_service._request_gpm_api", side_effect=fake_request_api), \
+         patch("auto_yt.services.gpm_service.wait_for_cdp_readiness", AsyncMock(return_value="ws://127.0.0.1:19997/devtools/browser/abc")), \
+         patch("playwright.async_api.async_playwright") as mock_pw_factory:
+
+        mock_pw_cm = MagicMock()
+        mock_pw_cm.start = AsyncMock(return_value=mock_playwright)
+        mock_pw_factory.return_value = mock_pw_cm
+
+        async def run_session():
+            async with gpm_service.gpm_browser_session("temp-profile-err") as (ctx, br):
+                raise RuntimeError("Upload network failure simulation")
+
+        try:
+            asyncio.run(run_session())
+            assert False, "Should have raised RuntimeError"
+        except RuntimeError:
+            pass
+
+        # The session started, had an error, Playwright stopped, but GPM stop was NEVER called.
         assert any("start" in call for call in api_calls), f"Expected start call in {api_calls}"
         assert not any("stop" in call for call in api_calls), f"Unexpected stop call in {api_calls}"
         mock_playwright.stop.assert_called_once()
 
-    print("✓ test_gpm_session_keeps_profile_running_when_started_by_session passed")
+    print("✓ test_gpm_session_preserves_profile_when_started_by_session_on_error passed")
 
 
 def test_gpm_session_cdp_failure_never_restarts_profile():
@@ -647,7 +699,8 @@ if __name__ == "__main__":
     test_fastapi_gpm_endpoints()
     test_post_comment_reply_via_gpm_with_auto_heart()
     test_gpm_session_reuses_running_profile_without_duplicate_window()
-    test_gpm_session_keeps_profile_running_when_started_by_session()
+    test_gpm_session_stops_profile_when_started_by_session_on_success()
+    test_gpm_session_preserves_profile_when_started_by_session_on_error()
     test_gpm_session_cdp_failure_never_restarts_profile()
     test_wait_for_cdp_readiness()
     print("\n🎉 ALL GPM TESTS PASSED SUCCESSFULLY!")
