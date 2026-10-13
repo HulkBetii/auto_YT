@@ -138,6 +138,39 @@ MONETIZATION_MODES = {
 }
 DEFAULT_STEP_TIMEOUT_SECONDS = 20.0
 
+AD_SUITABILITY_ROOT_SELECTORS = (
+    "ytcp-uploads-dialog[workflow-step='CONTENT_RATINGS'] ytcp-uploads-content-ratings",
+    "ytcp-uploads-dialog ytcp-uploads-content-ratings ytpp-self-certification-questionnaire",
+    "ytcp-uploads-dialog ytpp-self-certification-questionnaire",
+    "ytcp-video-upload-dialog ytpp-self-certification-questionnaire",
+    "ytcp-uploads-dialog ytcp-self-certification",
+    "ytcp-video-upload-dialog ytcp-self-certification",
+    "ytcp-uploads-dialog [test-id='self-certification']",
+)
+AD_SUITABILITY_STEP_SELECTORS = (
+    "ytcp-uploads-dialog [test-id='CONTENT_RATINGS'][aria-selected='true']",
+    "ytcp-video-upload-dialog [test-id='CONTENT_RATINGS'][aria-selected='true']",
+)
+AD_SUITABILITY_NONE_SELECTORS = [
+    "ytpp-self-certification-questionnaire ytcp-checkbox-lit.all-none-checkbox",
+    "ytpp-self-certification-questionnaire ytcp-checkbox-lit:has-text('Không chứa nội dung nào ở trên')",
+    "ytpp-self-certification-questionnaire [role='checkbox'][aria-label*='Không chứa nội dung nào ở trên' i]",
+    "ytpp-self-certification-questionnaire ytcp-checkbox-lit:has-text('None of the above')",
+    "ytpp-self-certification-questionnaire [role='checkbox'][aria-label*='None of the above' i]",
+    "ytcp-self-certification #none-of-the-above-checkbox",
+    "ytcp-self-certification tp-yt-paper-checkbox:has-text('Không chứa nội dung nào ở trên')",
+    "ytcp-self-certification tp-yt-paper-checkbox:has-text('None of the above')",
+]
+AD_SUITABILITY_SUBMIT_SELECTORS = [
+    "ytpp-self-certification-predictor ytcp-button#submit-questionnaire-button",
+    "ytpp-self-certification-questionnaire ytcp-button#submit-questionnaire-button",
+    "ytpp-self-certification-questionnaire ytcp-button:has-text('Gửi thông tin đánh giá')",
+    "ytpp-self-certification-questionnaire ytcp-button:has-text('Submit rating')",
+    "ytcp-self-certification ytcp-button#submit-questionnaire-button",
+    "ytcp-self-certification ytcp-button:has-text('Gửi thông tin đánh giá')",
+    "ytcp-self-certification ytcp-button:has-text('Submit rating')",
+]
+
 
 def _format_date_for_picker(date_obj: dt.date, is_vietnamese: bool = True) -> str:
     """Format a date for YouTube Studio datepicker (e.g. '27 thg 9, 2026' or 'Sep 27, 2026')."""
@@ -766,6 +799,105 @@ async def _set_checkbox(page, selectors: list[str], desired: bool) -> bool:
         except Exception:
             continue
     return False
+
+
+async def _wait_for_ad_suitability(
+    page,
+    *,
+    timeout_seconds: float = DEFAULT_STEP_TIMEOUT_SECONDS,
+):
+    """Wait for the visible ad-suitability questionnaire inside the upload wizard."""
+    deadline = time.monotonic() + max(0.1, timeout_seconds)
+    while time.monotonic() < deadline:
+        for selector in AD_SUITABILITY_ROOT_SELECTORS:
+            elements = await _visible_upload_dialog_elements(page, selector)
+            if elements:
+                return elements[0]
+        await asyncio.sleep(0.25)
+    return None
+
+
+async def _wait_for_ad_suitability_saved(
+    page,
+    *,
+    timeout_seconds: float = 4.0,
+) -> bool:
+    """Confirm Studio acknowledged the submitted questionnaire."""
+    deadline = time.monotonic() + max(0.1, timeout_seconds)
+    toast_selectors = [
+        "tp-yt-paper-toast:has-text('Đã lưu thông tin đánh giá')",
+        "tp-yt-paper-toast:has-text('Rating saved')",
+        "ytcp-toast:has-text('Đã lưu thông tin đánh giá')",
+        "ytcp-toast:has-text('Rating saved')",
+    ]
+    while time.monotonic() < deadline:
+        if await _has_visible_element(page, toast_selectors):
+            return True
+        for selector in AD_SUITABILITY_SUBMIT_SELECTORS:
+            for submit_btn in await _visible_upload_dialog_elements(page, selector):
+                disabled = await submit_btn.get_attribute("disabled")
+                aria_disabled = str(
+                    await submit_btn.get_attribute("aria-disabled") or ""
+                ).lower()
+                if disabled is not None or aria_disabled == "true":
+                    return True
+        await asyncio.sleep(0.3)
+    return False
+
+
+async def _complete_ad_suitability(
+    page,
+    *,
+    progress: Callable[[str, str, int], None],
+    persist_checkpoint: Callable[[str, dict[str, Any]], None],
+    timeout_seconds: float = DEFAULT_STEP_TIMEOUT_SECONDS,
+) -> None:
+    """Complete the post-upload ad-suitability step without touching file upload."""
+    ad_suitability = await _wait_for_ad_suitability(
+        page,
+        timeout_seconds=timeout_seconds,
+    )
+    if ad_suitability is None:
+        active_step = await _has_visible_element(page, list(AD_SUITABILITY_STEP_SELECTORS))
+        logger.warning(
+            "ad_suitability_not_found content_ratings_step_active=%s",
+            active_step,
+        )
+        raise BrowserUploadNeedsReview(
+            "Đã bật kiếm tiền nhưng không tìm thấy bước tự đánh giá quảng cáo."
+        )
+
+    progress("Đang hoàn tất tự đánh giá quảng cáo...", "self_certification", 70)
+    try:
+        await ad_suitability.scroll_into_view_if_needed()
+    except Exception:
+        pass
+
+    if not await _set_checkbox(page, AD_SUITABILITY_NONE_SELECTORS, True):
+        raise BrowserUploadNeedsReview(
+            "Không thể chọn 'Không chứa nội dung nào ở trên'."
+        )
+
+    try:
+        await _require_click(
+            page,
+            AD_SUITABILITY_SUBMIT_SELECTORS,
+            "Không thể gửi thông tin tự đánh giá quảng cáo.",
+            timeout_ms=5000,
+        )
+    except BrowserUploadError as exc:
+        raise BrowserUploadNeedsReview(str(exc)) from exc
+
+    if not await _wait_for_ad_suitability_saved(page):
+        raise BrowserUploadNeedsReview(
+            "Đã gửi tự đánh giá quảng cáo nhưng YouTube Studio chưa xác nhận đã lưu."
+        )
+
+    _emit_checkpoint(
+        persist_checkpoint,
+        "suitability_verified",
+        ad_suitability_state="none_of_the_above",
+    )
 
 
 def _parse_schedule_at(schedule_at: str, timezone_name: str) -> dt.datetime:
@@ -3887,75 +4019,10 @@ async def upload_video_via_browser(
                         "Không thể chuyển sang bước tự đánh giá quảng cáo.",
                         timeout_ms=5000,
                     )
-                    await asyncio.sleep(2.0)
-                    ad_suitability = await page.query_selector(
-                        "ytcp-uploads-dialog ytcp-self-certification, "
-                        "ytcp-video-upload-dialog ytcp-self-certification, "
-                        "ytcp-uploads-dialog [test-id='self-certification']"
-                    )
-                    if ad_suitability is None:
-                        raise BrowserUploadNeedsReview(
-                            "Đã bật kiếm tiền nhưng không tìm thấy bước tự đánh giá quảng cáo."
-                        )
-                    progress("Đang hoàn tất tự đánh giá quảng cáo...", "self_certification", 70)
-                    await ad_suitability.evaluate("element => element.scrollTop = element.scrollHeight")
-                    none_selectors = [
-                        "ytcp-self-certification #none-of-the-above-checkbox",
-                        "ytcp-self-certification tp-yt-paper-checkbox:has-text('Không chứa nội dung nào ở trên')",
-                        "ytcp-self-certification tp-yt-paper-checkbox:has-text('None of the above')",
-                    ]
-                    await _require_click(
+                    await _complete_ad_suitability(
                         page,
-                        none_selectors,
-                        "Không thể chọn 'Không chứa nội dung nào ở trên'.",
-                        timeout_ms=5000,
-                    )
-                    await _require_selected(
-                        page,
-                        none_selectors,
-                        "YouTube Studio không xác nhận lựa chọn tự đánh giá quảng cáo.",
-                    )
-                    await _require_click(
-                        page,
-                        [
-                            "ytcp-self-certification ytcp-button#submit-questionnaire-button",
-                            "ytcp-self-certification ytcp-button:has-text('Gửi thông tin đánh giá')",
-                            "ytcp-self-certification ytcp-button:has-text('Submit rating')",
-                        ],
-                        "Không thể gửi thông tin tự đánh giá quảng cáo.",
-                        timeout_ms=5000,
-                    )
-                    suitability_saved = False
-                    for _ in range(12):
-                        saved_marker = await page.query_selector(
-                            "tp-yt-paper-toast:has-text('Đã lưu thông tin đánh giá'), "
-                            "tp-yt-paper-toast:has-text('Rating saved'), "
-                            "ytcp-toast:has-text('Đã lưu thông tin đánh giá'), "
-                            "ytcp-toast:has-text('Rating saved')"
-                        )
-                        if saved_marker is not None and await saved_marker.is_visible():
-                            suitability_saved = True
-                            break
-                        submit_btn = await page.query_selector("ytcp-self-certification ytcp-button#submit-questionnaire-button")
-                        if submit_btn is not None:
-                            disabled = await submit_btn.get_attribute("disabled")
-                            aria_disabled = await submit_btn.get_attribute("aria-disabled")
-                            if disabled is not None or str(aria_disabled).lower() == "true":
-                                suitability_saved = True
-                                break
-                        await asyncio.sleep(0.3)
-                    if not suitability_saved:
-                        next_btn = await page.query_selector("ytcp-uploads-dialog ytcp-button#next-button, ytcp-video-upload-dialog ytcp-button#next-button")
-                        if next_btn is not None and await next_btn.is_visible():
-                            suitability_saved = True
-                    if not suitability_saved:
-                        raise BrowserUploadNeedsReview(
-                            "Đã gửi tự đánh giá quảng cáo nhưng YouTube Studio chưa xác nhận đã lưu."
-                        )
-                    _emit_checkpoint(
-                        persist_checkpoint,
-                        "suitability_verified",
-                        ad_suitability_state="none_of_the_above",
+                        progress=progress,
+                        persist_checkpoint=persist_checkpoint,
                     )
                     await _require_click(
                         page,

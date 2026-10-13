@@ -751,6 +751,34 @@ function JobCenter({ onOpenVideo, refreshKey }) {
                     <div style={{ color: '#999', marginTop: '7px', fontSize: '0.86em' }}>
                       {job.progress || 'Chưa có cập nhật'}
                     </div>
+                    {Number(job.intro_video_summary?.fallback_count || 0) > 0 && (
+                      <div
+                        role="status"
+                        data-testid="intro-video-fallback-warning"
+                        style={{
+                          color: '#facc15',
+                          background: 'rgba(250, 204, 21, 0.08)',
+                          border: '1px solid rgba(250, 204, 21, 0.35)',
+                          borderRadius: '8px',
+                          marginTop: '9px',
+                          padding: '8px 10px',
+                          fontSize: '0.84em'
+                        }}
+                      >
+                        <strong>
+                          ⚠ Intro {Number(job.intro_video_summary.generated_count || 0)}/
+                          {Number(job.intro_video_summary.requested_count || 0)} clip ·{' '}
+                          {Number(job.intro_video_summary.fallback_count || 0)} cảnh dùng ảnh tĩnh
+                        </strong>
+                        {job.intro_video_summary.fallback_scenes?.length > 0 && (
+                          <div style={{ marginTop: '4px', color: '#fde68a' }}>
+                            Cảnh fallback: {job.intro_video_summary.fallback_scenes
+                              .map(scene => Number(scene.scene_index) + 1)
+                              .join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {job.publish_stage && (
                       <div style={{ color: '#76d7c4', marginTop: '6px', fontSize: '0.8em' }}>
                         Bước YouTube: {PUBLISH_STAGE_LABELS[job.publish_stage] || job.publish_stage}

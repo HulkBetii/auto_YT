@@ -24,7 +24,7 @@ from pathlib import Path
 
 import imageio_ffmpeg
 
-from auto_yt.services import process_registry
+from auto_yt.services import process_registry, security_logging
 from auto_yt.paths import (
     AUDIO_DIR,
     CAPTIONS_DIR,
@@ -72,6 +72,49 @@ class VideoProductionError(RuntimeError):
 
 class SceneVisualDuplicateError(VideoProductionError):
     pass
+
+
+VIDEO_FAILURE_STAGE_BY_ERROR = {
+    "FlowAgentInteractionError": "agent_interaction",
+    "FlowAgentSettingsError": "agent_settings",
+    "FlowFrameAttachmentError": "frame_sync",
+    "FlowModeError": "legacy_video_mode",
+    "FlowSubmissionError": "submit",
+    "FlowGenerationStartError": "generation_start",
+    "FlowGenerationTimeout": "generation_timeout",
+    "FlowAgentStalledError": "generation_timeout",
+    "FlowResultMissingError": "result_missing",
+    "FlowUiStateError": "ui_state",
+}
+
+
+def _safe_reason_code(error: Exception) -> str:
+    explicit = str(getattr(error, "reason_code", "") or "").strip().casefold()
+    if explicit and re.fullmatch(r"[a-z0-9_]+", explicit):
+        return explicit
+    class_name = type(error).__name__
+    snake_name = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).casefold()
+    return snake_name if re.fullmatch(r"[a-z0-9_]+", snake_name) else "video_generation_failed"
+
+
+def _video_failure_details(error: Exception) -> dict[str, str]:
+    return {
+        "failure_stage": VIDEO_FAILURE_STAGE_BY_ERROR.get(
+            type(error).__name__,
+            "video_generation",
+        ),
+        "reason_code": _safe_reason_code(error),
+    }
+
+
+def _empty_intro_video_summary(*, enabled: bool) -> dict:
+    return {
+        "enabled": bool(enabled),
+        "requested_count": 0,
+        "generated_count": 0,
+        "fallback_count": 0,
+        "fallback_scenes": [],
+    }
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -948,6 +991,7 @@ async def _flow_worker_session(video_id: int, *, force_new_project: bool = False
             page = context.pages[0] if context.pages else await context.new_page()
 
         worker = GoogleFlowWorker(page)
+        worker.video_id = video_id
         await worker.ensure_project(
             f"auto_yt_{video_id}",
             force_new=force_new_project,
@@ -1627,19 +1671,10 @@ async def _generate_scene_video_async(
         if worker is not None and hasattr(worker, "get_last_video_timing"):
             timing_snapshot = worker.get_last_video_timing()
             flow_timing = timing_snapshot if isinstance(timing_snapshot, dict) else {}
-        failure_stage_by_error = {
-            "FlowAgentInteractionError": "agent_interaction",
-            "FlowAgentSettingsError": "agent_settings",
-            "FlowFrameAttachmentError": "frame_sync",
-            "FlowModeError": "legacy_video_mode",
-            "FlowSubmissionError": "submit",
-            "FlowGenerationStartError": "generation_start",
-            "FlowGenerationTimeout": "generation_timeout",
-            "FlowAgentStalledError": "generation_timeout",
-            "FlowResultMissingError": "result_missing",
-            "FlowUiStateError": "ui_state",
-        }
-        failure_stage = failure_stage_by_error.get(type(exc).__name__, "video_generation")
+        failure_details = _video_failure_details(exc)
+        failure_stage = failure_details["failure_stage"]
+        reason_code = failure_details["reason_code"]
+        safe_error = security_logging.redact_sensitive(exc)
         try:
             target.unlink(missing_ok=True)
         except Exception:
@@ -1658,9 +1693,10 @@ async def _generate_scene_video_async(
                 "end_hash": end_hash,
                 "start_frame": start_frame_path.name if start_frame_path else "",
                 "end_frame": end_frame_path.name if end_frame_path else "",
-                "error": str(exc),
+                "error": safe_error,
                 "failure_stage": failure_stage,
-                "fallback_reason": str(exc),
+                "reason_code": reason_code,
+                "fallback_reason_code": reason_code,
                 "flow_timing": flow_timing,
             },
         )
@@ -1671,7 +1707,7 @@ async def _generate_scene_video_async(
             state="video_checkpoint_failed",
             attempt=generation_attempt,
             started_at=started_at,
-            detail=f"{failure_stage}:{exc}",
+            detail=f"{failure_stage}:{reason_code}",
         )
         raise
 
@@ -1749,12 +1785,12 @@ def generate_scene_media(
     progress,
     cancel_check,
     force_new_project: bool = False,
-) -> list[Path]:
+) -> dict:
     """Generate media assets for all scenes.
     
     1. Phase 1: Generates base images for all scenes (Image 0..N).
     2. Phase 2: For intro scenes (is_video=True), animates Image[i] -> Image[i+1] into video clips.
-       Any video failure stops at that scene so a later run can resume from the checkpoint.
+       Video failures fall back to the corresponding base image and remain visible in the summary.
     """
     settings = settings or {}
     enable_intro_video = bool(settings.get("enable_intro_video", True))
@@ -1766,22 +1802,27 @@ def generate_scene_media(
     # Keep the public image-only facade intact while using one shared session for
     # jobs that include both image and Veo phases.
     if not has_video_scenes:
-        return generate_scene_images(
-            video_id=video_id,
-            scenes=scenes,
-            profile=profile,
-            reference_profile=reference_profile,
-            settings=settings,
-            progress=progress,
-            cancel_check=cancel_check,
-            force_new_project=force_new_project,
-        )
+        return {
+            "media_paths": generate_scene_images(
+                video_id=video_id,
+                scenes=scenes,
+                profile=profile,
+                reference_profile=reference_profile,
+                settings=settings,
+                progress=progress,
+                cancel_check=cancel_check,
+                force_new_project=force_new_project,
+            ),
+            "intro_video_summary": _empty_intro_video_summary(
+                enabled=enable_intro_video
+            ),
+        }
 
     if force_new_project:
         purge_all_scene_artifacts(video_id)
     cleanup_duplicate_scene_artifacts(video_id)
 
-    async def _run_batch() -> list[Path]:
+    async def _run_batch() -> dict:
         async with _flow_worker_session(
             video_id,
             force_new_project=force_new_project,
@@ -1800,15 +1841,30 @@ def generate_scene_media(
 
             media_paths: list[Path] = []
             flow_video_unsupported = False
+            summary = _empty_intro_video_summary(enabled=enable_intro_video)
+            summary["requested_count"] = sum(
+                1
+                for scene in scenes
+                if scene.get("is_video") or scene.get("media_type") == "video"
+            )
             for index, scene in enumerate(scenes):
                 cancel_check()
-                is_video = bool(
+                is_video_requested = bool(
                     enable_intro_video
-                    and not flow_video_unsupported
                     and (scene.get("is_video") or scene.get("media_type") == "video")
                 )
-                if not is_video:
+                if not is_video_requested:
                     media_paths.append(base_image_paths[index])
+                    continue
+                if flow_video_unsupported:
+                    media_paths.append(base_image_paths[index])
+                    summary["fallback_scenes"].append(
+                        {
+                            "scene_index": int(scene.get("index", index)),
+                            "failure_stage": "video_capability",
+                            "reason_code": "flow_video_unsupported",
+                        }
+                    )
                     continue
 
                 start_frame = base_image_paths[index]
@@ -1832,6 +1888,7 @@ def generate_scene_media(
                         force_new_project=False,
                     )
                     media_paths.append(video_path)
+                    summary["generated_count"] += 1
                 except Exception as exc:
                     from auto_yt.services.google_flow_worker import (
                         FlowModeError,
@@ -1843,18 +1900,29 @@ def generate_scene_media(
 
                     if is_system_unsupported:
                         logger.warning(
-                            "flow_video is completely unsupported by account/interface (%s); fast-falling back remaining scenes to base image.",
-                            exc,
+                            "flow_video is unsupported by account/interface (%s); remaining requested scenes will use base images.",
+                            _safe_reason_code(exc),
                         )
                         flow_video_unsupported = True
                     else:
                         logger.warning(
-                            "flow_video generation failed for scene %s (%s); falling back this scene to base image while continuing remaining scenes.",
+                            "flow_video generation failed for scene %s (%s); using the base image and continuing.",
                             scene.get("index"),
-                            exc,
+                            _safe_reason_code(exc),
                         )
+                    failure_details = _video_failure_details(exc)
+                    summary["fallback_scenes"].append(
+                        {
+                            "scene_index": int(scene.get("index", index)),
+                            **failure_details,
+                        }
+                    )
                     media_paths.append(base_image_paths[index])
-            return media_paths
+            summary["fallback_count"] = len(summary["fallback_scenes"])
+            return {
+                "media_paths": media_paths,
+                "intro_video_summary": summary,
+            }
 
     return asyncio.run(_run_batch())
 
@@ -2991,9 +3059,15 @@ def save_flow_media_manifest(
     scenes: list[dict],
     visual_bible: dict,
     media_paths: list[Path],
+    intro_video_summary: dict | None = None,
 ) -> dict:
     if len(scenes) != len(media_paths) or not scenes:
         raise VideoProductionError("Scene plan và media Google Flow không đồng bộ.")
+    summary = _normalize_intro_video_summary(intro_video_summary)
+    fallback_by_scene = {
+        int(item["scene_index"]): str(item["reason_code"])
+        for item in summary["fallback_scenes"]
+    }
     media = []
     for scene, media_path in zip(scenes, media_paths):
         path = Path(media_path)
@@ -3001,21 +3075,30 @@ def save_flow_media_manifest(
             raise VideoProductionError(
                 f"Media cảnh {int(scene.get('index', 0)) + 1} không tồn tại."
             )
+        scene_index = int(scene.get("index", len(media)))
+        requested_video = bool(
+            summary["enabled"]
+            and (scene.get("is_video") or scene.get("media_type") == "video")
+        )
         media.append(
             {
-                "scene_index": int(scene.get("index", len(media))),
+                "scene_index": scene_index,
                 "path": str(path),
                 "sha256": _sha256_file(path),
+                "requested_media_type": "video" if requested_video else "image",
+                "resolved_media_type": "video" if path.suffix.casefold() == ".mp4" else "image",
+                "fallback_reason_code": fallback_by_scene.get(scene_index, ""),
             }
         )
 
     manifest = {
-        "version": 1,
+        "version": 2,
         "video_id": video_id,
         "plan_hash": plan_hash,
         "caption_hash": caption_hash,
         "media": media,
         "visual_bible": visual_bible,
+        "intro_video_summary": summary,
     }
     serialized = json.dumps(
         manifest,
@@ -3038,9 +3121,55 @@ def save_flow_media_manifest(
         status="ready",
         mime_type="application/json",
         size_bytes=target.stat().st_size,
-        metadata={"plan_hash": plan_hash, "scene_count": len(scenes)},
+        metadata={
+            "plan_hash": plan_hash,
+            "scene_count": len(scenes),
+            "intro_video_summary": summary,
+        },
     )
     return {"artifact": artifact, "manifest": manifest}
+
+
+def _normalize_intro_video_summary(value: dict | None) -> dict:
+    source = value if isinstance(value, dict) else {}
+
+    def nonnegative_int(raw_value: object) -> int:
+        try:
+            return max(0, int(raw_value or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    fallback_scenes = []
+    for item in source.get("fallback_scenes") or []:
+        if not isinstance(item, dict):
+            continue
+        reason_code = str(item.get("reason_code") or "video_generation_failed").casefold()
+        failure_stage = str(item.get("failure_stage") or "video_generation").casefold()
+        if not re.fullmatch(r"[a-z0-9_]+", reason_code):
+            reason_code = "video_generation_failed"
+        if not re.fullmatch(r"[a-z0-9_]+", failure_stage):
+            failure_stage = "video_generation"
+        try:
+            scene_index = max(0, int(item.get("scene_index", 0)))
+        except (TypeError, ValueError):
+            continue
+        fallback_scenes.append(
+            {
+                "scene_index": scene_index,
+                "failure_stage": failure_stage,
+                "reason_code": reason_code,
+            }
+        )
+    requested_count = nonnegative_int(source.get("requested_count"))
+    generated_count = nonnegative_int(source.get("generated_count"))
+    fallback_count = len(fallback_scenes)
+    return {
+        "enabled": bool(source.get("enabled", False)),
+        "requested_count": requested_count,
+        "generated_count": min(generated_count, requested_count),
+        "fallback_count": fallback_count,
+        "fallback_scenes": fallback_scenes,
+    }
 
 
 def load_flow_media_manifest(video_id: int) -> tuple[dict, dict]:
@@ -3065,6 +3194,40 @@ def load_flow_media_manifest(video_id: int) -> tuple[dict, dict]:
         raise VideoProductionError("Manifest media Google Flow sai định dạng.")
     if int(payload.get("video_id") or 0) != video_id:
         raise VideoProductionError("Manifest media Google Flow trỏ sai video.")
+    try:
+        version = int(payload.get("version") or 1)
+    except (TypeError, ValueError) as exc:
+        raise VideoProductionError("Manifest media Google Flow sai phiên bản.") from exc
+    if version == 1:
+        generated_count = sum(
+            1
+            for entry in payload["media"]
+            if isinstance(entry, dict)
+            and Path(str(entry.get("path") or "")).suffix.casefold() == ".mp4"
+        )
+        payload["intro_video_summary"] = _normalize_intro_video_summary(
+            {
+                "enabled": generated_count > 0,
+                "requested_count": generated_count,
+                "generated_count": generated_count,
+                "fallback_scenes": [],
+            }
+        )
+        for entry in payload["media"]:
+            if not isinstance(entry, dict):
+                raise VideoProductionError("Manifest media Google Flow sai entry.")
+            resolved_type = (
+                "video"
+                if Path(str(entry.get("path") or "")).suffix.casefold() == ".mp4"
+                else "image"
+            )
+            entry.setdefault("requested_media_type", resolved_type)
+            entry.setdefault("resolved_media_type", resolved_type)
+            entry.setdefault("fallback_reason_code", "")
+    else:
+        payload["intro_video_summary"] = _normalize_intro_video_summary(
+            payload.get("intro_video_summary")
+        )
     return artifact, payload
 
 
@@ -3089,13 +3252,17 @@ def prepare_google_flow_media(
         force_new_project=force_new_project,
     )
     scenes = validated_plan["scenes"]
-    media_paths = generate_scene_media(
+    media_result = generate_scene_media(
         video_id=video_id,
         scenes=scenes,
         settings=snapshot.get("image_generation_settings") or {},
         progress=progress,
         cancel_check=cancel_check,
         force_new_project=force_new_project,
+    )
+    media_paths = media_result["media_paths"]
+    intro_video_summary = _normalize_intro_video_summary(
+        media_result.get("intro_video_summary")
     )
     cancel_check()
     saved = save_flow_media_manifest(
@@ -3105,12 +3272,14 @@ def prepare_google_flow_media(
         scenes=scenes,
         visual_bible=validated_plan["visual_bible"],
         media_paths=media_paths,
+        intro_video_summary=intro_video_summary,
     )
     progress("Media Google Flow đã sẵn sàng để dựng MP4", "flow_media_ready")
     return {
         "manifest_artifact": saved["artifact"],
         "plan_hash": prepared["plan_hash"],
         "scene_count": len(scenes),
+        "intro_video_summary": intro_video_summary,
     }
 
 
@@ -3199,6 +3368,9 @@ def render_prepared_google_flow_video(
         "captions_path": str(prepared["srt_path"]),
         "scenes": scenes,
         "visual_bible": validated_plan["visual_bible"],
+        "intro_video_summary": _normalize_intro_video_summary(
+            manifest.get("intro_video_summary")
+        ),
     }
 
 

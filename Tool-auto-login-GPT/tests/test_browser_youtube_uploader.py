@@ -20,6 +20,13 @@ from auto_yt.services.browser_youtube_uploader import (
     _fill_single_element,
     _read_control_value,
     _text_value_matches,
+    _complete_ad_suitability,
+    _set_checkbox,
+    _wait_for_ad_suitability,
+    _wait_for_ad_suitability_saved,
+    AD_SUITABILITY_NONE_SELECTORS,
+    AD_SUITABILITY_ROOT_SELECTORS,
+    AD_SUITABILITY_SUBMIT_SELECTORS,
     UPLOAD_TITLE_EDITOR_SELECTORS,
     UPLOAD_DESCRIPTION_EDITOR_SELECTORS,
 )
@@ -103,6 +110,236 @@ class TestBrowserYouTubeUploader(unittest.IsolatedAsyncioTestCase):
         }
         res = _classify_monetization_snapshot(snap)
         self.assertEqual(res.capability, MonetizationCapability.UNAVAILABLE)
+
+    def test_ad_suitability_selectors_cover_new_and_legacy_dom(self):
+        self.assertTrue(
+            any("ytpp-self-certification-questionnaire" in selector for selector in AD_SUITABILITY_ROOT_SELECTORS)
+        )
+        self.assertTrue(
+            any("ytcp-self-certification" in selector for selector in AD_SUITABILITY_ROOT_SELECTORS)
+        )
+        self.assertTrue(
+            any("ytcp-checkbox-lit.all-none-checkbox" in selector for selector in AD_SUITABILITY_NONE_SELECTORS)
+        )
+        self.assertTrue(
+            any("ytpp-self-certification-predictor" in selector for selector in AD_SUITABILITY_SUBMIT_SELECTORS)
+        )
+
+    async def test_wait_for_ad_suitability_accepts_delayed_new_dom(self):
+        page = MagicMock()
+        questionnaire = AsyncMock()
+        calls = []
+
+        async def find_elements(_page, selector):
+            calls.append(selector)
+            if len(calls) <= len(AD_SUITABILITY_ROOT_SELECTORS):
+                return []
+            if "ytpp-self-certification-questionnaire" in selector:
+                return [questionnaire]
+            return []
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._visible_upload_dialog_elements",
+            side_effect=find_elements,
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader.asyncio.sleep",
+            new=AsyncMock(),
+        ) as sleep_mock:
+            result = await _wait_for_ad_suitability(page, timeout_seconds=1.0)
+
+        self.assertIs(result, questionnaire)
+        sleep_mock.assert_awaited_once_with(0.25)
+
+    async def test_wait_for_ad_suitability_keeps_legacy_dom_fallback(self):
+        page = MagicMock()
+        questionnaire = AsyncMock()
+
+        async def find_elements(_page, selector):
+            if "ytcp-self-certification" in selector:
+                return [questionnaire]
+            return []
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._visible_upload_dialog_elements",
+            side_effect=find_elements,
+        ):
+            result = await _wait_for_ad_suitability(page, timeout_seconds=1.0)
+
+        self.assertIs(result, questionnaire)
+
+    async def test_set_checkbox_supports_new_lit_checkbox(self):
+        page = MagicMock()
+        wrapper = MagicMock()
+        wrapper.click = AsyncMock()
+        wrapper.get_attribute = AsyncMock(return_value=None)
+        nested_checkbox = MagicMock()
+        nested_checkbox.get_attribute = AsyncMock(
+            side_effect=lambda name: (
+                "true" if name == "aria-checked" and wrapper.click.await_count else "false"
+            )
+        )
+        wrapper.query_selector = AsyncMock(return_value=nested_checkbox)
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._visible_upload_dialog_elements",
+            new=AsyncMock(return_value=[wrapper]),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader.asyncio.sleep",
+            new=AsyncMock(),
+        ):
+            selected = await _set_checkbox(
+                page,
+                ["ytpp-self-certification-questionnaire ytcp-checkbox-lit.all-none-checkbox"],
+                True,
+            )
+
+        self.assertTrue(selected)
+        wrapper.click.assert_awaited_once()
+
+    async def test_wait_for_ad_suitability_saved_finds_new_submit_button(self):
+        page = MagicMock()
+        submit_button = MagicMock()
+        submit_button.get_attribute = AsyncMock(
+            side_effect=lambda name: "true" if name == "aria-disabled" else None
+        )
+
+        async def find_elements(_page, selector):
+            if "ytpp-self-certification-predictor" in selector:
+                return [submit_button]
+            return []
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._has_visible_element",
+            new=AsyncMock(return_value=False),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._visible_upload_dialog_elements",
+            side_effect=find_elements,
+        ):
+            saved = await _wait_for_ad_suitability_saved(page, timeout_seconds=1.0)
+
+        self.assertTrue(saved)
+
+    async def test_complete_ad_suitability_new_dom_emits_verified_without_upload(self):
+        page = MagicMock()
+        page.set_input_files = AsyncMock()
+        questionnaire = MagicMock()
+        questionnaire.scroll_into_view_if_needed = AsyncMock()
+        progress = MagicMock()
+        checkpoint = MagicMock()
+        require_click = AsyncMock()
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._wait_for_ad_suitability",
+            new=AsyncMock(return_value=questionnaire),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._set_checkbox",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._require_click",
+            require_click,
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._wait_for_ad_suitability_saved",
+            new=AsyncMock(return_value=True),
+        ):
+            await _complete_ad_suitability(
+                page,
+                progress=progress,
+                persist_checkpoint=checkpoint,
+            )
+
+        progress.assert_called_once_with(
+            "Đang hoàn tất tự đánh giá quảng cáo...",
+            "self_certification",
+            70,
+        )
+        self.assertIn(
+            "ytpp-self-certification-predictor ytcp-button#submit-questionnaire-button",
+            require_click.await_args.args[1],
+        )
+        checkpoint.assert_called_once_with(
+            "suitability_verified",
+            {
+                "stage": "suitability_verified",
+                "ad_suitability_state": "none_of_the_above",
+            },
+        )
+        page.set_input_files.assert_not_awaited()
+
+    async def test_complete_ad_suitability_missing_or_locked_controls_fail_closed(self):
+        page = MagicMock()
+        page.set_input_files = AsyncMock()
+        progress = MagicMock()
+        checkpoint = MagicMock()
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._wait_for_ad_suitability",
+            new=AsyncMock(return_value=None),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._has_visible_element",
+            new=AsyncMock(return_value=True),
+        ):
+            with self.assertRaises(BrowserUploadNeedsReview):
+                await _complete_ad_suitability(
+                    page,
+                    progress=progress,
+                    persist_checkpoint=checkpoint,
+                )
+
+        progress.assert_not_called()
+        checkpoint.assert_not_called()
+        page.set_input_files.assert_not_awaited()
+
+        questionnaire = MagicMock()
+        questionnaire.scroll_into_view_if_needed = AsyncMock()
+        require_click = AsyncMock()
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._wait_for_ad_suitability",
+            new=AsyncMock(return_value=questionnaire),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._set_checkbox",
+            new=AsyncMock(return_value=False),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._require_click",
+            require_click,
+        ):
+            with self.assertRaises(BrowserUploadNeedsReview):
+                await _complete_ad_suitability(
+                    page,
+                    progress=progress,
+                    persist_checkpoint=checkpoint,
+                )
+
+        require_click.assert_not_awaited()
+        checkpoint.assert_not_called()
+        page.set_input_files.assert_not_awaited()
+
+    async def test_complete_ad_suitability_requires_saved_confirmation(self):
+        page = MagicMock()
+        questionnaire = MagicMock()
+        questionnaire.scroll_into_view_if_needed = AsyncMock()
+        checkpoint = MagicMock()
+
+        with patch(
+            "auto_yt.services.browser_youtube_uploader._wait_for_ad_suitability",
+            new=AsyncMock(return_value=questionnaire),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._set_checkbox",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._require_click",
+            new=AsyncMock(),
+        ), patch(
+            "auto_yt.services.browser_youtube_uploader._wait_for_ad_suitability_saved",
+            new=AsyncMock(return_value=False),
+        ):
+            with self.assertRaises(BrowserUploadNeedsReview):
+                await _complete_ad_suitability(
+                    page,
+                    progress=MagicMock(),
+                    persist_checkpoint=checkpoint,
+                )
+
+        checkpoint.assert_not_called()
 
     async def test_read_control_value_input(self):
         mock_el = AsyncMock()

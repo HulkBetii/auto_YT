@@ -14,6 +14,7 @@ from playwright.async_api import Page, Locator
 
 from auto_yt.services.google_flow_login import FLOW_HOME_URL
 from auto_yt.services.browser_diagnostics import capture_browser_diagnostics_async
+from auto_yt.services import security_logging
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ REFERENCE_RESULT_UI_ERROR = "ui_error"
 REFERENCE_ASSET_SCAN_LIMIT = 100
 IMAGE_GENERATION_TIMEOUT_SECONDS = 240.0
 AGENT_IMAGE_GENERATION_TIMEOUT_SECONDS = 600.0
-VIDEO_GENERATION_TIMEOUT_SECONDS = 180.0
+VIDEO_GENERATION_TIMEOUT_SECONDS = 300.0
 VIDEO_QUEUE_TIMEOUT_SECONDS = 180.0
 GENERATION_START_TIMEOUT_SECONDS = 45.0
 GENERATION_IDLE_GRACE_SECONDS = 20.0
@@ -49,6 +50,7 @@ MIN_GENERATED_IMAGE_HEIGHT = 400
 MIN_GENERATED_IMAGE_ASPECT_RATIO = 1.15
 VIDEO_FRAME_ATTACH_TIMEOUT_SECONDS = 8.0
 VIDEO_FRAME_UPLOAD_ATTACH_TIMEOUT_SECONDS = 30.0
+VIDEO_FRAME_UPLOAD_RETRY_COUNT = 2
 VIDEO_COMPLETION_SOURCE_GRACE_SECONDS = 5.0
 VIDEO_COMPLETION_FAST_POLL_SECONDS = 0.25
 VIDEO_DETAIL_SCAN_TIMEOUT_SECONDS = 5.0
@@ -64,6 +66,23 @@ FLOW_VIDEO_MODEL_LABELS = {
 }
 PROMPT_ROOT_SELECTOR = (
     "flow-creative-agent-prompt-box, flow-base-prompt-box, flow-prompt-box"
+)
+ADD_MEDIA_BUTTON_SELECTOR = (
+    "button[aria-label*='Add ingredients' i], "
+    "button[aria-label*='Thêm thành phần' i], "
+    "button[aria-label*='Add image' i], "
+    "button[aria-label*='Thêm hình ảnh' i], "
+    "button.add-menu-trigger"
+)
+ACTIVE_UPLOAD_ROOT_SELECTOR = (
+    ".cdk-overlay-pane, mat-dialog-container, [role='menu']"
+)
+UPLOAD_ACTION_SELECTOR = (
+    "button:has-text('Upload media'), button:has-text('Tải nội dung'), "
+    "button:has-text('Tải lên'), button:has-text('Upload'), "
+    "button:has-text('File'), [role='menuitem']:has-text('Upload media'), "
+    "[role='menuitem']:has-text('Upload'), [role='menuitem']:has-text('Tải lên'), "
+    "[role='menuitem']:has-text('File'), .sidebar-upload-btn"
 )
 
 
@@ -113,6 +132,18 @@ class FlowAgentInteractionError(RuntimeError):
 
 class FlowFrameAttachmentError(RuntimeError):
     """Raised when an Agent video frame cannot be attached without duplication."""
+
+    def __init__(self, message: str, *, reason_code: str = "frame_sync_failed"):
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
+class FlowUploadInteractionError(RuntimeError):
+    """Raised when the active Flow upload UI cannot accept a local file."""
+
+    def __init__(self, message: str, *, reason_code: str = "upload_ui_failed"):
+        super().__init__(message)
+        self.reason_code = reason_code
 
 
 class FlowInvalidOutputError(RuntimeError):
@@ -206,6 +237,7 @@ class GoogleFlowWorker:
         self._inspected_video_detail_keys: set[str] = set()
         self._last_video_timing: dict[str, object] = {}
         self._active_video_submitted_at: float | None = None
+        self._frame_failure_diagnostic_saved = False
 
     @staticmethod
     def _utc_timestamp() -> str:
@@ -445,6 +477,203 @@ class GoogleFlowWorker:
 
         # 5. Check and approve credit or assistant confirmation prompts
         await self.handle_confirmation_prompts()
+
+    async def _is_locator_actionable(self, locator: Locator) -> bool:
+        """Return whether a control can be clicked without forcing through an overlay."""
+        try:
+            if not await locator.is_visible(timeout=500):
+                return False
+            if not await locator.is_enabled(timeout=500):
+                return False
+            box = await locator.bounding_box()
+            if not box or box["width"] <= 0 or box["height"] <= 0:
+                return False
+            viewport = self.page.viewport_size
+            if viewport:
+                center_x = box["x"] + (box["width"] / 2)
+                center_y = box["y"] + (box["height"] / 2)
+                if not (
+                    0 <= center_x < viewport["width"]
+                    and 0 <= center_y < viewport["height"]
+                ):
+                    return False
+            return bool(
+                await locator.evaluate(
+                    """element => {
+                        const rect = element.getBoundingClientRect();
+                        const x = rect.left + rect.width / 2;
+                        const y = rect.top + rect.height / 2;
+                        const hit = document.elementFromPoint(x, y);
+                        return Boolean(hit && (hit === element || element.contains(hit)));
+                    }"""
+                )
+            )
+        except Exception:
+            return False
+
+    async def _visible_upload_roots(self) -> list[Locator]:
+        """Return newest visible upload overlays followed by the active prompt box."""
+        roots: list[Locator] = []
+        overlay_roots = self.page.locator(ACTIVE_UPLOAD_ROOT_SELECTOR)
+        try:
+            overlay_count = await overlay_roots.count()
+        except Exception:
+            overlay_count = 0
+        for index in range(overlay_count - 1, -1, -1):
+            candidate = overlay_roots.nth(index)
+            try:
+                if await candidate.is_visible(timeout=200):
+                    roots.append(candidate)
+            except Exception:
+                continue
+
+        prompt_roots = self.page.locator(PROMPT_ROOT_SELECTOR)
+        try:
+            prompt_count = await prompt_roots.count()
+        except Exception:
+            prompt_count = 0
+        for index in range(prompt_count - 1, -1, -1):
+            candidate = prompt_roots.nth(index)
+            try:
+                if await candidate.is_visible(timeout=200):
+                    roots.append(candidate)
+                    break
+            except Exception:
+                continue
+        return roots
+
+    async def _find_add_media_button(self) -> Locator | None:
+        prompt_roots = self.page.locator(PROMPT_ROOT_SELECTOR)
+        try:
+            prompt_count = await prompt_roots.count()
+        except Exception:
+            return None
+        for root_index in range(prompt_count - 1, -1, -1):
+            root = prompt_roots.nth(root_index)
+            try:
+                if not await root.is_visible(timeout=200):
+                    continue
+                controls = root.locator(ADD_MEDIA_BUTTON_SELECTOR)
+                control_count = await controls.count()
+            except Exception:
+                continue
+            for control_index in range(control_count - 1, -1, -1):
+                candidate = controls.nth(control_index)
+                if await self._is_locator_actionable(candidate):
+                    return candidate
+        return None
+
+    async def _find_upload_file_input(self, roots: list[Locator]) -> Locator | None:
+        for root in roots:
+            try:
+                inputs = root.locator("input[type='file']")
+                input_count = await inputs.count()
+            except Exception:
+                continue
+            for input_index in range(input_count - 1, -1, -1):
+                candidate = inputs.nth(input_index)
+                try:
+                    if await candidate.is_enabled(timeout=300):
+                        return candidate
+                except Exception:
+                    continue
+        return None
+
+    async def _find_upload_action(self, roots: list[Locator]) -> Locator | None:
+        for root in roots:
+            try:
+                actions = root.locator(UPLOAD_ACTION_SELECTOR)
+                action_count = await actions.count()
+            except Exception:
+                continue
+            for action_index in range(action_count - 1, -1, -1):
+                candidate = actions.nth(action_index)
+                if await self._is_locator_actionable(candidate):
+                    return candidate
+        return None
+
+    @staticmethod
+    def _classify_upload_error(error: Exception) -> str:
+        if isinstance(error, FlowUploadInteractionError):
+            return error.reason_code
+        message = str(error).casefold()
+        if "file chooser" in message or "filechooser" in message:
+            return "filechooser_timeout"
+        if "intercepts pointer events" in message or "outside of the viewport" in message:
+            return "upload_control_blocked"
+        if "upload control" in message or "add media" in message:
+            return "upload_control_missing"
+        if "timeout" in message:
+            return "upload_timeout"
+        return "upload_ui_failed"
+
+    async def _submit_file_from_add_menu(self, file_path: Path) -> None:
+        """Send a file exactly once after locating the current Flow upload UI."""
+        last_error: Exception | None = None
+        reason_code = "upload_ui_failed"
+        for attempt in range(VIDEO_FRAME_UPLOAD_RETRY_COUNT):
+            set_files_started = False
+            try:
+                add_button = await self._find_add_media_button()
+                if add_button is None:
+                    raise FlowUploadInteractionError(
+                        "Không tìm thấy nút Add media đang hoạt động.",
+                        reason_code="upload_control_missing",
+                    )
+                await add_button.click(timeout=3000)
+                await asyncio.sleep(0.3)
+
+                roots = await self._visible_upload_roots()
+                file_input = await self._find_upload_file_input(roots)
+                if file_input is not None:
+                    set_files_started = True
+                    await file_input.set_input_files(str(file_path), timeout=5000)
+                    return
+
+                upload_action = await self._find_upload_action(roots)
+                if upload_action is None:
+                    raise FlowUploadInteractionError(
+                        "Không tìm thấy Upload trong menu đang hiển thị.",
+                        reason_code="upload_control_missing",
+                    )
+                async with self.page.expect_file_chooser(timeout=5000) as chooser_info:
+                    await upload_action.click(timeout=3000)
+                chooser = await chooser_info.value
+                set_files_started = True
+                await chooser.set_files(str(file_path), timeout=5000)
+                return
+            except Exception as exc:
+                if set_files_started:
+                    raise FlowUploadInteractionError(
+                        "Không thể xác nhận trạng thái file sau khi gửi lên Google Flow.",
+                        reason_code="upload_submit_unconfirmed",
+                    ) from exc
+                last_error = exc
+                reason_code = self._classify_upload_error(exc)
+                logger.warning(
+                    "flow_upload status=pre_submit_retry project=%s attempt=%s reason=%s detail=%s",
+                    self._project_id(),
+                    attempt + 1,
+                    reason_code,
+                    security_logging.redact_sensitive(exc),
+                )
+                if attempt + 1 < VIDEO_FRAME_UPLOAD_RETRY_COUNT:
+                    await self._close_reference_ui()
+                    await asyncio.sleep(0.3)
+
+        raise FlowUploadInteractionError(
+            "Google Flow không nhận được file từ giao diện upload hiện hành.",
+            reason_code=reason_code,
+        ) from last_error
+
+    async def _capture_frame_failure_diagnostic_once(self, error: Exception) -> None:
+        if self._frame_failure_diagnostic_saved:
+            return
+        self._frame_failure_diagnostic_saved = True
+        await self._save_debug_screenshot(
+            "video_frame_attach_failed",
+            error=security_logging.redact_sensitive(error),
+        )
 
     async def close_agent_instructions_panel(self) -> bool:
         """Close Flow's Agent Instructions panel without touching the generation chat."""
@@ -1155,42 +1384,17 @@ class GoogleFlowWorker:
         filename = self._reference_filename(reference_path)
         if not filename or not Path(reference_path).is_file():
             raise RuntimeError(f"Reference image does not exist: {reference_path}")
-        add_btn = self.page.locator(
-            "flow-creative-agent-prompt-box button[aria-label*='Add ingredients' i], "
-            "flow-creative-agent-prompt-box button[aria-label*='Thêm thành phần' i], "
-            "flow-base-prompt-box button[aria-label*='Add ingredients' i], "
-            "flow-base-prompt-box button[aria-label*='Thêm thành phần' i], "
-            "button[aria-label*='Add ingredients' i], button[aria-label*='Thêm thành phần' i], "
-            "button.add-menu-trigger"
-        ).first
-        if not await add_btn.is_visible(timeout=3000):
-            raise RuntimeError("Add ingredients button is not visible for reference upload.")
-
         try:
-            await add_btn.click()
-            await asyncio.sleep(1)
-            async with self.page.expect_file_chooser(timeout=5000) as fc_info:
-                file_opt = self.page.locator(
-                    "button:has-text('Upload media'), .sidebar-upload-btn, "
-                    "button:has-text('Tải nội dung'), button:has-text('Tải lên'), "
-                    "button:has-text('Upload'), button:has-text('File'), "
-                    "[role='menuitem']:has-text('File'), [role='menuitem']:has-text('Upload'), "
-                    "[role='menuitem']:has-text('Tải lên')"
-                ).first
-                if not await file_opt.is_visible(timeout=3000):
-                    raise RuntimeError("Reference upload menu item is not visible.")
-                await file_opt.click()
-            file_chooser = await fc_info.value
-            await file_chooser.set_files(reference_path)
-            # Treat an accepted file chooser as an upload attempt immediately. This
-            # prevents a transient UI verification failure from causing duplicates.
+            await self._submit_file_from_add_menu(Path(reference_path))
+            # The file has crossed the submission boundary. From this point onward
+            # the picker must be used for recovery instead of uploading it again.
             self._project_reference_cache().add(filename.casefold())
             await self.wait_for_load()
             await asyncio.sleep(2.5)
             uploaded_snapshot = await self._get_existing_images()
             self._uploaded_image_urls.update(uploaded_snapshot)
         finally:
-            await self.dismiss_blocking_dialogs()
+            await self._close_reference_ui()
 
     async def upload_reference(self, reference_path: str, label: str):
         """Upload a non-scene reference while preserving legacy best-effort behavior."""
@@ -1208,7 +1412,11 @@ class GoogleFlowWorker:
             await self._upload_reference_file(reference_path)
             self._log_reference_event("uploaded", filename, detail="legacy_upload")
         except Exception as exc:
-            logger.warning("Could not upload reference '%s': %s", label or filename, exc)
+            logger.warning(
+                "Could not upload reference '%s': %s",
+                label or filename,
+                security_logging.redact_sensitive(exc),
+            )
 
     @staticmethod
     def _media_key(url: str) -> str:
@@ -2898,7 +3106,11 @@ class GoogleFlowWorker:
             attached = await self._wait_for_prompt_attachment_count(expected_count)
             return REFERENCE_RESULT_ATTACHED if attached else REFERENCE_RESULT_UI_ERROR
         except Exception as exc:
-            logger.warning("Video frame picker failed for '%s': %s", frame_path.name, exc)
+            logger.warning(
+                "Video frame picker failed for '%s': %s",
+                frame_path.name,
+                security_logging.redact_sensitive(exc),
+            )
             await self._close_reference_ui()
             return REFERENCE_RESULT_UI_ERROR
 
@@ -2907,32 +3119,19 @@ class GoogleFlowWorker:
         frame_path: Path,
         expected_count: int,
     ) -> bool:
-        add_btn = self.page.locator(
-            "flow-creative-agent-prompt-box button[aria-label*='Add ingredients' i], "
-            "flow-creative-agent-prompt-box button[aria-label*='Thêm thành phần' i], "
-            "button.add-menu-trigger"
-        ).first
-        if not await add_btn.is_visible(timeout=3000):
-            raise FlowFrameAttachmentError("Không tìm thấy nút thêm frame video.")
-        await add_btn.click()
-        await asyncio.sleep(0.5)
         try:
-            async with self.page.expect_file_chooser(timeout=5000) as chooser_info:
-                upload_option = self.page.locator(
-                    "button:has-text('Upload media'), button:has-text('Tải nội dung'), "
-                    "button:has-text('Tải lên'), [role='menuitem']:has-text('Upload'), "
-                    "[role='menuitem']:has-text('Tải lên')"
-                ).first
-                if not await upload_option.is_visible(timeout=2000):
-                    raise FlowFrameAttachmentError("Không tìm thấy lệnh upload frame video.")
-                await upload_option.click()
-            chooser = await chooser_info.value
-            await chooser.set_files(str(frame_path))
+            await self._submit_file_from_add_menu(frame_path)
             await self.wait_for_load()
             return await self._wait_for_prompt_attachment_count(
                 expected_count,
                 timeout=VIDEO_FRAME_UPLOAD_ATTACH_TIMEOUT_SECONDS,
             )
+        except FlowUploadInteractionError as exc:
+            await self._capture_frame_failure_diagnostic_once(exc)
+            raise FlowFrameAttachmentError(
+                "Không thể gửi frame video lên Google Flow.",
+                reason_code=exc.reason_code,
+            ) from exc
         finally:
             await self._close_reference_ui()
 
@@ -3004,7 +3203,10 @@ class GoogleFlowWorker:
             attached = await self._wait_for_prompt_attachment_count(expected_count)
             return REFERENCE_RESULT_ATTACHED if attached else REFERENCE_RESULT_UI_ERROR
         except Exception as exc:
-            logger.warning("Video frame gallery lookup failed: %s", exc)
+            logger.warning(
+                "Video frame gallery lookup failed: %s",
+                security_logging.redact_sensitive(exc),
+            )
             await self._close_reference_ui()
             return REFERENCE_RESULT_UI_ERROR
 
@@ -3038,7 +3240,10 @@ class GoogleFlowWorker:
     ) -> None:
         path = Path(frame_path)
         if not path.is_file():
-            raise FlowFrameAttachmentError(f"Video {role} frame không tồn tại: {path}")
+            raise FlowFrameAttachmentError(
+                f"Video {role} frame không tồn tại: {path}",
+                reason_code="frame_file_missing",
+            )
         frame_key = self._video_frame_key(path)
         cache = self._project_video_frame_cache()
         record = cache.get(frame_key)
@@ -3104,7 +3309,12 @@ class GoogleFlowWorker:
                 detail="picker_ui_error" if result == REFERENCE_RESULT_UI_ERROR else "known_asset_missing",
             )
             raise FlowFrameAttachmentError(
-                f"Không thể gắn {role} frame đã có '{path.name}' trong project Flow."
+                f"Không thể gắn {role} frame đã có '{path.name}' trong project Flow.",
+                reason_code=(
+                    "frame_picker_ui_error"
+                    if result == REFERENCE_RESULT_UI_ERROR
+                    else "known_frame_missing"
+                ),
             )
 
         if missing_generated_asset:
@@ -3116,8 +3326,9 @@ class GoogleFlowWorker:
                 detail="generated_asset_not_selectable",
             )
 
-        # Mark the frame as known before opening the file chooser. A later UI
-        # confirmation failure must never cause the same file to be uploaded again.
+        attached = await self._upload_video_frame_file(path, expected_count)
+        # The helper returns only after set_files succeeds, so recording the upload
+        # here prevents duplicate submissions without poisoning cache on UI retries.
         cache[frame_key] = {
             "filename": path.name,
             "frame_sha256": frame_key.rsplit(":", 1)[-1],
@@ -3126,7 +3337,6 @@ class GoogleFlowWorker:
             "flow_media_key": "",
             "source": "upload",
         }
-        attached = await self._upload_video_frame_file(path, expected_count)
         if not attached:
             retry = await self._attach_video_frame_from_picker(
                 path,
@@ -3148,7 +3358,8 @@ class GoogleFlowWorker:
                 detail="uploaded_but_not_attached",
             )
             raise FlowFrameAttachmentError(
-                f"Frame '{path.name}' đã upload nhưng không thể gắn vào prompt Agent."
+                f"Frame '{path.name}' đã upload nhưng không thể gắn vào prompt Agent.",
+                reason_code="frame_uploaded_unconfirmed",
             )
         identities = await self._prompt_attachment_identities()
         identity = identities[expected_count - 1] if len(identities) >= expected_count else {}
@@ -3179,31 +3390,54 @@ class GoogleFlowWorker:
         *,
         scene_index: int | None = None,
     ) -> None:
-        await self.clear_ingredient_chips()
-        if not await self._wait_for_prompt_attachment_count(0):
-            raise FlowFrameAttachmentError("Không thể xóa attachment cũ trước khi tạo video.")
-        await self._ensure_agent_video_frame(
-            Path(start_frame_path),
-            "start",
-            1,
-            scene_index=scene_index,
-        )
-        await self._ensure_agent_video_frame(
-            Path(end_frame_path),
-            "end",
-            2,
-            scene_index=scene_index,
-        )
-        identities = await self._prompt_attachment_identities()
-        if len(identities) != 2:
-            raise FlowFrameAttachmentError(
-                f"Prompt Agent phải có đúng 2 frame, hiện có {len(identities)}."
+        try:
+            await self.clear_ingredient_chips()
+            if not await self._wait_for_prompt_attachment_count(0):
+                raise FlowFrameAttachmentError(
+                    "Không thể xóa attachment cũ trước khi tạo video.",
+                    reason_code="frame_clear_failed",
+                )
+            await self._ensure_agent_video_frame(
+                Path(start_frame_path),
+                "start",
+                1,
+                scene_index=scene_index,
             )
+            await self._ensure_agent_video_frame(
+                Path(end_frame_path),
+                "end",
+                2,
+                scene_index=scene_index,
+            )
+            identities = await self._prompt_attachment_identities()
+            if len(identities) != 2:
+                raise FlowFrameAttachmentError(
+                    f"Prompt Agent phải có đúng 2 frame, hiện có {len(identities)}.",
+                    reason_code="frame_count_mismatch",
+                )
+        except FlowFrameAttachmentError as exc:
+            await self._capture_frame_failure_diagnostic_once(exc)
+            raise
 
     async def _close_reference_ui(self) -> None:
         try:
             await self.page.keyboard.press("Escape")
-            await asyncio.sleep(0.3)
+            deadline = time.monotonic() + 1.5
+            backdrops = self.page.locator(".cdk-overlay-backdrop-showing")
+            while time.monotonic() < deadline:
+                try:
+                    if not await backdrops.count():
+                        break
+                    if not any(
+                        [
+                            await backdrops.nth(index).is_visible(timeout=100)
+                            for index in range(await backdrops.count())
+                        ]
+                    ):
+                        break
+                except Exception:
+                    break
+                await asyncio.sleep(0.15)
         except Exception:
             pass
         await self.dismiss_blocking_dialogs()
@@ -3440,7 +3674,7 @@ class GoogleFlowWorker:
                 detail=f"upload_failed:{type(exc).__name__}",
             )
             raise ReferenceAttachmentError(
-                f"Không thể upload ảnh tham chiếu '{filename}': {exc}"
+                f"Không thể upload ảnh tham chiếu '{filename}' lên Google Flow."
             ) from exc
 
         for _ in range(REFERENCE_POST_UPLOAD_RETRY_COUNT):
@@ -3503,7 +3737,10 @@ class GoogleFlowWorker:
             await add_btn.click()
             await asyncio.sleep(0.8)
         except Exception as exc:
-            logger.warning("Could not click add ingredients button: %s", exc)
+            logger.warning(
+                "Could not click add ingredients button: %s",
+                security_logging.redact_sensitive(exc),
+            )
             await self.dismiss_blocking_dialogs()
             return
 
@@ -3518,7 +3755,10 @@ class GoogleFlowWorker:
                 await uploads_tab.click()
                 await asyncio.sleep(0.5)
         except Exception as exc:
-            logger.warning("Could not switch to Uploads tab in add menu: %s", exc)
+            logger.warning(
+                "Could not switch to Uploads tab in add menu: %s",
+                security_logging.redact_sensitive(exc),
+            )
 
         clean_ref = target_ref.replace(".jpg", "").replace(".png", "").replace(".webp", "").strip()
 
@@ -4088,11 +4328,11 @@ class GoogleFlowWorker:
                 continue
 
             if media_type == "video" and self._generation_queue_active:
-                hard_deadline = max(
-                    hard_deadline,
-                    submitted_at + VIDEO_QUEUE_TIMEOUT_SECONDS,
-                )
                 if not queue_logged:
+                    hard_deadline = max(
+                        hard_deadline,
+                        now + VIDEO_QUEUE_TIMEOUT_SECONDS,
+                    )
                     self._log_generation_event(media_type, "queued", submitted_at)
                     queue_logged = True
 

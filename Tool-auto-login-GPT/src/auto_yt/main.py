@@ -5553,10 +5553,20 @@ def _execute_flow_media_generation_job(job: dict) -> None:
         **result,
         "render_job_id": render_job["id"],
     }
+    intro_summary = result.get("intro_video_summary") or {}
+    fallback_count = int(intro_summary.get("fallback_count") or 0)
+    completed_progress = "Media Google Flow đã sẵn sàng; đã chuyển sang hàng đợi MP4"
+    if fallback_count:
+        completed_progress = (
+            "Media Google Flow đã sẵn sàng; "
+            f"Intro {int(intro_summary.get('generated_count') or 0)}/"
+            f"{int(intro_summary.get('requested_count') or 0)} clip; "
+            f"{fallback_count} cảnh dùng ảnh tĩnh; đã chuyển sang hàng đợi MP4"
+        )
     db.update_system_job(
         job["id"],
         status="completed",
-        progress="Media Google Flow đã sẵn sàng; đã chuyển sang hàng đợi MP4",
+        progress=completed_progress,
         result_json=result,
         finished_at=db.utc_now(),
     )
@@ -5604,10 +5614,20 @@ def _execute_video_render_job(job: dict) -> None:
             update,
             lambda: _raise_if_video_job_canceled(job["id"]),
         )
+    intro_summary = result.get("intro_video_summary") or {}
+    fallback_count = int(intro_summary.get("fallback_count") or 0)
+    completed_progress = "Đã dựng MP4 hoàn tất"
+    if fallback_count:
+        completed_progress = (
+            "Đã dựng MP4 hoàn tất; "
+            f"Intro {int(intro_summary.get('generated_count') or 0)}/"
+            f"{int(intro_summary.get('requested_count') or 0)} clip; "
+            f"{fallback_count} cảnh dùng ảnh tĩnh"
+        )
     db.update_system_job(
         job["id"],
         status="completed",
-        progress="Đã dựng MP4 hoàn tất",
+        progress=completed_progress,
         result_json=result,
         finished_at=db.utc_now(),
     )
@@ -5615,7 +5635,7 @@ def _execute_video_render_job(job: dict) -> None:
         video_id,
         render_status="completed",
         current_stage="video_render",
-        production_progress="Đã dựng MP4 hoàn tất",
+        production_progress=completed_progress,
         blocking_reason="",
     )
     _enqueue_youtube_publish_if_enabled(
@@ -6995,6 +7015,39 @@ def _system_job_center_item(job: dict, queue_position: int | None, *, hydrate: b
         if youtube_video_id
         else ""
     )
+    raw_intro_summary = result.get("intro_video_summary")
+    intro_video_summary = None
+    if isinstance(raw_intro_summary, dict):
+        def summary_int(value: object) -> int:
+            try:
+                return max(0, int(value or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        fallback_scenes = []
+        for scene in raw_intro_summary.get("fallback_scenes") or []:
+            if not isinstance(scene, dict):
+                continue
+            reason_code = str(scene.get("reason_code") or "video_generation_failed")
+            failure_stage = str(scene.get("failure_stage") or "video_generation")
+            if not re.fullmatch(r"[a-z0-9_]+", reason_code):
+                reason_code = "video_generation_failed"
+            if not re.fullmatch(r"[a-z0-9_]+", failure_stage):
+                failure_stage = "video_generation"
+            fallback_scenes.append(
+                {
+                    "scene_index": summary_int(scene.get("scene_index")),
+                    "failure_stage": failure_stage,
+                    "reason_code": reason_code,
+                }
+            )
+        intro_video_summary = {
+            "enabled": bool(raw_intro_summary.get("enabled", False)),
+            "requested_count": summary_int(raw_intro_summary.get("requested_count")),
+            "generated_count": summary_int(raw_intro_summary.get("generated_count")),
+            "fallback_count": len(fallback_scenes),
+            "fallback_scenes": fallback_scenes,
+        }
     return {
         "id": job["id"],
         "raw_id": job["id"],
@@ -7072,6 +7125,7 @@ def _system_job_center_item(job: dict, queue_position: int | None, *, hydrate: b
         "youtube_video_id": youtube_video_id,
         "artifact_download_url": artifact_download_url,
         "youtube_studio_url": youtube_studio_url,
+        "intro_video_summary": intro_video_summary,
     }
 
 
