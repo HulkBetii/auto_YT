@@ -972,8 +972,17 @@ async def gpm_browser_session(
             pass
 
         should_preserve = has_error or (context is not None and getattr(context, "_preserve_session", None) is True)
-        if auto_stop is not False and not was_already_running and not should_preserve:
-            logger.info("Tác vụ thành công & Profile GPM %s được mở mới -> Tự động đóng profile", clean_id)
+        is_busy = False
+        busy_reason = ""
+        if not should_preserve and auto_stop is not False and not was_already_running:
+            try:
+                from auto_yt.services.channel_scanner_service import is_profile_busy_or_queued
+                is_busy, busy_reason = is_profile_busy_or_queued(clean_id)
+            except Exception as check_err:
+                logger.debug("Không thể kiểm tra trạng thái bận của profile %s: %s", clean_id, check_err)
+
+        if auto_stop is not False and not was_already_running and not should_preserve and not is_busy:
+            logger.info("Tác vụ thành công & Profile GPM %s được mở mới (không có job chờ) -> Tự động đóng profile", clean_id)
             await asyncio.to_thread(stop_gpm_profile, clean_id, api_url=api_url)
             _active_gpm_profiles.pop(clean_id, None)
         else:
@@ -981,6 +990,12 @@ async def gpm_browser_session(
                 logger.warning(
                     "Tác vụ gặp lỗi hoặc yêu cầu giữ phiên -> GIỮ NGUYÊN Profile GPM %s để người dùng đối soát",
                     clean_id,
+                )
+            elif is_busy:
+                logger.info(
+                    "GIỮ NGUYÊN Profile GPM %s vì: %s",
+                    clean_id,
+                    busy_reason,
                 )
             else:
                 logger.info(

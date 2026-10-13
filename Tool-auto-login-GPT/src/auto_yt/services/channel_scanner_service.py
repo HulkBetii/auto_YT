@@ -250,6 +250,47 @@ async def _profile_browser_operation(profile_id: str) -> AsyncGenerator[None, No
                 _profile_operation_counts.pop(clean_id, None)
 
 
+def is_profile_busy_or_queued(profile_id: str) -> tuple[bool, str]:
+    """Check if a profile is currently in use by another concurrent task or has queued jobs."""
+    clean_id = str(profile_id or "").strip()
+    if not clean_id:
+        return False, ""
+
+    # 1. In-memory lock contention check: If another task is waiting for this profile's lock
+    with _profile_operation_guard:
+        waiting_count = _profile_operation_counts.get(clean_id, 0)
+        if waiting_count > 1:
+            return True, f"Có {waiting_count - 1} tác vụ khác đang chờ dùng profile '{clean_id}' trong RAM"
+
+    # 2. Database queued jobs check: If pending jobs for channels attached to this profile exist
+    try:
+        channels = db.list_youtube_channels()
+        matched_channel_ids = {
+            int(c["id"]) for c in channels
+            if str(c.get("gpm_profile_id") or "").strip() == clean_id
+        }
+        if matched_channel_ids:
+            for job in db.list_active_system_jobs():
+                status = str(job.get("status") or "").strip().lower()
+                if status != "queued":
+                    continue
+                job_type = str(job.get("job_type") or "")
+                payload = dict(job.get("payload") or {})
+                ch_id = int(payload.get("channel_id") or 0)
+                if ch_id in matched_channel_ids:
+                    return True, f"Có job #{job.get('id')} ({job_type}) đang queued cho profile '{clean_id}'"
+                if job_type in ("youtube_publish", "youtube_upload"):
+                    vid_id = int(job.get("video_id") or payload.get("video_id") or 0)
+                    if vid_id:
+                        wf = db.get_youtube_publish_workflow_for_video(vid_id)
+                        if wf and int(wf.get("youtube_channel_id") or 0) in matched_channel_ids:
+                            return True, f"Có job upload video #{vid_id} đang queued cho profile '{clean_id}'"
+    except Exception as exc:
+        logger.debug("Lỗi khi kiểm tra queued jobs cho profile %s: %s", clean_id, exc)
+
+    return False, ""
+
+
 async def cleanup_owned_page(context: Any, page: Any, *, preserve: bool = False) -> None:
     """Clean up only a task-owned page while respecting session preservation."""
     if preserve or page is None:
