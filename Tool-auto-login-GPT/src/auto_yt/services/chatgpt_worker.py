@@ -1829,6 +1829,29 @@ def get_active_prompts(prompt_version: str = ""):
     return DEFAULT_PROMPTS_DATA["versions"]["default"]["prompts"]
 
 
+
+def get_content_mode(prompt_version: str = "") -> str:
+    """Xác định content_mode ('monologue' hoặc 'dialogue') cho phiên bản prompt."""
+    target_version = prompt_version.strip() or os.environ.get("PROMPT_VERSION", "").strip()
+    try:
+        if PROMPTS_PATH.exists():
+            with open(PROMPTS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            version_data = data.get("versions", {}).get(target_version)
+            if not version_data and not target_version:
+                active_ver = data.get("active_version", "default")
+                version_data = data.get("versions", {}).get(active_ver)
+            if version_data:
+                mode = str(version_data.get("content_mode", "")).strip().lower()
+                if mode in ("dialogue", "monologue"):
+                    return mode
+                if "cast_settings" in version_data or "talkshow" in str(version_data.get("name", "")).casefold():
+                    return "dialogue"
+    except Exception:
+        pass
+    return "monologue"
+
+
 def get_active_pipeline() -> dict[str, bool]:
     pipeline_json = os.environ.get(PROMPT_PIPELINE_ENV, "").strip()
     if pipeline_json:
@@ -2170,8 +2193,8 @@ def sanitize_narrative_response(response_text: str) -> str:
     return dedup_consecutive_paragraphs("\n\n".join(kept_blocks).strip())
 
 
-def sanitize_generated_script(script_text: str) -> str:
-    """Sanitize narrative sections while preserving all other sections."""
+def sanitize_monologue_generated_script(script_text: str) -> str:
+    """Sanitize narrative sections for monologue (clean narrative prose, no dialogue parser)."""
     if not isinstance(script_text, str) or not script_text:
         return script_text
 
@@ -2179,28 +2202,66 @@ def sanitize_generated_script(script_text: str) -> str:
         r"(### \[(?:INTRO|BODY|OUTRO)\]\r?\n)(.*?)(?=\r?\n### \[|\Z)",
         flags=re.DOTALL,
     )
-    
+
     seen_paragraphs = set()
 
     def replace_section(match: re.Match) -> str:
         section_header = match.group(1)
         cleaned_content = sanitize_narrative_response(match.group(2))
-        
+
         deduped_blocks = []
         import re as local_re
         for block in local_re.split(r"\n[ \t]*\n+", cleaned_content):
             block_stripped = block.strip()
             if not block_stripped:
                 continue
-                
+
             normalized = local_re.sub(r"\s+", " ", block_stripped)
             if len(normalized) >= 100 and len(local_re.findall(r"[^\W_]+(?:['’][^\W_]+)?", normalized, local_re.UNICODE)) >= 10:
                 if normalized in seen_paragraphs:
                     continue
                 seen_paragraphs.add(normalized)
-            
+
             deduped_blocks.append(block_stripped)
-            
+
+        final_content = "\n\n".join(deduped_blocks)
+        separator = "\n" if final_content else ""
+        return f"{section_header}{final_content}{separator}"
+
+    return section_pattern.sub(replace_section, script_text)
+
+
+def sanitize_dialogue_generated_script(script_text: str) -> str:
+    """Sanitize narrative sections for dialogue while preserving role tags and turn formatting."""
+    if not isinstance(script_text, str) or not script_text:
+        return script_text
+
+    section_pattern = re.compile(
+        r"(### \[(?:INTRO|BODY|OUTRO)\]\r?\n)(.*?)(?=\r?\n### \[|\Z)",
+        flags=re.DOTALL,
+    )
+
+    seen_paragraphs = set()
+
+    def replace_section(match: re.Match) -> str:
+        section_header = match.group(1)
+        cleaned_content = sanitize_narrative_response(match.group(2))
+
+        deduped_blocks = []
+        import re as local_re
+        for block in local_re.split(r"\n[ \t]*\n+", cleaned_content):
+            block_stripped = block.strip()
+            if not block_stripped:
+                continue
+
+            normalized = local_re.sub(r"\s+", " ", block_stripped)
+            if len(normalized) >= 100 and len(local_re.findall(r"[^\W_]+(?:['’][^\W_]+)?", normalized, local_re.UNICODE)) >= 10:
+                if normalized in seen_paragraphs:
+                    continue
+                seen_paragraphs.add(normalized)
+
+            deduped_blocks.append(block_stripped)
+
         final_content = "\n\n".join(deduped_blocks)
         try:
             from auto_yt.dialogue_parser import sanitize_dialogue_script
@@ -2211,6 +2272,14 @@ def sanitize_generated_script(script_text: str) -> str:
         return f"{section_header}{final_content}{separator}"
 
     return section_pattern.sub(replace_section, script_text)
+
+
+def sanitize_generated_script(script_text: str, content_mode: str = "monologue") -> str:
+    """Sanitize narrative sections while preserving all other sections."""
+    if content_mode == "dialogue":
+        return sanitize_dialogue_generated_script(script_text)
+    return sanitize_monologue_generated_script(script_text)
+
 
 def validate_prompt_text(prompt_text: str) -> None:
     if not isinstance(prompt_text, str) or not prompt_text.strip():
@@ -4337,7 +4406,7 @@ def sanitize_and_repair_metadata(state: dict) -> None:
             state["quiz"] = ""
 
 
-def build_video_script(state: dict) -> str:
+def build_monologue_video_script(state: dict) -> str:
     sanitize_and_repair_metadata(state)
     intro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("intro", "")))
     body = "\n\n".join(
@@ -4376,8 +4445,56 @@ def build_video_script(state: dict) -> str:
         sections.append(f"### [THUMBNAIL KHÔNG CHỮ]\n{state.get('thumb_notext', '').strip()}")
     
     raw_script = "\n\n".join(s for s in sections if s)
-    return sanitize_generated_script(raw_script)
+    return sanitize_monologue_generated_script(raw_script)
 
+
+def build_dialogue_video_script(state: dict) -> str:
+    sanitize_and_repair_metadata(state)
+    intro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("intro", "")))
+    body = "\n\n".join(
+        sanitized_part
+        for part in state.get("body_parts", [])
+        if (sanitized_part := dedup_consecutive_paragraphs(sanitize_narrative_response(part)))
+    )
+    outro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("outro", "")))
+    
+    sections = [
+        f"### [INTRO]\n{intro}",
+        f"### [BODY]\n{body}",
+        f"### [OUTRO]\n{outro}",
+    ]
+    if state.get("title"):
+        sections.append(f"### [TIÊU ĐỀ]\n{state.get('title', '').strip()}")
+    if state.get("slug"):
+        sections.append(f"### [SLUG]\n{state.get('slug', '').strip()}")
+    if state.get("description"):
+        sections.append(f"### [MÔ TẢ]\n{state.get('description', '').strip()}")
+    if state.get("hashtags"):
+        sections.append(f"### [HASHTAGS]\n{state.get('hashtags', '').strip()}")
+    if state.get("tags"):
+        sections.append(f"### [TAGS]\n{state.get('tags', '').strip()}")
+    if state.get("pinned_comment"):
+        sections.append(f"### [BÌNH LUẬN GHIM]\n{state.get('pinned_comment', '').strip()}")
+    if state.get("quiz"):
+        sections.append(f"### [QUIZ]\n{state.get('quiz', '').strip()}")
+    if not any(state.get(k) for k in ("title", "slug", "description", "hashtags", "tags", "pinned_comment", "quiz")) and state.get("metadata"):
+        sections.append(f"### [METADATA & QUIZ]\n{state.get('metadata', '').strip()}")
+    if state.get("chapters"):
+        sections.append(f"### [CHAPTERS]\n{state.get('chapters', '').strip()}")
+    if state.get("thumb_text"):
+        sections.append(f"### [THUMBNAIL CÓ CHỮ]\n{state.get('thumb_text', '').strip()}")
+    if state.get("thumb_notext"):
+        sections.append(f"### [THUMBNAIL KHÔNG CHỮ]\n{state.get('thumb_notext', '').strip()}")
+    
+    raw_script = "\n\n".join(s for s in sections if s)
+    return sanitize_dialogue_generated_script(raw_script)
+
+
+def build_video_script(state: dict) -> str:
+    content_mode = state.get("content_mode", "monologue")
+    if content_mode == "dialogue":
+        return build_dialogue_video_script(state)
+    return build_monologue_video_script(state)
 
 
 def _checkpoint_video_id() -> int | None:
@@ -4414,6 +4531,1046 @@ def persist_generation_state(state: dict) -> None:
         )
 
 
+def _run_monologue_pre_audio_pipeline(
+    page: Page,
+    transcript: str,
+    state: dict,
+    prompts: dict,
+    pipeline: dict,
+    project_url: str,
+    is_resuming: bool,
+) -> dict:
+    """Quy trình tiền Audio chuyên biệt cho kịch bản Đơn giọng (Monologue)."""
+    state["content_mode"] = "monologue"
+    parts = state.get("outline_parts", [])
+    if not parts:
+        # Step 2: Dàn ý
+        print("[MONOLOGUE] >>> BƯỚC 2: TẠO DÀN Ý", file=sys.stderr)
+        prompt2 = prompts.get("outline", "").replace("{transcript}", transcript) + STRICT_NO_FILLER
+        state["current_step"] = "outline"
+        outline = get_reusable_outline_response(page) if is_resuming else ""
+        if outline:
+            print(">>> TÁI SỬ DỤNG DÀN Ý ĐÃ HOÀN THÀNH TRONG CHAT CŨ", file=sys.stderr)
+        else:
+            try:
+                outline = send_or_recover_generation_prompt(
+                    page,
+                    state,
+                    "outline",
+                    prompt2,
+                )
+            finally:
+                if is_chatgpt_conversation_url(page.url):
+                    ensure_expected_project_conversation_page(
+                        page.url,
+                        project_url,
+                    )
+                    state["chat_url"] = page.url
+                    persist_generation_state(state)
+
+        if is_chatgpt_conversation_url(page.url):
+            ensure_expected_project_conversation_page(
+                page.url,
+                project_url,
+            )
+            state["chat_url"] = page.url
+        if not state.get("chat_url"):
+            raise RuntimeError(
+                "ChatGPT did not create a conversation inside the configured "
+                "Project after the first prompt. No automatic resend was "
+                "attempted."
+            )
+        print(f"    -> Chat URL: {state['chat_url']}", file=sys.stderr)
+        outline = strip_outline_preamble(outline)
+
+        # Strict Outline Validation:
+        # Reject if outline is an error, pure thinking status, editorial note, or lacks substantive content
+        if (
+            not outline
+            or looks_like_chatgpt_error(outline)
+            or _is_pure_thinking_indicator(outline)
+            or looks_like_editorial_artifact(outline)
+            or len(outline.split()) < 15
+        ):
+            clear_pending_generation_prompt(state, "outline", prompt2)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned an invalid or incomplete outline (got: {repr(outline[:60])})."
+            )
+
+        parts = split_outline_parts(outline)
+        if not parts:
+            clear_pending_generation_prompt(state, "outline", prompt2)
+            persist_generation_state(state)
+            raise RuntimeError("ChatGPT returned an empty outline.")
+
+        filtered_parts = []
+        removed_count = 0
+        for part in parts:
+            lower_header = part.lower()[:80].strip()
+            words = part.split()
+            # Only filter out if it's a short boilerplate label (< 15 words) with purely meta intro/outro words
+            # NEVER remove substantive narrative/historical story content
+            is_pure_meta_intro = (
+                len(words) < 15
+                and any(lower_header.startswith(kw) for kw in ("intro:", "mở bài:", "lời chào:", "chào mừng"))
+            )
+            is_pure_meta_outro = (
+                len(words) < 15
+                and any(lower_header.startswith(kw) for kw in ("outro:", "kết bài:", "kêu gọi:", "like và subscribe"))
+            )
+            if len(parts) > 2 and (is_pure_meta_intro or is_pure_meta_outro):
+                removed_count += 1
+                continue
+            filtered_parts.append(part)
+
+        if removed_count > 0:
+            print(f"    -> Đã loại bỏ {removed_count} phần nhãn Intro/Outro thuần túy.", file=sys.stderr)
+            parts = filtered_parts if filtered_parts else parts
+
+        state["outline_parts"] = parts
+        state["expected_body_parts"] = len(parts)
+        clear_pending_generation_prompt(state, "outline", prompt2)
+        persist_generation_state(state)
+        print(f"    -> Đã chia thành {len(parts)} phần.", file=sys.stderr)
+    else:
+        state["expected_body_parts"] = len(parts)
+
+    chat_url = state.get("chat_url", page.url)
+
+    # Step 3: Intro
+    if not state.get("intro"):
+        print("[MONOLOGUE] >>> BƯỚC 3: VIẾT INTRO", file=sys.stderr)
+        prompt3 = (
+            prompts.get("intro", "")
+            + STRICT_NO_FILLER
+            + NARRATIVE_ONLY_INSTRUCTION
+        )
+        state["current_step"] = "intro"
+        intro = dedup_consecutive_paragraphs(sanitize_narrative_response(
+            send_or_recover_generation_prompt(
+                page,
+                state,
+                "intro",
+                prompt3,
+            )
+        ))
+        if not intro or len(intro.split()) < 15:
+            clear_pending_generation_prompt(state, "intro", prompt3)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned insufficient or non-narrative INTRO content (got: {repr(intro[:60])})."
+            )
+        state["intro"] = intro
+        clear_pending_generation_prompt(state, "intro", prompt3)
+        persist_generation_state(state)
+    else:
+        intro = state["intro"]
+
+    body_parts_result = state["body_parts"]
+    if len(body_parts_result) > len(parts):
+        body_parts_result = body_parts_result[:len(parts)]
+        state["body_parts"] = body_parts_result
+        persist_generation_state(state)
+    for i, part in enumerate(parts[len(body_parts_result):], start=len(body_parts_result)):
+        if len(body_parts_result) >= len(parts):
+            break
+        print(f"[MONOLOGUE] >>> BƯỚC 4: VIẾT BODY PHẦN {i+1}/{len(parts)}", file=sys.stderr)
+        prompt4 = (
+            prompts.get("body", "").replace("{part}", part)
+            + STRICT_NO_FILLER
+            + NARRATIVE_ONLY_INSTRUCTION
+        )
+        body_step = f"body {i + 1}/{len(parts)}"
+        state["current_step"] = body_step
+        res = dedup_consecutive_paragraphs(sanitize_narrative_response(
+            send_or_recover_generation_prompt(
+                page,
+                state,
+                body_step,
+                prompt4,
+            )
+        ))
+        if not res or len(res.split()) < 15:
+            clear_pending_generation_prompt(state, body_step, prompt4)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned insufficient or non-narrative BODY content for {body_step} (got: {repr(res[:60])})."
+            )
+        body_parts_result.append(res)
+        clear_pending_generation_prompt(state, body_step, prompt4)
+        persist_generation_state(state)
+
+    # Step 5: Outro
+    if not state.get("outro"):
+        print("[MONOLOGUE] >>> BƯỚC 5: VIẾT OUTRO", file=sys.stderr)
+        prompt5 = (
+            prompts.get("outro", "")
+            + STRICT_NO_FILLER
+            + NARRATIVE_ONLY_INSTRUCTION
+        )
+        state["current_step"] = "outro"
+        outro = dedup_consecutive_paragraphs(sanitize_narrative_response(
+            send_or_recover_generation_prompt(
+                page,
+                state,
+                "outro",
+                prompt5,
+            )
+        ))
+        if not outro or len(outro.split()) < 15:
+            clear_pending_generation_prompt(state, "outro", prompt5)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned insufficient or non-narrative OUTRO content (got: {repr(outro[:60])})."
+            )
+        state["outro"] = outro
+        clear_pending_generation_prompt(state, "outro", prompt5)
+        persist_generation_state(state)
+    else:
+        outro = state["outro"]
+
+    if not is_core_script_complete(transcript, state):
+        state["current_step"] = "core completeness"
+        raise RuntimeError(
+            "The rewritten core script is missing one or more required sections. "
+            "No metadata, thumbnail, or audio request was sent."
+        )
+
+    # Step 6: Tiêu đề (Title)
+    if pipeline.get("title", True) and not state.get("title"):
+        print("[MONOLOGUE] >>> BƯỚC 6: TẠO TIÊU ĐỀ", file=sys.stderr)
+        prompt_title = (prompts.get("title", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "title"
+        title = send_or_recover_generation_prompt(
+            page,
+            state,
+            "title",
+            prompt_title,
+        )
+        title = title.strip() if isinstance(title, str) else ""
+        if not title or looks_like_chatgpt_error(title) or _is_pure_thinking_indicator(title) or len(title) < 10:
+            clear_pending_generation_prompt(state, "title", prompt_title)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned an invalid or incomplete title (got: {repr(title[:60])}).")
+        state["title"] = title
+        clear_pending_generation_prompt(state, "title", prompt_title)
+        persist_generation_state(state)
+
+    # Step 7: URL Slug
+    if pipeline.get("slug", True) and not state.get("slug"):
+        print("[MONOLOGUE] >>> BƯỚC 7: TẠO URL SLUG", file=sys.stderr)
+        prompt_slug = (prompts.get("slug", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "slug"
+        slug = send_or_recover_generation_prompt(
+            page,
+            state,
+            "slug",
+            prompt_slug,
+        )
+        slug = slug.strip() if isinstance(slug, str) else ""
+        if not slug or looks_like_chatgpt_error(slug) or _is_pure_thinking_indicator(slug) or len(slug) < 3:
+            clear_pending_generation_prompt(state, "slug", prompt_slug)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned an invalid or incomplete slug (got: {repr(slug[:60])}).")
+        state["slug"] = slug
+        clear_pending_generation_prompt(state, "slug", prompt_slug)
+        persist_generation_state(state)
+
+    # Step 8: Mô tả (Description)
+    if pipeline.get("description", True) and not state.get("description"):
+        print("[MONOLOGUE] >>> BƯỚC 8: TẠO MÔ TẢ", file=sys.stderr)
+        prompt_desc = (prompts.get("description", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "description"
+        description = send_or_recover_generation_prompt(
+            page,
+            state,
+            "description",
+            prompt_desc,
+        )
+        description = description.strip() if isinstance(description, str) else ""
+        if not description or looks_like_chatgpt_error(description) or _is_pure_thinking_indicator(description) or len(description) < 80:
+            clear_pending_generation_prompt(state, "description", prompt_desc)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned an invalid or incomplete description (got: {repr(description[:60])}).")
+        state["description"] = description
+        clear_pending_generation_prompt(state, "description", prompt_desc)
+        persist_generation_state(state)
+
+    # Step 9: Hashtags (cho mô tả)
+    if pipeline.get("hashtags", True) and not state.get("hashtags"):
+        print("[MONOLOGUE] >>> BƯỚC 9: TẠO HASHTAGS", file=sys.stderr)
+        prompt_hashtags = (prompts.get("hashtags", "") or prompts.get("tags", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "hashtags"
+        hashtags = send_or_recover_generation_prompt(
+            page,
+            state,
+            "hashtags",
+            prompt_hashtags,
+        )
+        hashtags = hashtags.strip() if isinstance(hashtags, str) else ""
+        if looks_like_chatgpt_error(hashtags) or _is_pure_thinking_indicator(hashtags):
+            hashtags = ""
+        state["hashtags"] = auto_repair_hashtags(hashtags, state.get("title", ""))
+        clear_pending_generation_prompt(state, "hashtags", prompt_hashtags)
+        persist_generation_state(state)
+
+    # Step 10: Thẻ từ khóa (Tags YouTube)
+    if pipeline.get("tags", True) and not state.get("tags"):
+        print("[MONOLOGUE] >>> BƯỚC 10: TẠO THẺ TỪ KHÓA (TAGS)", file=sys.stderr)
+        prompt_tags = (prompts.get("tags", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "tags"
+        tags = send_or_recover_generation_prompt(
+            page,
+            state,
+            "tags",
+            prompt_tags,
+        )
+        tags = tags.strip() if isinstance(tags, str) else ""
+        if looks_like_chatgpt_error(tags) or _is_pure_thinking_indicator(tags):
+            tags = ""
+        state["tags"] = auto_repair_tags(tags, state.get("title", ""), state.get("hashtags", ""))
+        clear_pending_generation_prompt(state, "tags", prompt_tags)
+        persist_generation_state(state)
+
+    # Step 11: Bình luận ghim (Pinned comment)
+    if pipeline.get("pinned_comment", True) and not state.get("pinned_comment"):
+        print("[MONOLOGUE] >>> BƯỚC 11: TẠO BÌNH LUẬN GHIM", file=sys.stderr)
+        prompt_pinned = (prompts.get("pinned_comment", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "pinned_comment"
+        pinned = send_or_recover_generation_prompt(
+            page,
+            state,
+            "pinned_comment",
+            prompt_pinned,
+        )
+        pinned = pinned.strip() if isinstance(pinned, str) else ""
+        if looks_like_chatgpt_error(pinned) or _is_pure_thinking_indicator(pinned):
+            pinned = ""
+        state["pinned_comment"] = auto_repair_pinned_comment(pinned, state.get("title", ""))
+        clear_pending_generation_prompt(state, "pinned_comment", prompt_pinned)
+        persist_generation_state(state)
+
+    # Step 12: Quiz tương tác
+    if pipeline.get("quiz", True) and not state.get("quiz"):
+        print("[MONOLOGUE] >>> BƯỚC 12: TẠO QUIZ TƯƠNG TÁC", file=sys.stderr)
+        prompt_quiz = (prompts.get("quiz", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "quiz"
+        quiz = send_or_recover_generation_prompt(
+            page,
+            state,
+            "quiz",
+            prompt_quiz,
+        )
+        quiz = quiz.strip() if isinstance(quiz, str) else ""
+        if looks_like_chatgpt_error(quiz) or _is_pure_thinking_indicator(quiz):
+            quiz = ""
+        state["quiz"] = auto_repair_quiz(quiz, state.get("title", ""))
+        clear_pending_generation_prompt(state, "quiz", prompt_quiz)
+        persist_generation_state(state)
+
+    # Legacy metadata fallback if individual steps are not configured but metadata is on
+    if pipeline.get("metadata") and not any(state.get(k) for k in ("title", "slug", "description", "hashtags", "tags", "pinned_comment", "quiz")) and not state.get("metadata"):
+        print("[MONOLOGUE] >>> BƯỚC CŨ: TẠO METADATA & QUIZ", file=sys.stderr)
+        prompt6 = prompts.get("metadata", "") + STRICT_NO_FILLER
+        state["current_step"] = "metadata"
+        metadata = send_or_recover_generation_prompt(
+            page,
+            state,
+            "metadata",
+            prompt6,
+        )
+        state["metadata"] = metadata
+        clear_pending_generation_prompt(state, "metadata", prompt6)
+        persist_generation_state(state)
+
+    # Step 13: Chapters
+    if pipeline.get("chapters", True) and not state.get("chapters"):
+        print("[MONOLOGUE] >>> BƯỚC 13: TẠO CHAPTERS", file=sys.stderr)
+        prompt7 = prompts.get("chapters", "") + STRICT_NO_FILLER
+        state["current_step"] = "chapters"
+        try:
+            chapters = send_or_recover_generation_prompt(
+                page,
+                state,
+                "chapters",
+                prompt7,
+            )
+        except ChatGPTGenerationTimeoutError as exc:
+            recovered_chapters = wait_for_valid_chapter_response(
+                page,
+                exc.previous_assistant_turn,
+                initial_response=exc.response_text.strip(),
+                previous_assistant_count=exc.previous_assistant_count,
+                expected_user_text=prompt7,
+            )
+            if recovered_chapters:
+                state["chapters"] = recovered_chapters
+                state["current_step"] = "thumbnail with text"
+                clear_pending_generation_prompt(state, "chapters", prompt7)
+                persist_generation_state(state)
+                raise RuntimeError(
+                    "Chapter content was preserved, but ChatGPT remained busy. "
+                    "No thumbnail prompt was sent."
+                ) from exc
+            raise
+        chapters = sanitize_chapter_response(chapters.strip()) if isinstance(chapters, str) else ""
+        if not chapters or looks_like_chatgpt_error(chapters) or _is_pure_thinking_indicator(chapters) or not is_valid_chapter_response(chapters):
+            clear_pending_generation_prompt(state, "chapters", prompt7)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned invalid chapters (got: {repr(chapters[:60])}).")
+        state["chapters"] = chapters
+        clear_pending_generation_prompt(state, "chapters", prompt7)
+        persist_generation_state(state)
+
+    # Step 7.5: Visual Research (Extract entities & fetch reference images)
+    if pipeline.get("visual_research") and not state.get("visual_references"):
+        print("[MONOLOGUE] >>> BƯỚC 7.5: TÌM ẢNH TƯ LIỆU THAM CHIẾU (VISUAL RESEARCH)", file=sys.stderr)
+        state["current_step"] = "visual research"
+        persist_generation_state(state)
+        visual_prompt = prompts.get("visual_research") or DEFAULT_VISUAL_RESEARCH_PROMPT
+        try:
+            queries_response = send_prompt(page, visual_prompt, allow_empty_response=False)
+            extracted_queries = media_fetcher.extract_queries_from_response(queries_response)
+            print(f"    -> Đã trích xuất {len(extracted_queries)} từ khóa tư liệu: {extracted_queries}", file=sys.stderr)
+
+            vid_id = _checkpoint_video_id()
+            ref_dir = REFERENCES_DIR / f"video_{vid_id}" if vid_id else REFERENCES_DIR / "session"
+            ref_paths = media_fetcher.fetch_reference_images_for_queries(extracted_queries, output_dir=ref_dir, max_images=2)
+
+            if ref_paths:
+                base64_items = []
+                for rp in ref_paths:
+                    b64 = media_fetcher.image_to_base64(rp)
+                    if b64:
+                        base64_items.append(b64)
+                state["visual_references"] = ref_paths
+                state["visual_references_base64"] = json.dumps(base64_items) if base64_items else None
+                print(f"    -> Đã tải và chuẩn bị {len(ref_paths)} ảnh tư liệu tham chiếu.", file=sys.stderr)
+            else:
+                print("    -> Không tìm thấy ảnh tư liệu phù hợp, tiếp tục tạo thumbnail.", file=sys.stderr)
+                state["visual_references"] = []
+                state["visual_references_base64"] = None
+        except Exception as v_exc:
+            print(f"    -> Cảnh báo: Lỗi trong bước visual research ({v_exc}), tự động bỏ qua.", file=sys.stderr)
+            state["visual_references"] = []
+            state["visual_references_base64"] = None
+        persist_generation_state(state)
+
+    # Helper for image extraction
+    def _download_image_local(chatgpt_url: str) -> str:
+        """Download image via Playwright session and save locally."""
+        try:
+            local_path = download_chatgpt_image_via_page(page, chatgpt_url)
+            print(f"    -> Đã download ảnh về local: {local_path}", file=sys.stderr)
+            return local_path
+        except Exception as e:
+            print(f"    -> Lỗi download ảnh: {e}", file=sys.stderr)
+            return ""
+
+    # Step 8: Thumbnail Idea 1 (With Text)
+    if pipeline["thumbnail_with_text"] and not state.get("thumb_text"):
+        print("[MONOLOGUE] >>> BƯỚC 8: TẠO Ý TƯỞNG THUMBNAIL (CÓ CHỮ)", file=sys.stderr)
+        prompt8 = build_thumbnail_generation_prompt(
+            prompts.get("thumb_text", ""),
+            "with_text",
+        )
+        state["current_step"] = "thumbnail with text"
+        image1_urls = []
+        thumb1 = ""
+        if is_prompt_in_conversation(page, prompt8):
+            image1_urls = get_reusable_thumbnail_images(page, _download_image_local)
+            if image1_urls:
+                thumb1 = get_assistant_response_after_latest_user(page, expected_user_text=prompt8)
+        if not image1_urls:
+            thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_text_image_base64")
+            thumb1, image1_urls = send_thumbnail_prompt(
+                page,
+                prompt8,
+                _download_image_local,
+                thumb_ref_b64
+            )
+            if not image1_urls:
+                print(">>> THUMBNAIL CÓ CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
+                thumb1, image1_urls = retry_thumbnail_generation(
+                    page,
+                    _download_image_local,
+                )
+
+        thumb1 = append_thumbnail_image_markers(thumb1, image1_urls)
+        state["thumb_text"] = thumb1
+        persist_generation_state(state)
+
+    # Step 9: Thumbnail Idea 2 (No Text)
+    if pipeline["thumbnail_without_text"] and not state.get("thumb_notext"):
+        print("[MONOLOGUE] >>> BƯỚC 9: TẠO Ý TƯỞNG THUMBNAIL (KHÔNG CHỮ)", file=sys.stderr)
+        prompt9 = build_thumbnail_generation_prompt(
+            prompts.get("thumb_notext", ""),
+            "without_text",
+        )
+        state["current_step"] = "thumbnail without text"
+        image2_urls = []
+        thumb2 = ""
+        if is_prompt_in_conversation(page, prompt9):
+            image2_urls = get_reusable_thumbnail_images(page, _download_image_local)
+            if image2_urls:
+                thumb2 = get_assistant_response_after_latest_user(page, expected_user_text=prompt9)
+        if not image2_urls:
+            thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_notext_image_base64")
+            thumb2, image2_urls = send_thumbnail_prompt(
+                page,
+                prompt9,
+                _download_image_local,
+                thumb_ref_b64
+            )
+            if not image2_urls:
+                print(">>> THUMBNAIL KHÔNG CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
+                thumb2, image2_urls = retry_thumbnail_generation(
+                    page,
+                    _download_image_local,
+                )
+
+        thumb2 = append_thumbnail_image_markers(thumb2, image2_urls)
+        state["thumb_notext"] = thumb2
+        persist_generation_state(state)
+
+    state["current_step"] = "complete"
+    persist_generation_state(state)
+    complete_for_audio = is_core_script_complete(transcript, state)
+    warning = "" if complete_for_audio else "The core video script is incomplete."
+    return {
+        "script": build_monologue_video_script(state),
+        "chat_url": chat_url,
+        "warning": warning,
+        "failed_step": "" if complete_for_audio else state["current_step"],
+        "complete_for_audio": complete_for_audio,
+        "pipeline": pipeline,
+        "content_mode": "monologue",
+    }
+
+
+
+
+def _run_dialogue_pre_audio_pipeline(
+    page: Page,
+    transcript: str,
+    state: dict,
+    prompts: dict,
+    pipeline: dict,
+    project_url: str,
+    is_resuming: bool,
+) -> dict:
+    """Quy trình tiền Audio chuyên biệt cho kịch bản Đa giọng (Dialogue / MC + Khách)."""
+    state["content_mode"] = "dialogue"
+    parts = state.get("outline_parts", [])
+    if not parts:
+        # Step 2: Dàn ý
+        print("[DIALOGUE] >>> BƯỚC 2: TẠO DÀN Ý", file=sys.stderr)
+        prompt2 = prompts.get("outline", "").replace("{transcript}", transcript) + STRICT_NO_FILLER
+        state["current_step"] = "outline"
+        outline = get_reusable_outline_response(page) if is_resuming else ""
+        if outline:
+            print(">>> TÁI SỬ DỤNG DÀN Ý ĐÃ HOÀN THÀNH TRONG CHAT CŨ", file=sys.stderr)
+        else:
+            try:
+                outline = send_or_recover_generation_prompt(
+                    page,
+                    state,
+                    "outline",
+                    prompt2,
+                )
+            finally:
+                if is_chatgpt_conversation_url(page.url):
+                    ensure_expected_project_conversation_page(
+                        page.url,
+                        project_url,
+                    )
+                    state["chat_url"] = page.url
+                    persist_generation_state(state)
+
+        if is_chatgpt_conversation_url(page.url):
+            ensure_expected_project_conversation_page(
+                page.url,
+                project_url,
+            )
+            state["chat_url"] = page.url
+        if not state.get("chat_url"):
+            raise RuntimeError(
+                "ChatGPT did not create a conversation inside the configured "
+                "Project after the first prompt. No automatic resend was "
+                "attempted."
+            )
+        print(f"    -> Chat URL: {state['chat_url']}", file=sys.stderr)
+        outline = strip_outline_preamble(outline)
+
+        # Strict Outline Validation:
+        # Reject if outline is an error, pure thinking status, editorial note, or lacks substantive content
+        if (
+            not outline
+            or looks_like_chatgpt_error(outline)
+            or _is_pure_thinking_indicator(outline)
+            or looks_like_editorial_artifact(outline)
+            or len(outline.split()) < 15
+        ):
+            clear_pending_generation_prompt(state, "outline", prompt2)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned an invalid or incomplete outline (got: {repr(outline[:60])})."
+            )
+
+        parts = split_outline_parts(outline)
+        if not parts:
+            clear_pending_generation_prompt(state, "outline", prompt2)
+            persist_generation_state(state)
+            raise RuntimeError("ChatGPT returned an empty outline.")
+
+        filtered_parts = []
+        removed_count = 0
+        for part in parts:
+            lower_header = part.lower()[:80].strip()
+            words = part.split()
+            # Only filter out if it's a short boilerplate label (< 15 words) with purely meta intro/outro words
+            # NEVER remove substantive narrative/historical story content
+            is_pure_meta_intro = (
+                len(words) < 15
+                and any(lower_header.startswith(kw) for kw in ("intro:", "mở bài:", "lời chào:", "chào mừng"))
+            )
+            is_pure_meta_outro = (
+                len(words) < 15
+                and any(lower_header.startswith(kw) for kw in ("outro:", "kết bài:", "kêu gọi:", "like và subscribe"))
+            )
+            if len(parts) > 2 and (is_pure_meta_intro or is_pure_meta_outro):
+                removed_count += 1
+                continue
+            filtered_parts.append(part)
+
+        if removed_count > 0:
+            print(f"    -> Đã loại bỏ {removed_count} phần nhãn Intro/Outro thuần túy.", file=sys.stderr)
+            parts = filtered_parts if filtered_parts else parts
+
+        state["outline_parts"] = parts
+        state["expected_body_parts"] = len(parts)
+        clear_pending_generation_prompt(state, "outline", prompt2)
+        persist_generation_state(state)
+        print(f"    -> Đã chia thành {len(parts)} phần.", file=sys.stderr)
+    else:
+        state["expected_body_parts"] = len(parts)
+
+    chat_url = state.get("chat_url", page.url)
+
+    # Step 3: Intro
+    if not state.get("intro"):
+        print("[DIALOGUE] >>> BƯỚC 3: VIẾT INTRO", file=sys.stderr)
+        prompt3 = (
+            prompts.get("intro", "")
+            + STRICT_NO_FILLER
+            + NARRATIVE_ONLY_INSTRUCTION
+        )
+        state["current_step"] = "intro"
+        intro = dedup_consecutive_paragraphs(sanitize_narrative_response(
+            send_or_recover_generation_prompt(
+                page,
+                state,
+                "intro",
+                prompt3,
+            )
+        ))
+        if not intro or len(intro.split()) < 15:
+            clear_pending_generation_prompt(state, "intro", prompt3)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned insufficient or non-narrative INTRO content (got: {repr(intro[:60])})."
+            )
+        state["intro"] = intro
+        clear_pending_generation_prompt(state, "intro", prompt3)
+        persist_generation_state(state)
+    else:
+        intro = state["intro"]
+
+    body_parts_result = state["body_parts"]
+    if len(body_parts_result) > len(parts):
+        body_parts_result = body_parts_result[:len(parts)]
+        state["body_parts"] = body_parts_result
+        persist_generation_state(state)
+    for i, part in enumerate(parts[len(body_parts_result):], start=len(body_parts_result)):
+        if len(body_parts_result) >= len(parts):
+            break
+        print(f"[DIALOGUE] >>> BƯỚC 4: VIẾT BODY PHẦN {i+1}/{len(parts)}", file=sys.stderr)
+        prompt4 = (
+            prompts.get("body", "").replace("{part}", part)
+            + STRICT_NO_FILLER
+            + NARRATIVE_ONLY_INSTRUCTION
+        )
+        body_step = f"body {i + 1}/{len(parts)}"
+        state["current_step"] = body_step
+        res = dedup_consecutive_paragraphs(sanitize_narrative_response(
+            send_or_recover_generation_prompt(
+                page,
+                state,
+                body_step,
+                prompt4,
+            )
+        ))
+        if not res or len(res.split()) < 15:
+            clear_pending_generation_prompt(state, body_step, prompt4)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned insufficient or non-narrative BODY content for {body_step} (got: {repr(res[:60])})."
+            )
+        body_parts_result.append(res)
+        clear_pending_generation_prompt(state, body_step, prompt4)
+        persist_generation_state(state)
+
+    # Step 5: Outro
+    if not state.get("outro"):
+        print("[DIALOGUE] >>> BƯỚC 5: VIẾT OUTRO", file=sys.stderr)
+        prompt5 = (
+            prompts.get("outro", "")
+            + STRICT_NO_FILLER
+            + NARRATIVE_ONLY_INSTRUCTION
+        )
+        state["current_step"] = "outro"
+        outro = dedup_consecutive_paragraphs(sanitize_narrative_response(
+            send_or_recover_generation_prompt(
+                page,
+                state,
+                "outro",
+                prompt5,
+            )
+        ))
+        if not outro or len(outro.split()) < 15:
+            clear_pending_generation_prompt(state, "outro", prompt5)
+            persist_generation_state(state)
+            raise RuntimeError(
+                f"ChatGPT returned insufficient or non-narrative OUTRO content (got: {repr(outro[:60])})."
+            )
+        state["outro"] = outro
+        clear_pending_generation_prompt(state, "outro", prompt5)
+        persist_generation_state(state)
+    else:
+        outro = state["outro"]
+
+    if not is_core_script_complete(transcript, state):
+        state["current_step"] = "core completeness"
+        raise RuntimeError(
+            "The rewritten core script is missing one or more required sections. "
+            "No metadata, thumbnail, or audio request was sent."
+        )
+
+    # Step 6: Tiêu đề (Title)
+    if pipeline.get("title", True) and not state.get("title"):
+        print("[DIALOGUE] >>> BƯỚC 6: TẠO TIÊU ĐỀ", file=sys.stderr)
+        prompt_title = (prompts.get("title", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "title"
+        title = send_or_recover_generation_prompt(
+            page,
+            state,
+            "title",
+            prompt_title,
+        )
+        title = title.strip() if isinstance(title, str) else ""
+        if not title or looks_like_chatgpt_error(title) or _is_pure_thinking_indicator(title) or len(title) < 10:
+            clear_pending_generation_prompt(state, "title", prompt_title)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned an invalid or incomplete title (got: {repr(title[:60])}).")
+        state["title"] = title
+        clear_pending_generation_prompt(state, "title", prompt_title)
+        persist_generation_state(state)
+
+    # Step 7: URL Slug
+    if pipeline.get("slug", True) and not state.get("slug"):
+        print("[DIALOGUE] >>> BƯỚC 7: TẠO URL SLUG", file=sys.stderr)
+        prompt_slug = (prompts.get("slug", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "slug"
+        slug = send_or_recover_generation_prompt(
+            page,
+            state,
+            "slug",
+            prompt_slug,
+        )
+        slug = slug.strip() if isinstance(slug, str) else ""
+        if not slug or looks_like_chatgpt_error(slug) or _is_pure_thinking_indicator(slug) or len(slug) < 3:
+            clear_pending_generation_prompt(state, "slug", prompt_slug)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned an invalid or incomplete slug (got: {repr(slug[:60])}).")
+        state["slug"] = slug
+        clear_pending_generation_prompt(state, "slug", prompt_slug)
+        persist_generation_state(state)
+
+    # Step 8: Mô tả (Description)
+    if pipeline.get("description", True) and not state.get("description"):
+        print("[DIALOGUE] >>> BƯỚC 8: TẠO MÔ TẢ", file=sys.stderr)
+        prompt_desc = (prompts.get("description", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "description"
+        description = send_or_recover_generation_prompt(
+            page,
+            state,
+            "description",
+            prompt_desc,
+        )
+        description = description.strip() if isinstance(description, str) else ""
+        if not description or looks_like_chatgpt_error(description) or _is_pure_thinking_indicator(description) or len(description) < 80:
+            clear_pending_generation_prompt(state, "description", prompt_desc)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned an invalid or incomplete description (got: {repr(description[:60])}).")
+        state["description"] = description
+        clear_pending_generation_prompt(state, "description", prompt_desc)
+        persist_generation_state(state)
+
+    # Step 9: Hashtags (cho mô tả)
+    if pipeline.get("hashtags", True) and not state.get("hashtags"):
+        print("[DIALOGUE] >>> BƯỚC 9: TẠO HASHTAGS", file=sys.stderr)
+        prompt_hashtags = (prompts.get("hashtags", "") or prompts.get("tags", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "hashtags"
+        hashtags = send_or_recover_generation_prompt(
+            page,
+            state,
+            "hashtags",
+            prompt_hashtags,
+        )
+        hashtags = hashtags.strip() if isinstance(hashtags, str) else ""
+        if looks_like_chatgpt_error(hashtags) or _is_pure_thinking_indicator(hashtags):
+            hashtags = ""
+        state["hashtags"] = auto_repair_hashtags(hashtags, state.get("title", ""))
+        clear_pending_generation_prompt(state, "hashtags", prompt_hashtags)
+        persist_generation_state(state)
+
+    # Step 10: Thẻ từ khóa (Tags YouTube)
+    if pipeline.get("tags", True) and not state.get("tags"):
+        print("[DIALOGUE] >>> BƯỚC 10: TẠO THẺ TỪ KHÓA (TAGS)", file=sys.stderr)
+        prompt_tags = (prompts.get("tags", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "tags"
+        tags = send_or_recover_generation_prompt(
+            page,
+            state,
+            "tags",
+            prompt_tags,
+        )
+        tags = tags.strip() if isinstance(tags, str) else ""
+        if looks_like_chatgpt_error(tags) or _is_pure_thinking_indicator(tags):
+            tags = ""
+        state["tags"] = auto_repair_tags(tags, state.get("title", ""), state.get("hashtags", ""))
+        clear_pending_generation_prompt(state, "tags", prompt_tags)
+        persist_generation_state(state)
+
+    # Step 11: Bình luận ghim (Pinned comment)
+    if pipeline.get("pinned_comment", True) and not state.get("pinned_comment"):
+        print("[DIALOGUE] >>> BƯỚC 11: TẠO BÌNH LUẬN GHIM", file=sys.stderr)
+        prompt_pinned = (prompts.get("pinned_comment", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "pinned_comment"
+        pinned = send_or_recover_generation_prompt(
+            page,
+            state,
+            "pinned_comment",
+            prompt_pinned,
+        )
+        pinned = pinned.strip() if isinstance(pinned, str) else ""
+        if looks_like_chatgpt_error(pinned) or _is_pure_thinking_indicator(pinned):
+            pinned = ""
+        state["pinned_comment"] = auto_repair_pinned_comment(pinned, state.get("title", ""))
+        clear_pending_generation_prompt(state, "pinned_comment", prompt_pinned)
+        persist_generation_state(state)
+
+    # Step 12: Quiz tương tác
+    if pipeline.get("quiz", True) and not state.get("quiz"):
+        print("[DIALOGUE] >>> BƯỚC 12: TẠO QUIZ TƯƠNG TÁC", file=sys.stderr)
+        prompt_quiz = (prompts.get("quiz", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
+        state["current_step"] = "quiz"
+        quiz = send_or_recover_generation_prompt(
+            page,
+            state,
+            "quiz",
+            prompt_quiz,
+        )
+        quiz = quiz.strip() if isinstance(quiz, str) else ""
+        if looks_like_chatgpt_error(quiz) or _is_pure_thinking_indicator(quiz):
+            quiz = ""
+        state["quiz"] = auto_repair_quiz(quiz, state.get("title", ""))
+        clear_pending_generation_prompt(state, "quiz", prompt_quiz)
+        persist_generation_state(state)
+
+    # Legacy metadata fallback if individual steps are not configured but metadata is on
+    if pipeline.get("metadata") and not any(state.get(k) for k in ("title", "slug", "description", "hashtags", "tags", "pinned_comment", "quiz")) and not state.get("metadata"):
+        print("[DIALOGUE] >>> BƯỚC CŨ: TẠO METADATA & QUIZ", file=sys.stderr)
+        prompt6 = prompts.get("metadata", "") + STRICT_NO_FILLER
+        state["current_step"] = "metadata"
+        metadata = send_or_recover_generation_prompt(
+            page,
+            state,
+            "metadata",
+            prompt6,
+        )
+        state["metadata"] = metadata
+        clear_pending_generation_prompt(state, "metadata", prompt6)
+        persist_generation_state(state)
+
+    # Step 13: Chapters
+    if pipeline.get("chapters", True) and not state.get("chapters"):
+        print("[DIALOGUE] >>> BƯỚC 13: TẠO CHAPTERS", file=sys.stderr)
+        prompt7 = prompts.get("chapters", "") + STRICT_NO_FILLER
+        state["current_step"] = "chapters"
+        try:
+            chapters = send_or_recover_generation_prompt(
+                page,
+                state,
+                "chapters",
+                prompt7,
+            )
+        except ChatGPTGenerationTimeoutError as exc:
+            recovered_chapters = wait_for_valid_chapter_response(
+                page,
+                exc.previous_assistant_turn,
+                initial_response=exc.response_text.strip(),
+                previous_assistant_count=exc.previous_assistant_count,
+                expected_user_text=prompt7,
+            )
+            if recovered_chapters:
+                state["chapters"] = recovered_chapters
+                state["current_step"] = "thumbnail with text"
+                clear_pending_generation_prompt(state, "chapters", prompt7)
+                persist_generation_state(state)
+                raise RuntimeError(
+                    "Chapter content was preserved, but ChatGPT remained busy. "
+                    "No thumbnail prompt was sent."
+                ) from exc
+            raise
+        chapters = sanitize_chapter_response(chapters.strip()) if isinstance(chapters, str) else ""
+        if not chapters or looks_like_chatgpt_error(chapters) or _is_pure_thinking_indicator(chapters) or not is_valid_chapter_response(chapters):
+            clear_pending_generation_prompt(state, "chapters", prompt7)
+            persist_generation_state(state)
+            raise RuntimeError(f"ChatGPT returned invalid chapters (got: {repr(chapters[:60])}).")
+        state["chapters"] = chapters
+        clear_pending_generation_prompt(state, "chapters", prompt7)
+        persist_generation_state(state)
+
+    # Step 7.5: Visual Research (Extract entities & fetch reference images)
+    if pipeline.get("visual_research") and not state.get("visual_references"):
+        print("[DIALOGUE] >>> BƯỚC 7.5: TÌM ẢNH TƯ LIỆU THAM CHIẾU (VISUAL RESEARCH)", file=sys.stderr)
+        state["current_step"] = "visual research"
+        persist_generation_state(state)
+        visual_prompt = prompts.get("visual_research") or DEFAULT_VISUAL_RESEARCH_PROMPT
+        try:
+            queries_response = send_prompt(page, visual_prompt, allow_empty_response=False)
+            extracted_queries = media_fetcher.extract_queries_from_response(queries_response)
+            print(f"    -> Đã trích xuất {len(extracted_queries)} từ khóa tư liệu: {extracted_queries}", file=sys.stderr)
+
+            vid_id = _checkpoint_video_id()
+            ref_dir = REFERENCES_DIR / f"video_{vid_id}" if vid_id else REFERENCES_DIR / "session"
+            ref_paths = media_fetcher.fetch_reference_images_for_queries(extracted_queries, output_dir=ref_dir, max_images=2)
+
+            if ref_paths:
+                base64_items = []
+                for rp in ref_paths:
+                    b64 = media_fetcher.image_to_base64(rp)
+                    if b64:
+                        base64_items.append(b64)
+                state["visual_references"] = ref_paths
+                state["visual_references_base64"] = json.dumps(base64_items) if base64_items else None
+                print(f"    -> Đã tải và chuẩn bị {len(ref_paths)} ảnh tư liệu tham chiếu.", file=sys.stderr)
+            else:
+                print("    -> Không tìm thấy ảnh tư liệu phù hợp, tiếp tục tạo thumbnail.", file=sys.stderr)
+                state["visual_references"] = []
+                state["visual_references_base64"] = None
+        except Exception as v_exc:
+            print(f"    -> Cảnh báo: Lỗi trong bước visual research ({v_exc}), tự động bỏ qua.", file=sys.stderr)
+            state["visual_references"] = []
+            state["visual_references_base64"] = None
+        persist_generation_state(state)
+
+    # Helper for image extraction
+    def _download_image_local(chatgpt_url: str) -> str:
+        """Download image via Playwright session and save locally."""
+        try:
+            local_path = download_chatgpt_image_via_page(page, chatgpt_url)
+            print(f"    -> Đã download ảnh về local: {local_path}", file=sys.stderr)
+            return local_path
+        except Exception as e:
+            print(f"    -> Lỗi download ảnh: {e}", file=sys.stderr)
+            return ""
+
+    # Step 8: Thumbnail Idea 1 (With Text)
+    if pipeline["thumbnail_with_text"] and not state.get("thumb_text"):
+        print("[DIALOGUE] >>> BƯỚC 8: TẠO Ý TƯỞNG THUMBNAIL (CÓ CHỮ)", file=sys.stderr)
+        prompt8 = build_thumbnail_generation_prompt(
+            prompts.get("thumb_text", ""),
+            "with_text",
+        )
+        state["current_step"] = "thumbnail with text"
+        image1_urls = []
+        thumb1 = ""
+        if is_prompt_in_conversation(page, prompt8):
+            image1_urls = get_reusable_thumbnail_images(page, _download_image_local)
+            if image1_urls:
+                thumb1 = get_assistant_response_after_latest_user(page, expected_user_text=prompt8)
+        if not image1_urls:
+            thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_text_image_base64")
+            thumb1, image1_urls = send_thumbnail_prompt(
+                page,
+                prompt8,
+                _download_image_local,
+                thumb_ref_b64
+            )
+            if not image1_urls:
+                print(">>> THUMBNAIL CÓ CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
+                thumb1, image1_urls = retry_thumbnail_generation(
+                    page,
+                    _download_image_local,
+                )
+
+        thumb1 = append_thumbnail_image_markers(thumb1, image1_urls)
+        state["thumb_text"] = thumb1
+        persist_generation_state(state)
+
+    # Step 9: Thumbnail Idea 2 (No Text)
+    if pipeline["thumbnail_without_text"] and not state.get("thumb_notext"):
+        print("[DIALOGUE] >>> BƯỚC 9: TẠO Ý TƯỞNG THUMBNAIL (KHÔNG CHỮ)", file=sys.stderr)
+        prompt9 = build_thumbnail_generation_prompt(
+            prompts.get("thumb_notext", ""),
+            "without_text",
+        )
+        state["current_step"] = "thumbnail without text"
+        image2_urls = []
+        thumb2 = ""
+        if is_prompt_in_conversation(page, prompt9):
+            image2_urls = get_reusable_thumbnail_images(page, _download_image_local)
+            if image2_urls:
+                thumb2 = get_assistant_response_after_latest_user(page, expected_user_text=prompt9)
+        if not image2_urls:
+            thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_notext_image_base64")
+            thumb2, image2_urls = send_thumbnail_prompt(
+                page,
+                prompt9,
+                _download_image_local,
+                thumb_ref_b64
+            )
+            if not image2_urls:
+                print(">>> THUMBNAIL KHÔNG CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
+                thumb2, image2_urls = retry_thumbnail_generation(
+                    page,
+                    _download_image_local,
+                )
+
+        thumb2 = append_thumbnail_image_markers(thumb2, image2_urls)
+        state["thumb_notext"] = thumb2
+        persist_generation_state(state)
+
+    state["current_step"] = "complete"
+    persist_generation_state(state)
+    complete_for_audio = is_core_script_complete(transcript, state)
+    warning = "" if complete_for_audio else "The core video script is incomplete."
+    return {
+        "script": build_dialogue_video_script(state),
+        "chat_url": chat_url,
+        "warning": warning,
+        "failed_step": "" if complete_for_audio else state["current_step"],
+        "complete_for_audio": complete_for_audio,
+        "pipeline": pipeline,
+        "content_mode": "dialogue",
+    }
+
+
+
+
 def _run_complete(transcript: str, state: dict) -> dict:
     profile_dir = gpt_profile_dir(DEFAULT_GPT_PROFILE)
     if not profile_dir.exists():
@@ -4447,510 +5604,25 @@ def _run_complete(transcript: str, state: dict) -> dict:
         pipeline = normalize_prompt_pipeline(state.get("pipeline"))
         state["pipeline"] = pipeline
 
-        parts = state.get("outline_parts", [])
-        if not parts:
-            # Step 2: Dàn ý
-            print(">>> BƯỚC 2: TẠO DÀN Ý", file=sys.stderr)
-            prompt2 = prompts.get("outline", "").replace("{transcript}", transcript) + STRICT_NO_FILLER
-            state["current_step"] = "outline"
-            outline = get_reusable_outline_response(page) if is_resuming else ""
-            if outline:
-                print(">>> TÁI SỬ DỤNG DÀN Ý ĐÃ HOÀN THÀNH TRONG CHAT CŨ", file=sys.stderr)
-            else:
-                try:
-                    outline = send_or_recover_generation_prompt(
-                        page,
-                        state,
-                        "outline",
-                        prompt2,
-                    )
-                finally:
-                    if is_chatgpt_conversation_url(page.url):
-                        ensure_expected_project_conversation_page(
-                            page.url,
-                            project_url,
-                        )
-                        state["chat_url"] = page.url
-                        persist_generation_state(state)
+        content_mode = state.get("content_mode") or get_content_mode(prompt_version)
+        state["content_mode"] = content_mode
 
-            if is_chatgpt_conversation_url(page.url):
-                ensure_expected_project_conversation_page(
-                    page.url,
-                    project_url,
-                )
-                state["chat_url"] = page.url
-            if not state.get("chat_url"):
-                raise RuntimeError(
-                    "ChatGPT did not create a conversation inside the configured "
-                    "Project after the first prompt. No automatic resend was "
-                    "attempted."
-                )
-            print(f"    -> Chat URL: {state['chat_url']}", file=sys.stderr)
-            outline = strip_outline_preamble(outline)
-
-            # Strict Outline Validation:
-            # Reject if outline is an error, pure thinking status, editorial note, or lacks substantive content
-            if (
-                not outline
-                or looks_like_chatgpt_error(outline)
-                or _is_pure_thinking_indicator(outline)
-                or looks_like_editorial_artifact(outline)
-                or len(outline.split()) < 15
-            ):
-                clear_pending_generation_prompt(state, "outline", prompt2)
-                persist_generation_state(state)
-                raise RuntimeError(
-                    f"ChatGPT returned an invalid or incomplete outline (got: {repr(outline[:60])})."
-                )
-
-            parts = split_outline_parts(outline)
-            if not parts:
-                clear_pending_generation_prompt(state, "outline", prompt2)
-                persist_generation_state(state)
-                raise RuntimeError("ChatGPT returned an empty outline.")
-
-            filtered_parts = []
-            removed_count = 0
-            for part in parts:
-                lower_header = part.lower()[:80].strip()
-                words = part.split()
-                # Only filter out if it's a short boilerplate label (< 15 words) with purely meta intro/outro words
-                # NEVER remove substantive narrative/historical story content
-                is_pure_meta_intro = (
-                    len(words) < 15
-                    and any(lower_header.startswith(kw) for kw in ("intro:", "mở bài:", "lời chào:", "chào mừng"))
-                )
-                is_pure_meta_outro = (
-                    len(words) < 15
-                    and any(lower_header.startswith(kw) for kw in ("outro:", "kết bài:", "kêu gọi:", "like và subscribe"))
-                )
-                if len(parts) > 2 and (is_pure_meta_intro or is_pure_meta_outro):
-                    removed_count += 1
-                    continue
-                filtered_parts.append(part)
-
-            if removed_count > 0:
-                print(f"    -> Đã loại bỏ {removed_count} phần nhãn Intro/Outro thuần túy.", file=sys.stderr)
-                parts = filtered_parts if filtered_parts else parts
-
-            state["outline_parts"] = parts
-            state["expected_body_parts"] = len(parts)
-            clear_pending_generation_prompt(state, "outline", prompt2)
-            persist_generation_state(state)
-            print(f"    -> Đã chia thành {len(parts)} phần.", file=sys.stderr)
+        if content_mode == "dialogue":
+            print(
+                ">>> [PIPELINE: DIALOGUE / ĐA GIỌNG] BẮT ĐẦU QUY TRÌNH TIỀN AUDIO",
+                file=sys.stderr,
+            )
+            return _run_dialogue_pre_audio_pipeline(
+                page, transcript, state, prompts, pipeline, project_url, is_resuming
+            )
         else:
-            state["expected_body_parts"] = len(parts)
-
-        chat_url = state.get("chat_url", page.url)
-
-        # Step 3: Intro
-        if not state.get("intro"):
-            print(">>> BƯỚC 3: VIẾT INTRO", file=sys.stderr)
-            prompt3 = (
-                prompts.get("intro", "")
-                + STRICT_NO_FILLER
-                + NARRATIVE_ONLY_INSTRUCTION
+            print(
+                ">>> [PIPELINE: MONOLOGUE / ĐƠN GIỌNG] BẮT ĐẦU QUY TRÌNH TIỀN AUDIO",
+                file=sys.stderr,
             )
-            state["current_step"] = "intro"
-            intro = dedup_consecutive_paragraphs(sanitize_narrative_response(
-                send_or_recover_generation_prompt(
-                    page,
-                    state,
-                    "intro",
-                    prompt3,
-                )
-            ))
-            if not intro or len(intro.split()) < 15:
-                clear_pending_generation_prompt(state, "intro", prompt3)
-                persist_generation_state(state)
-                raise RuntimeError(
-                    f"ChatGPT returned insufficient or non-narrative INTRO content (got: {repr(intro[:60])})."
-                )
-            state["intro"] = intro
-            clear_pending_generation_prompt(state, "intro", prompt3)
-            persist_generation_state(state)
-        else:
-            intro = state["intro"]
-
-        body_parts_result = state["body_parts"]
-        if len(body_parts_result) > len(parts):
-            body_parts_result = body_parts_result[:len(parts)]
-            state["body_parts"] = body_parts_result
-            persist_generation_state(state)
-        for i, part in enumerate(parts[len(body_parts_result):], start=len(body_parts_result)):
-            if len(body_parts_result) >= len(parts):
-                break
-            print(f">>> BƯỚC 4: VIẾT BODY PHẦN {i+1}/{len(parts)}", file=sys.stderr)
-            prompt4 = (
-                prompts.get("body", "").replace("{part}", part)
-                + STRICT_NO_FILLER
-                + NARRATIVE_ONLY_INSTRUCTION
+            return _run_monologue_pre_audio_pipeline(
+                page, transcript, state, prompts, pipeline, project_url, is_resuming
             )
-            body_step = f"body {i + 1}/{len(parts)}"
-            state["current_step"] = body_step
-            res = dedup_consecutive_paragraphs(sanitize_narrative_response(
-                send_or_recover_generation_prompt(
-                    page,
-                    state,
-                    body_step,
-                    prompt4,
-                )
-            ))
-            if not res or len(res.split()) < 15:
-                clear_pending_generation_prompt(state, body_step, prompt4)
-                persist_generation_state(state)
-                raise RuntimeError(
-                    f"ChatGPT returned insufficient or non-narrative BODY content for {body_step} (got: {repr(res[:60])})."
-                )
-            body_parts_result.append(res)
-            clear_pending_generation_prompt(state, body_step, prompt4)
-            persist_generation_state(state)
-            
-        # Step 5: Outro
-        if not state.get("outro"):
-            print(">>> BƯỚC 5: VIẾT OUTRO", file=sys.stderr)
-            prompt5 = (
-                prompts.get("outro", "")
-                + STRICT_NO_FILLER
-                + NARRATIVE_ONLY_INSTRUCTION
-            )
-            state["current_step"] = "outro"
-            outro = dedup_consecutive_paragraphs(sanitize_narrative_response(
-                send_or_recover_generation_prompt(
-                    page,
-                    state,
-                    "outro",
-                    prompt5,
-                )
-            ))
-            if not outro or len(outro.split()) < 15:
-                clear_pending_generation_prompt(state, "outro", prompt5)
-                persist_generation_state(state)
-                raise RuntimeError(
-                    f"ChatGPT returned insufficient or non-narrative OUTRO content (got: {repr(outro[:60])})."
-                )
-            state["outro"] = outro
-            clear_pending_generation_prompt(state, "outro", prompt5)
-            persist_generation_state(state)
-        else:
-            outro = state["outro"]
-
-        if not is_core_script_complete(transcript, state):
-            state["current_step"] = "core completeness"
-            raise RuntimeError(
-                "The rewritten core script is missing one or more required sections. "
-                "No metadata, thumbnail, or audio request was sent."
-            )
-
-        # Step 6: Tiêu đề (Title)
-        if pipeline.get("title", True) and not state.get("title"):
-            print(">>> BƯỚC 6: TẠO TIÊU ĐỀ", file=sys.stderr)
-            prompt_title = (prompts.get("title", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "title"
-            title = send_or_recover_generation_prompt(
-                page,
-                state,
-                "title",
-                prompt_title,
-            )
-            title = title.strip() if isinstance(title, str) else ""
-            if not title or looks_like_chatgpt_error(title) or _is_pure_thinking_indicator(title) or len(title) < 10:
-                clear_pending_generation_prompt(state, "title", prompt_title)
-                persist_generation_state(state)
-                raise RuntimeError(f"ChatGPT returned an invalid or incomplete title (got: {repr(title[:60])}).")
-            state["title"] = title
-            clear_pending_generation_prompt(state, "title", prompt_title)
-            persist_generation_state(state)
-
-        # Step 7: URL Slug
-        if pipeline.get("slug", True) and not state.get("slug"):
-            print(">>> BƯỚC 7: TẠO URL SLUG", file=sys.stderr)
-            prompt_slug = (prompts.get("slug", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "slug"
-            slug = send_or_recover_generation_prompt(
-                page,
-                state,
-                "slug",
-                prompt_slug,
-            )
-            slug = slug.strip() if isinstance(slug, str) else ""
-            if not slug or looks_like_chatgpt_error(slug) or _is_pure_thinking_indicator(slug) or len(slug) < 3:
-                clear_pending_generation_prompt(state, "slug", prompt_slug)
-                persist_generation_state(state)
-                raise RuntimeError(f"ChatGPT returned an invalid or incomplete slug (got: {repr(slug[:60])}).")
-            state["slug"] = slug
-            clear_pending_generation_prompt(state, "slug", prompt_slug)
-            persist_generation_state(state)
-
-        # Step 8: Mô tả (Description)
-        if pipeline.get("description", True) and not state.get("description"):
-            print(">>> BƯỚC 8: TẠO MÔ TẢ", file=sys.stderr)
-            prompt_desc = (prompts.get("description", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "description"
-            description = send_or_recover_generation_prompt(
-                page,
-                state,
-                "description",
-                prompt_desc,
-            )
-            description = description.strip() if isinstance(description, str) else ""
-            if not description or looks_like_chatgpt_error(description) or _is_pure_thinking_indicator(description) or len(description) < 80:
-                clear_pending_generation_prompt(state, "description", prompt_desc)
-                persist_generation_state(state)
-                raise RuntimeError(f"ChatGPT returned an invalid or incomplete description (got: {repr(description[:60])}).")
-            state["description"] = description
-            clear_pending_generation_prompt(state, "description", prompt_desc)
-            persist_generation_state(state)
-
-        # Step 9: Hashtags (cho mô tả)
-        if pipeline.get("hashtags", True) and not state.get("hashtags"):
-            print(">>> BƯỚC 9: TẠO HASHTAGS", file=sys.stderr)
-            prompt_hashtags = (prompts.get("hashtags", "") or prompts.get("tags", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "hashtags"
-            hashtags = send_or_recover_generation_prompt(
-                page,
-                state,
-                "hashtags",
-                prompt_hashtags,
-            )
-            hashtags = hashtags.strip() if isinstance(hashtags, str) else ""
-            if looks_like_chatgpt_error(hashtags) or _is_pure_thinking_indicator(hashtags):
-                hashtags = ""
-            state["hashtags"] = auto_repair_hashtags(hashtags, state.get("title", ""))
-            clear_pending_generation_prompt(state, "hashtags", prompt_hashtags)
-            persist_generation_state(state)
-
-        # Step 10: Thẻ từ khóa (Tags YouTube)
-        if pipeline.get("tags", True) and not state.get("tags"):
-            print(">>> BƯỚC 10: TẠO THẺ TỪ KHÓA (TAGS)", file=sys.stderr)
-            prompt_tags = (prompts.get("tags", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "tags"
-            tags = send_or_recover_generation_prompt(
-                page,
-                state,
-                "tags",
-                prompt_tags,
-            )
-            tags = tags.strip() if isinstance(tags, str) else ""
-            if looks_like_chatgpt_error(tags) or _is_pure_thinking_indicator(tags):
-                tags = ""
-            state["tags"] = auto_repair_tags(tags, state.get("title", ""), state.get("hashtags", ""))
-            clear_pending_generation_prompt(state, "tags", prompt_tags)
-            persist_generation_state(state)
-
-        # Step 11: Bình luận ghim (Pinned comment)
-        if pipeline.get("pinned_comment", True) and not state.get("pinned_comment"):
-            print(">>> BƯỚC 11: TẠO BÌNH LUẬN GHIM", file=sys.stderr)
-            prompt_pinned = (prompts.get("pinned_comment", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "pinned_comment"
-            pinned = send_or_recover_generation_prompt(
-                page,
-                state,
-                "pinned_comment",
-                prompt_pinned,
-            )
-            pinned = pinned.strip() if isinstance(pinned, str) else ""
-            if looks_like_chatgpt_error(pinned) or _is_pure_thinking_indicator(pinned):
-                pinned = ""
-            state["pinned_comment"] = auto_repair_pinned_comment(pinned, state.get("title", ""))
-            clear_pending_generation_prompt(state, "pinned_comment", prompt_pinned)
-            persist_generation_state(state)
-
-        # Step 12: Quiz tương tác
-        if pipeline.get("quiz", True) and not state.get("quiz"):
-            print(">>> BƯỚC 12: TẠO QUIZ TƯƠNG TÁC", file=sys.stderr)
-            prompt_quiz = (prompts.get("quiz", "") or prompts.get("metadata", "")) + STRICT_NO_FILLER
-            state["current_step"] = "quiz"
-            quiz = send_or_recover_generation_prompt(
-                page,
-                state,
-                "quiz",
-                prompt_quiz,
-            )
-            quiz = quiz.strip() if isinstance(quiz, str) else ""
-            if looks_like_chatgpt_error(quiz) or _is_pure_thinking_indicator(quiz):
-                quiz = ""
-            state["quiz"] = auto_repair_quiz(quiz, state.get("title", ""))
-            clear_pending_generation_prompt(state, "quiz", prompt_quiz)
-            persist_generation_state(state)
-
-        # Legacy metadata fallback if individual steps are not configured but metadata is on
-        if pipeline.get("metadata") and not any(state.get(k) for k in ("title", "slug", "description", "hashtags", "tags", "pinned_comment", "quiz")) and not state.get("metadata"):
-            print(">>> BƯỚC CŨ: TẠO METADATA & QUIZ", file=sys.stderr)
-            prompt6 = prompts.get("metadata", "") + STRICT_NO_FILLER
-            state["current_step"] = "metadata"
-            metadata = send_or_recover_generation_prompt(
-                page,
-                state,
-                "metadata",
-                prompt6,
-            )
-            state["metadata"] = metadata
-            clear_pending_generation_prompt(state, "metadata", prompt6)
-            persist_generation_state(state)
-
-        # Step 13: Chapters
-        if pipeline.get("chapters", True) and not state.get("chapters"):
-            print(">>> BƯỚC 13: TẠO CHAPTERS", file=sys.stderr)
-            prompt7 = prompts.get("chapters", "") + STRICT_NO_FILLER
-            state["current_step"] = "chapters"
-            try:
-                chapters = send_or_recover_generation_prompt(
-                    page,
-                    state,
-                    "chapters",
-                    prompt7,
-                )
-            except ChatGPTGenerationTimeoutError as exc:
-                recovered_chapters = wait_for_valid_chapter_response(
-                    page,
-                    exc.previous_assistant_turn,
-                    initial_response=exc.response_text.strip(),
-                    previous_assistant_count=exc.previous_assistant_count,
-                    expected_user_text=prompt7,
-                )
-                if recovered_chapters:
-                    state["chapters"] = recovered_chapters
-                    state["current_step"] = "thumbnail with text"
-                    clear_pending_generation_prompt(state, "chapters", prompt7)
-                    persist_generation_state(state)
-                    raise RuntimeError(
-                        "Chapter content was preserved, but ChatGPT remained busy. "
-                        "No thumbnail prompt was sent."
-                    ) from exc
-                raise
-            chapters = sanitize_chapter_response(chapters.strip()) if isinstance(chapters, str) else ""
-            if not chapters or looks_like_chatgpt_error(chapters) or _is_pure_thinking_indicator(chapters) or not is_valid_chapter_response(chapters):
-                clear_pending_generation_prompt(state, "chapters", prompt7)
-                persist_generation_state(state)
-                raise RuntimeError(f"ChatGPT returned invalid chapters (got: {repr(chapters[:60])}).")
-            state["chapters"] = chapters
-            clear_pending_generation_prompt(state, "chapters", prompt7)
-            persist_generation_state(state)
-
-        # Step 7.5: Visual Research (Extract entities & fetch reference images)
-        if pipeline.get("visual_research") and not state.get("visual_references"):
-            print(">>> BƯỚC 7.5: TÌM ẢNH TƯ LIỆU THAM CHIẾU (VISUAL RESEARCH)", file=sys.stderr)
-            state["current_step"] = "visual research"
-            persist_generation_state(state)
-            visual_prompt = prompts.get("visual_research") or DEFAULT_VISUAL_RESEARCH_PROMPT
-            try:
-                queries_response = send_prompt(page, visual_prompt, allow_empty_response=False)
-                extracted_queries = media_fetcher.extract_queries_from_response(queries_response)
-                print(f"    -> Đã trích xuất {len(extracted_queries)} từ khóa tư liệu: {extracted_queries}", file=sys.stderr)
-
-                vid_id = _checkpoint_video_id()
-                ref_dir = REFERENCES_DIR / f"video_{vid_id}" if vid_id else REFERENCES_DIR / "session"
-                ref_paths = media_fetcher.fetch_reference_images_for_queries(extracted_queries, output_dir=ref_dir, max_images=2)
-
-                if ref_paths:
-                    base64_items = []
-                    for rp in ref_paths:
-                        b64 = media_fetcher.image_to_base64(rp)
-                        if b64:
-                            base64_items.append(b64)
-                    state["visual_references"] = ref_paths
-                    state["visual_references_base64"] = json.dumps(base64_items) if base64_items else None
-                    print(f"    -> Đã tải và chuẩn bị {len(ref_paths)} ảnh tư liệu tham chiếu.", file=sys.stderr)
-                else:
-                    print("    -> Không tìm thấy ảnh tư liệu phù hợp, tiếp tục tạo thumbnail.", file=sys.stderr)
-                    state["visual_references"] = []
-                    state["visual_references_base64"] = None
-            except Exception as v_exc:
-                print(f"    -> Cảnh báo: Lỗi trong bước visual research ({v_exc}), tự động bỏ qua.", file=sys.stderr)
-                state["visual_references"] = []
-                state["visual_references_base64"] = None
-            persist_generation_state(state)
-
-        # Helper for image extraction
-        def _download_image_local(chatgpt_url: str) -> str:
-            """Download image via Playwright session and save locally."""
-            try:
-                local_path = download_chatgpt_image_via_page(page, chatgpt_url)
-                print(f"    -> Đã download ảnh về local: {local_path}", file=sys.stderr)
-                return local_path
-            except Exception as e:
-                print(f"    -> Lỗi download ảnh: {e}", file=sys.stderr)
-                return ""
-
-        # Step 8: Thumbnail Idea 1 (With Text)
-        if pipeline["thumbnail_with_text"] and not state.get("thumb_text"):
-            print(">>> BƯỚC 8: TẠO Ý TƯỞNG THUMBNAIL (CÓ CHỮ)", file=sys.stderr)
-            prompt8 = build_thumbnail_generation_prompt(
-                prompts.get("thumb_text", ""),
-                "with_text",
-            )
-            state["current_step"] = "thumbnail with text"
-            image1_urls = []
-            thumb1 = ""
-            if is_prompt_in_conversation(page, prompt8):
-                image1_urls = get_reusable_thumbnail_images(page, _download_image_local)
-                if image1_urls:
-                    thumb1 = get_assistant_response_after_latest_user(page, expected_user_text=prompt8)
-            if not image1_urls:
-                thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_text_image_base64")
-                thumb1, image1_urls = send_thumbnail_prompt(
-                    page,
-                    prompt8,
-                    _download_image_local,
-                    thumb_ref_b64
-                )
-                if not image1_urls:
-                    print(">>> THUMBNAIL CÓ CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
-                    thumb1, image1_urls = retry_thumbnail_generation(
-                        page,
-                        _download_image_local,
-                    )
-
-            thumb1 = append_thumbnail_image_markers(thumb1, image1_urls)
-            state["thumb_text"] = thumb1
-            persist_generation_state(state)
-
-        # Step 9: Thumbnail Idea 2 (No Text)
-        if pipeline["thumbnail_without_text"] and not state.get("thumb_notext"):
-            print(">>> BƯỚC 9: TẠO Ý TƯỞNG THUMBNAIL (KHÔNG CHỮ)", file=sys.stderr)
-            prompt9 = build_thumbnail_generation_prompt(
-                prompts.get("thumb_notext", ""),
-                "without_text",
-            )
-            state["current_step"] = "thumbnail without text"
-            image2_urls = []
-            thumb2 = ""
-            if is_prompt_in_conversation(page, prompt9):
-                image2_urls = get_reusable_thumbnail_images(page, _download_image_local)
-                if image2_urls:
-                    thumb2 = get_assistant_response_after_latest_user(page, expected_user_text=prompt9)
-            if not image2_urls:
-                thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_notext_image_base64")
-                thumb2, image2_urls = send_thumbnail_prompt(
-                    page,
-                    prompt9,
-                    _download_image_local,
-                    thumb_ref_b64
-                )
-                if not image2_urls:
-                    print(">>> THUMBNAIL KHÔNG CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
-                    thumb2, image2_urls = retry_thumbnail_generation(
-                        page,
-                        _download_image_local,
-                    )
-
-            thumb2 = append_thumbnail_image_markers(thumb2, image2_urls)
-            state["thumb_notext"] = thumb2
-            persist_generation_state(state)
-
-        state["current_step"] = "complete"
-        persist_generation_state(state)
-        complete_for_audio = is_core_script_complete(transcript, state)
-        warning = "" if complete_for_audio else "The core video script is incomplete."
-        return {
-            "script": build_video_script(state),
-            "chat_url": chat_url,
-            "warning": warning,
-            "failed_step": "" if complete_for_audio else state["current_step"],
-            "complete_for_audio": complete_for_audio,
-            "pipeline": pipeline,
-        }
 
 
 def run(transcript: str) -> dict:
@@ -4958,9 +5630,11 @@ def run(transcript: str) -> dict:
         transcript.encode("utf-8")
     ).hexdigest()
     prompt_version = os.environ.get("PROMPT_VERSION", "").strip()
+    content_mode = get_content_mode(prompt_version)
     state = {
         "chat_url": "",
         "current_step": "startup",
+        "content_mode": content_mode,
         "expected_body_parts": 0,
         "outline_parts": [],
         "intro": "",
@@ -4994,9 +5668,12 @@ def run(transcript: str) -> dict:
                 state["pipeline"] = normalize_prompt_pipeline(
                     state.get("pipeline")
                 )
+            if not state.get("content_mode"):
+                state["content_mode"] = get_content_mode(state.get("prompt_version", prompt_version))
             print(
                 f">>> KHÔI PHỤC CHECKPOINT VIDEO #{video_id}: "
-                f"{state.get('current_step', 'unknown')}",
+                f"{state.get('current_step', 'unknown')} "
+                f"[{state.get('content_mode', 'monologue').upper()}]",
                 file=sys.stderr,
             )
         elif saved_state:
