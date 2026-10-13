@@ -8,11 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from auto_yt import main
 from auto_yt.services import database
-from auto_yt.services.audio_review import (
-    audit_script_for_audio,
-    sanitize_body_opening,
-)
-from auto_yt.services.chatgpt_worker import build_body_generation_prompt
+from auto_yt.services.audio_review import audit_script_for_audio
 
 
 SCRIPT = """
@@ -322,75 +318,7 @@ Hết rồi.
         error_codes = {item["code"] for item in report["errors"]}
         self.assertTrue("insufficient_content" in error_codes or "section_too_short" in error_codes)
 
-    def test_sanitize_body_opening_cleans_dangling_conjunctions(self):
-        raw = "Một yếu tố quan trọng khác khi đánh giá tương quan lực lượng là kinh nghiệm."
-        cleaned = sanitize_body_opening(raw)
-        self.assertTrue(cleaned.startswith("Khi đánh giá tương quan lực lượng"))
-
-        raw_ben_canh = "Bên cạnh đó, quân đội ta đã chuẩn bị kỹ càng."
-        self.assertEqual(sanitize_body_opening(raw_ben_canh), "Quân đội ta đã chuẩn bị kỹ càng.")
-
-        raw_ngoai_ra = "Ngoài ra, sau năm 1975 trang bị vũ khí dồi dào."
-        self.assertEqual(sanitize_body_opening(raw_ngoai_ra), "Sau năm 1975 trang bị vũ khí dồi dào.")
-
-        normal = "Ngày 17 tháng 2 năm 1979 nổ súng biên giới."
-        self.assertEqual(sanitize_body_opening(normal), normal)
-
-    def test_audit_script_warns_on_dangling_body_opening(self):
-        script_dangling = """
-### [INTRO]
-Mở đầu đầy đủ về câu chuyện lịch sử.
-
-### [BODY]
-Một yếu tố quan trọng khác khi đánh giá tình hình là sự chuẩn bị của quân đội trên các hướng.
-
-### [OUTRO]
-Kết thúc câu chuyện và tri ân các thế hệ.
-""".strip()
-        report = audit_script_for_audio(script_dangling)
-        self.assertTrue(report["can_approve"])
-        warning_codes = {w["code"] for w in report["warnings"]}
-        self.assertIn("dangling_body_opening", warning_codes)
-
-    def test_audit_script_warns_on_multi_block_outro(self):
-        # Create an outro with 2 long paragraphs over 400 words
-        long_para1 = "Cuộc chiến tranh bảo vệ biên giới đã kết thúc nhưng những bài học lịch sử vẫn còn nguyên giá trị thực tiễn sâu sắc. " * 15
-        long_para2 = "Độc lập tự do và toàn vẹn lãnh thổ thiêng liêng chưa bao giờ là điều ngẫu nhiên có được mà phải đánh đổi bằng xương máu. " * 15
-        script_multi_outro = f"""
-### [INTRO]
-Mở đầu video đầy đủ thông tin.
-
-### [BODY]
-Diễn biến chi tiết của trận đánh tại biên giới năm 1979.
-
-### [OUTRO]
-{long_para1}
-
-{long_para2}
-""".strip()
-        report = audit_script_for_audio(script_multi_outro)
-        warning_codes = {w["code"] for w in report["warnings"]}
-        self.assertIn("multi_block_outro", warning_codes)
-
-    def test_build_body_generation_prompt_injects_context(self):
-        template = "Viết thân bài theo dàn ý:\n{part}"
-        prompt_first = build_body_generation_prompt(template, part="Phần 1: Bối cảnh", part_index=0, total_parts=3)
-        self.assertIn("LƯU Ý MỞ ĐẦU THÂN BÀI", prompt_first)
-        self.assertIn("Phần 1: Bối cảnh", prompt_first)
-
-        prompt_second = build_body_generation_prompt(
-            template,
-            part="Phần 2: Tiến công",
-            part_index=1,
-            total_parts=3,
-            previous_text="Bộ đội ta làm chủ hoàn toàn điểm cao 309.",
-        )
-        self.assertIn("LƯU Ý NỐI TIẾP NGỮ CẢNH", prompt_second)
-        self.assertIn("điểm cao 309", prompt_second)
-        self.assertIn("Phần 2: Tiến công", prompt_second)
-
 
 if __name__ == "__main__":
     unittest.main()
-
 

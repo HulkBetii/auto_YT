@@ -207,67 +207,6 @@ def _find_duplicate_paragraphs(sections: dict[str, str]) -> list[dict[str, str]]
     return duplicates
 
 
-DANGLING_OPENING_REPLACEMENTS = (
-    (re.compile(r"^Một\s+yếu\s+tố\s+(?:quan\s+trọng\s+)?khác\s+khi\s+", re.IGNORECASE), "Khi "),
-    (re.compile(r"^Một\s+yếu\s+tố\s+(?:quan\s+trọng\s+)?khác\s+là\s+", re.IGNORECASE), "Yếu tố quan trọng là "),
-    (re.compile(r"^Một\s+yếu\s+tố\s+khác\s+là\s+", re.IGNORECASE), "Điểm đáng chú ý là "),
-    (re.compile(r"^(?:Bên\s+cạnh\s+đó|Mặt\s+khác|Ngoài\s+ra|Tiếp\s+theo\s+đó|Hơn\s+nữa|Thêm\s+vào\s+đó)\s*[,–—\-]?\s*", re.IGNORECASE), ""),
-)
-
-DANGLING_OPENING_DETECTION_PATTERN = re.compile(
-    r"^(?:(?:Một|Còn\s+một)\s+(?:yếu\s+tố|điểm|chi\s+tiết)\s+(?:quan\s+trọng\s+)?(?:khác|nữa)|"
-    r"Bên\s+cạnh\s+đó|Mặt\s+khác|Ngoài\s+ra|Tiếp\s+theo\s+đó|Hơn\s+nữa|Thêm\s+vào\s+đó)\b",
-    flags=re.IGNORECASE,
-)
-
-
-def sanitize_body_opening(text: str) -> str:
-    """Normalize and strip dangling transition clauses from the opening of body."""
-    cleaned = (text or "").strip()
-    for pattern, replacement in DANGLING_OPENING_REPLACEMENTS:
-        if pattern.search(cleaned):
-            cleaned = pattern.sub(replacement, cleaned, count=1).strip()
-            if cleaned:
-                cleaned = cleaned[0].upper() + cleaned[1:]
-            break
-    return cleaned
-
-
-def _find_dangling_body_openings(sections: dict[str, str]) -> list[dict[str, str]]:
-    warnings: list[dict[str, str]] = []
-    body_text = sections.get("BODY", "").strip()
-    if not body_text:
-        return warnings
-    first_paragraph = re.split(r"\n[ \t]*\n+", body_text)[0].strip()
-    if DANGLING_OPENING_DETECTION_PATTERN.search(first_paragraph):
-        warnings.append(
-            _issue(
-                "dangling_body_opening",
-                f"Phần BODY mở đầu bằng liên từ phụ thuộc (“{first_paragraph[:60]}…”); nên đi thẳng vào bối cảnh sự kiện.",
-                "BODY",
-            )
-        )
-    return warnings
-
-
-def _find_multi_block_outros(sections: dict[str, str]) -> list[dict[str, str]]:
-    warnings: list[dict[str, str]] = []
-    outro_text = sections.get("OUTRO", "").strip()
-    if not outro_text:
-        return warnings
-    blocks = [b.strip() for b in re.split(r"\n[ \t]*\n+", outro_text) if b.strip()]
-    total_words = _word_count(outro_text)
-    if len(blocks) > 1 and total_words > 400:
-        warnings.append(
-            _issue(
-                "multi_block_outro",
-                f"Phần OUTRO bị phân mảnh thành {len(blocks)} đoạn dài ({total_words} từ); nên đúc kết gọn trong 1 đoạn súc tích.",
-                "OUTRO",
-            )
-        )
-    return warnings
-
-
 def audit_script_for_audio(script_text: str) -> dict:
     """Audit content without enforcing an arbitrary target length."""
     sections = extract_audio_sections(script_text)
@@ -344,8 +283,6 @@ def audit_script_for_audio(script_text: str) -> dict:
             )
 
     warnings.extend(_find_editorial_artifacts(sections))
-    warnings.extend(_find_dangling_body_openings(sections))
-    warnings.extend(_find_multi_block_outros(sections))
     errors.extend(_find_duplicate_paragraphs(sections))
 
     word_count = _word_count(audio_script)

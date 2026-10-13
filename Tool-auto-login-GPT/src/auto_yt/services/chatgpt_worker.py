@@ -30,10 +30,7 @@ from auto_yt.services.generation_checkpoint import (
     load_checkpoint,
     save_checkpoint,
 )
-from auto_yt.services.audio_review import (
-    looks_like_editorial_artifact,
-    sanitize_body_opening,
-)
+from auto_yt.services.audio_review import looks_like_editorial_artifact
 from auto_yt.services.network_security import (
     MAX_IMAGE_DOWNLOAD_BYTES,
     validate_chatgpt_image_url,
@@ -4340,60 +4337,14 @@ def sanitize_and_repair_metadata(state: dict) -> None:
             state["quiz"] = ""
 
 
-def build_body_generation_prompt(
-    base_template: str,
-    part: str,
-    part_index: int,
-    total_parts: int,
-    previous_text: str = "",
-) -> str:
-    """Build body prompt with rolling narrative context and transition guidance."""
-    prompt = base_template.replace("{part}", part)
-
-    if part_index == 0:
-        context_instruction = (
-            "\nLƯU Ý MỞ ĐẦU THÂN BÀI: Đây là phần đầu tiên của Thân bài. "
-            "Hãy nối tiếp tự nhiên từ phần Intro và đi thẳng vào diễn biến sự kiện. "
-            "TUYỆT ĐỐI KHÔNG mở đầu bằng các liên từ phụ thuộc như 'Một yếu tố quan trọng khác', "
-            "'Bên cạnh đó', 'Mặt khác', 'Ngoài ra', 'Tiếp theo đó'."
-        )
-        prompt = prompt.replace("{is_first_part}", "True")
-        prompt = prompt.replace("{previous_part_context}", "")
-    else:
-        prev_sentences = [
-            s.strip() for s in re.split(r"(?<=[.!?])\s+", previous_text or "")
-            if s.strip() and len(s.strip()) > 10
-        ]
-        prev_closing = (
-            " ".join(prev_sentences[-2:])
-            if len(prev_sentences) >= 2
-            else (prev_sentences[-1] if prev_sentences else "")
-        )
-        context_instruction = (
-            f"\nLƯU Ý NỐI TIẾP NGỮ CẢNH: Phần trước vừa kết thúc ở nội dung: \"{prev_closing}\". "
-            "Hãy viết tiếp câu chuyện từ điểm này một cách tự nhiên và liền mạch. "
-            "TUYỆT ĐỐI KHÔNG lặp lại các chi tiết, sự kiện hoặc mô tả vũ khí/lực lượng đã phân tích ở phần trước."
-        )
-        prompt = prompt.replace("{is_first_part}", "False")
-        prompt = prompt.replace("{previous_part_context}", prev_closing)
-
-    if "{previous_part_context}" not in base_template:
-        prompt += context_instruction
-
-    return prompt + STRICT_NO_FILLER + NARRATIVE_ONLY_INSTRUCTION
-
-
 def build_video_script(state: dict) -> str:
     sanitize_and_repair_metadata(state)
     intro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("intro", "")))
-    raw_body_parts = [
+    body = "\n\n".join(
         sanitized_part
         for part in state.get("body_parts", [])
         if (sanitized_part := dedup_consecutive_paragraphs(sanitize_narrative_response(part)))
-    ]
-    if raw_body_parts:
-        raw_body_parts[0] = sanitize_body_opening(raw_body_parts[0])
-    body = "\n\n".join(raw_body_parts)
+    )
     outro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("outro", "")))
     
     sections = [
@@ -4630,13 +4581,10 @@ def _run_complete(transcript: str, state: dict) -> dict:
             if len(body_parts_result) >= len(parts):
                 break
             print(f">>> BƯỚC 4: VIẾT BODY PHẦN {i+1}/{len(parts)}", file=sys.stderr)
-            prev_chunk = body_parts_result[i - 1] if i > 0 else ""
-            prompt4 = build_body_generation_prompt(
-                prompts.get("body", ""),
-                part=part,
-                part_index=i,
-                total_parts=len(parts),
-                previous_text=prev_chunk,
+            prompt4 = (
+                prompts.get("body", "").replace("{part}", part)
+                + STRICT_NO_FILLER
+                + NARRATIVE_ONLY_INSTRUCTION
             )
             body_step = f"body {i + 1}/{len(parts)}"
             state["current_step"] = body_step
@@ -4654,8 +4602,6 @@ def _run_complete(transcript: str, state: dict) -> dict:
                 raise RuntimeError(
                     f"ChatGPT returned insufficient or non-narrative BODY content for {body_step} (got: {repr(res[:60])})."
                 )
-            if i == 0:
-                res = sanitize_body_opening(res)
             body_parts_result.append(res)
             clear_pending_generation_prompt(state, body_step, prompt4)
             persist_generation_state(state)
