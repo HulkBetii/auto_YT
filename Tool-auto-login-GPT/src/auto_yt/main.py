@@ -4787,16 +4787,6 @@ def _comment_sync_scheduler() -> None:
             continue
 
 
-def _start_omnivoice_worker_safely() -> None:
-    try:
-        tts.ensure_omnivoice_worker_running()
-    except Exception as exc:
-        # OmniVoice is optional and must not take Genmax or the web app down.
-        # Do not print credentials, request payloads or local sample contents.
-        message = security_logging.redact_sensitive(str(exc))
-        print(f"OmniVoice worker is unavailable: {message}", file=sys.stderr)
-
-
 def _start_chatgpt_browser_safely() -> None:
     try:
         browser_status = chatgpt_browser_service.start_browser_service()
@@ -4830,21 +4820,6 @@ def resume_background_jobs() -> None:
     # consume them. Secrets remain decrypted only in the current process.
     account_store.load_account(migrate=True)
     tts.migrate_api_key_storage()
-    try:
-        omnivoice_provider = voice_config.get_provider(
-            voice_config.OMNIVOICE_PROVIDER_ID
-        )
-    except ValueError:
-        omnivoice_provider = {"enabled": False}
-    if omnivoice_provider.get("enabled", True):
-        # The API process is lightweight: the GPU model stays unloaded until
-        # an OmniVoice job arrives.  Start it off the FastAPI startup thread so
-        # a missing local dependency cannot block Genmax or the web app.
-        threading.Thread(
-            target=_start_omnivoice_worker_safely,
-            daemon=True,
-            name="omnivoice-api-startup",
-        ).start()
     threading.Thread(
         target=_start_chatgpt_browser_safely,
         daemon=True,

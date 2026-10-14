@@ -3,6 +3,10 @@ from pathlib import Path
 
 
 STARTUP_SCRIPT = Path(__file__).with_name("start_autoyt.ps1")
+MAIN_MODULE = Path(__file__).parent / "src" / "auto_yt" / "main.py"
+OMNIVOICE_CLIENT = (
+    Path(__file__).parent / "src" / "auto_yt" / "services" / "omnivoice_client.py"
+)
 BROWSER_SERVICE_SCRIPTS = (
     Path(__file__).parent / "src" / "auto_yt" / "services" / "chatgpt_browser_service.py",
     Path(__file__).parent
@@ -14,6 +18,16 @@ BROWSER_SERVICE_SCRIPTS = (
 
 
 class StartupLifecycleTests(unittest.TestCase):
+    def test_only_canonical_wrapper_starts_omnivoice_worker(self):
+        startup_script = STARTUP_SCRIPT.read_text(encoding="utf-8")
+        main_source = MAIN_MODULE.read_text(encoding="utf-8")
+        client_source = OMNIVOICE_CLIENT.read_text(encoding="utf-8")
+
+        self.assertIn("Start-OmniVoiceWorker", startup_script)
+        self.assertNotIn("omnivoice-api-startup", main_source)
+        self.assertNotIn("subprocess.Popen", client_source)
+        self.assertNotIn("DETACHED_PROCESS", client_source)
+
     def test_optional_process_handles_are_initialized_before_readiness_checks(self):
         script = STARTUP_SCRIPT.read_text(encoding="utf-8")
         readiness_probe_position = script.index("$backendReady = Test-BackendReady")
