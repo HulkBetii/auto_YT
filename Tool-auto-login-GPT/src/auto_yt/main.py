@@ -5809,6 +5809,28 @@ def _handle_production_job_error(job: dict, exc: Exception) -> None:
                 blocking_reason=safe_error,
             )
         return
+    from auto_yt.services.google_flow_worker import FlowVideoPending
+
+    if (
+        isinstance(exc, FlowVideoPending)
+        and str(job.get("job_type") or "") == "flow_media_generation"
+    ):
+        db.schedule_system_job_recovery(
+            job["id"],
+            resume_from_step="flow_video_reconcile",
+            delay_seconds=60.0,
+            error=safe_error,
+            result_json=job.get("result") or {},
+        )
+        if job.get("video_id"):
+            db.update_video_production_state(
+                int(job["video_id"]),
+                render_status="processing",
+                current_stage="flow_video_reconcile",
+                production_progress="Google Flow vẫn đang xử lý video; hệ thống sẽ tự đối soát lại",
+                blocking_reason="",
+            )
+        return
     if isinstance(exc, youtube_publish_workflow.PublishConfigurationRequired):
         _pause_youtube_publish_job(
             job,

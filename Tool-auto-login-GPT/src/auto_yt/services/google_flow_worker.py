@@ -114,6 +114,22 @@ class FlowGenerationTimeout(RuntimeError):
     """Raised when Flow remains active beyond the hard generation deadline."""
 
 
+class FlowVideoPending(RuntimeError):
+    """Raised after Flow accepts a video request that may still complete later."""
+
+    def __init__(self, message: str, *, reason_code: str = "flow_video_pending"):
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
+class FlowVideoWaitExpired(FlowGenerationTimeout):
+    """Raised when a persisted video request exceeds its reconciliation TTL."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.reason_code = "flow_video_wait_expired"
+
+
 class FlowAgentStalledError(FlowGenerationTimeout):
     """Raised when the Flow agent remains active beyond its extended deadline."""
 
@@ -1863,15 +1879,18 @@ class GoogleFlowWorker:
             // Only inspect the latest turn so an old queue message cannot keep a
             // later request alive indefinitely.
             const queueBubbles = Array.from(document.querySelectorAll(
-                'flow-chat-bubble, [data-message-role="assistant"], .agent-bubble'
+                'flow-chat-bubble, flow-chat-message, .message-row, ' +
+                '[data-message-role], [data-role], .agent-bubble'
             )).filter(visible);
             const latestQueueBubble = queueBubbles.length
                 ? queueBubbles[queueBubbles.length - 1] : null;
             if (latestQueueBubble) {
                 const isAgentBubble = latestQueueBubble.matches(
-                    '[data-message-role="assistant"], .agent-bubble'
+                    '[data-message-role="assistant"], [data-role="assistant"], ' +
+                    '.message-row.agent-row, .agent-bubble'
                 ) || Boolean(latestQueueBubble.querySelector(
-                    '[data-message-role="assistant"], .agent-bubble'
+                    '[data-message-role="assistant"], [data-role="assistant"], ' +
+                    '.message-row.agent-row, .agent-bubble'
                 ));
                 const queueText = (latestQueueBubble.textContent || '').toLowerCase();
                 if (isAgentBubble && (
@@ -2014,6 +2033,235 @@ class GoogleFlowWorker:
     @staticmethod
     def _normalize_prompt_text(value: str) -> str:
         return re.sub(r"\s+", " ", str(value or "")).strip()
+
+    @staticmethod
+    def _build_video_prompt(prompt: str, avoid_prompt: str) -> str:
+        strict_avoid = (
+            "still frame, static image, cartoon, text, letters, words, typography, "
+            "watermark, logo, headline, caption, subtitle, poster text"
+        )
+        combined_avoid = f"{avoid_prompt}, {strict_avoid}" if avoid_prompt else strict_avoid
+        clean_prompt = re.sub(r"\[IMAGE_URL:[^\]]*\]", "", prompt)
+        clean_prompt = re.sub(r"https?://\S+", "", clean_prompt)
+        clean_prompt = re.sub(r"/api/thumbnails/\S+", "", clean_prompt).strip()
+        clean_prompt = re.sub(
+            r"(?i)\b(?:still photograph|photography|35mm photography|photo|film still|raw photo|movie still|still photo)\b",
+            "cinematic video",
+            clean_prompt,
+        )
+        clean_prompt = re.sub(r"\s+", " ", clean_prompt).strip()
+        return f"{clean_prompt}. Avoid: {combined_avoid}"
+
+    async def _find_video_for_prompt(self, *prompts: str) -> dict[str, str]:
+        """Find a completed or pending video tied to the latest matching user turn."""
+        expected_prompts = [
+            self._normalize_prompt_text(prompt).casefold()
+            for prompt in prompts
+            if self._normalize_prompt_text(prompt)
+        ]
+        if not expected_prompts:
+            return {"state": "missing", "source": ""}
+        try:
+            result = await self.page.evaluate(
+                r'''(expectedPrompts) => {
+                    const normalize = (value) => String(value || '')
+                        .replace(/\s+/g, ' ').trim().toLowerCase();
+                    const visible = (element) => {
+                        if (!element) return false;
+                        const style = getComputedStyle(element);
+                        const rect = element.getBoundingClientRect();
+                        return style.display !== 'none' && style.visibility !== 'hidden' &&
+                            rect.width > 0 && rect.height > 0;
+                    };
+                    let turns = Array.from(document.querySelectorAll('flow-chat-bubble'));
+                    if (!turns.length) {
+                        turns = Array.from(document.querySelectorAll(
+                            'flow-chat-message, .message-row, [data-message-role], [data-role]'
+                        ));
+                    }
+                    let promptIndex = -1;
+                    for (let index = turns.length - 1; index >= 0; index -= 1) {
+                        const turn = turns[index];
+                        const user = turn.matches(
+                            '.message-row.user-row, [data-message-role="user"], [data-role="user"]'
+                        ) ? turn : turn.querySelector(
+                            '.user-bubble, [data-message-role="user"], [data-role="user"]'
+                        );
+                        if (!user) continue;
+                        const prompt = user.querySelector('.prompt-text') || user;
+                        const text = normalize(prompt.textContent);
+                        if (expectedPrompts.some((expected) =>
+                            text === expected || text.includes(expected)
+                        )) {
+                            promptIndex = index;
+                            break;
+                        }
+                    }
+                    if (promptIndex < 0) {
+                        return {promptFound: false, queued: false, candidates: []};
+                    }
+
+                    let queued = false;
+                    const candidates = [];
+                    const seen = new Set();
+                    for (let index = promptIndex + 1; index < turns.length; index += 1) {
+                        const turn = turns[index];
+                        const nextUser = turn.matches(
+                            '.message-row.user-row, [data-message-role="user"], [data-role="user"]'
+                        ) || turn.querySelector(
+                            '.user-bubble, [data-message-role="user"], [data-role="user"]'
+                        );
+                        if (nextUser) break;
+                        const agent = turn.matches(
+                            '.message-row.agent-row, .agent-bubble, ' +
+                            '[data-message-role="assistant"], [data-role="assistant"]'
+                        ) ? turn : turn.querySelector(
+                            '.agent-bubble, [data-message-role="assistant"], [data-role="assistant"]'
+                        );
+                        if (!agent || !visible(agent)) continue;
+                        const text = normalize(agent.textContent);
+                        if (/(currently in the queue|queued|waiting in the queue|high demand|processed as soon as possible|check back in a few minutes|hàng đợi|xếp hàng|nhu cầu cao|đang chờ xử lý)/i.test(text)) {
+                            queued = true;
+                        }
+                        if (agent.querySelector(
+                            '[role="progressbar"], [aria-busy="true"], mat-progress-spinner, ' +
+                            '[data-state="generating"], [data-state="processing"], [data-state="queued"]'
+                        )) {
+                            queued = true;
+                        }
+                        const nodes = Array.from(agent.querySelectorAll(
+                            'flow-media-tile, flow-canvas-tile, flow-canvas-item, ' +
+                            '[data-testid*="media" i], .media-card, .canvas-tile, ' +
+                            'video, source[src], ' +
+                            '[data-video-url], [data-media-url], [data-download-url], ' +
+                            'a[download][href], [data-media-id], [data-asset-id]'
+                        ));
+                        for (const node of nodes) {
+                            const card = node.closest('[data-media-id], [data-asset-id]') || node;
+                            const assetId = card.getAttribute('data-media-id') ||
+                                card.getAttribute('data-asset-id') || '';
+                            const urls = [];
+                            const matchUrls = [];
+                            const addUrl = (value, playable) => {
+                                const url = String(value || '').trim();
+                                if (!url || url.startsWith('data:')) return;
+                                if (!matchUrls.includes(url)) matchUrls.push(url);
+                                const lower = url.toLowerCase();
+                                const videoUrl = lower.startsWith('blob:') ||
+                                    /\.(?:mp4|webm|mov)(?:\?|$)/i.test(url) ||
+                                    lower.includes('/videoplayback') || lower.includes('/video/');
+                                const imageUrl = /\.(?:png|jpe?g|webp|gif)(?:\?|$)/i.test(url) ||
+                                    lower.includes('/image/') || lower.includes('/asb/');
+                                if ((playable || videoUrl) && !imageUrl && !urls.includes(url)) {
+                                    urls.push(url);
+                                }
+                            };
+                            const mediaNodes = [card, ...card.querySelectorAll(
+                                'video, source[src], a[href], [data-video-url], ' +
+                                '[data-media-url], [data-download-url], img[src]'
+                            )];
+                            for (const media of mediaNodes) {
+                                const playable = media.tagName === 'VIDEO' ||
+                                    media.tagName === 'SOURCE' || media.hasAttribute('download') ||
+                                    media.hasAttribute('data-video-url');
+                                addUrl(media.currentSrc, playable);
+                                addUrl(media.src, playable);
+                                addUrl(media.href, playable);
+                                addUrl(media.getAttribute('data-video-url'), true);
+                                addUrl(media.getAttribute('data-media-url'), playable);
+                                addUrl(media.getAttribute('data-download-url'), true);
+                            }
+                            const state = (
+                                `${card.getAttribute('data-state') || ''} ` +
+                                `${card.getAttribute('data-tile-state') || ''}`
+                            ).toLowerCase();
+                            const controls = normalize(Array.from(card.querySelectorAll(
+                                'button, [role="button"], mat-icon, .material-icons, ' +
+                                '.material-symbols-outlined'
+                            )).map((item) => `${item.textContent || ''} ` +
+                                `${item.getAttribute('aria-label') || ''}`).join(' '));
+                            const completed = /completed|complete|ready|succeeded|success/.test(state) ||
+                                /(^|\s)(play|phát|play_arrow|play_circle)(\s|$)/i.test(controls) ||
+                                urls.length > 0;
+                            if (!assetId && !matchUrls.length) continue;
+                            const key = `${assetId}|${matchUrls[0] || ''}`;
+                            if (seen.has(key)) continue;
+                            seen.add(key);
+                            candidates.push({
+                                src: urls[0] || '', urls, matchUrls, assetId,
+                                identityKeys: assetId
+                                    ? [`asset:${assetId}`]
+                                    : (matchUrls.length ? [`poster:${matchUrls[0]}`] : []),
+                                completed,
+                            });
+                        }
+                    }
+                    return {promptFound: true, queued, candidates};
+                }''',
+                expected_prompts,
+            )
+        except Exception as exc:
+            logger.warning(
+                "flow_generation media=video state=late_output_scan_failed project=%s detail=%s",
+                self._project_id(),
+                exc,
+            )
+            return {"state": "missing", "source": ""}
+
+        if not isinstance(result, dict) or not result.get("promptFound"):
+            return {"state": "missing", "source": ""}
+        candidates = [
+            item for item in (result.get("candidates") or []) if isinstance(item, dict)
+        ]
+        source = self._find_new_video_source(candidates, set())
+        if source:
+            logger.info(
+                "flow_generation media=video state=late_output_reused project=%s",
+                self._project_id(),
+            )
+            return {"state": "completed", "source": source}
+        detail_baseline: set[str] = set()
+        try:
+            for existing_candidate in await self._collect_video_candidates():
+                for url in [
+                    existing_candidate.get("src"),
+                    existing_candidate.get("url"),
+                    *(existing_candidate.get("urls") or []),
+                ]:
+                    if str(url or "").strip():
+                        detail_baseline.add(self._media_key(str(url)))
+        except Exception as exc:
+            logger.warning(
+                "flow_generation media=video state=late_output_baseline_failed "
+                "project=%s detail=%s",
+                self._project_id(),
+                exc,
+            )
+        for candidate in reversed(candidates):
+            if not candidate.get("completed"):
+                continue
+            try:
+                source = await self._inspect_video_candidate_detail(
+                    candidate,
+                    detail_baseline,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "flow_generation media=video state=late_output_detail_failed project=%s detail=%s",
+                    self._project_id(),
+                    exc,
+                )
+                source = ""
+            if source:
+                logger.info(
+                    "flow_generation media=video state=late_output_reused project=%s",
+                    self._project_id(),
+                )
+                return {"state": "completed", "source": source}
+        return {
+            "state": "queued" if result.get("queued") else "pending",
+            "source": "",
+        }
 
     async def _find_completed_image_for_prompt(self, *prompts: str) -> str:
         """Reuse a late Agent result only when it follows the exact submitted prompt."""
@@ -4395,6 +4643,12 @@ class GoogleFlowWorker:
                     await self._raise_invalid_image_output(media_type, submitted_at)
                     await self._save_debug_screenshot(f"{media_type}_start_failed")
                     self._log_generation_event(media_type, "start_failed", submitted_at)
+                    if media_type == "video":
+                        raise FlowVideoPending(
+                            "Google Flow đã nhận yêu cầu video nhưng chưa hiển thị tiến trình; "
+                            "sẽ đối soát lại thay vì gửi trùng.",
+                            reason_code="flow_video_start_pending",
+                        )
                     raise FlowGenerationStartError(
                         f"Google Flow không bắt đầu tạo {media_type} sau "
                         f"{GENERATION_START_TIMEOUT_SECONDS:.0f} giây."
@@ -4414,6 +4668,12 @@ class GoogleFlowWorker:
                     await self._raise_invalid_image_output(media_type, submitted_at)
                     await self._save_debug_screenshot(f"{media_type}_result_missing")
                     self._log_generation_event(media_type, "result_missing", submitted_at)
+                    if media_type == "video":
+                        raise FlowVideoPending(
+                            "Google Flow đã nhận yêu cầu video nhưng kết quả chưa xuất hiện; "
+                            "sẽ đối soát lại thay vì dùng ảnh.",
+                            reason_code="flow_video_result_pending",
+                        )
                     raise FlowResultMissingError(
                         f"Google Flow đã dừng nhưng không tìm thấy {media_type} mới."
                     )
@@ -4431,6 +4691,12 @@ class GoogleFlowWorker:
                     await self._raise_invalid_image_output(media_type, submitted_at)
                 await self._save_debug_screenshot(f"{media_type}_hard_timeout")
                 self._log_generation_event(media_type, "hard_timeout", submitted_at)
+                if media_type == "video":
+                    raise FlowVideoPending(
+                        "Google Flow vẫn có thể đang xử lý video sau thời hạn theo dõi; "
+                        "sẽ đối soát lại thay vì gửi trùng hoặc dùng ảnh.",
+                        reason_code="flow_video_wait_pending",
+                    )
                 if agent_timeout and is_generating:
                     raise FlowAgentStalledError(
                         "Google Flow Agent vẫn đang xử lý nhưng không trả về "
@@ -4839,6 +5105,7 @@ class GoogleFlowWorker:
         reference_ids: list[str] | None = None,
         video_settings: dict | None = None,
         scene_index: int | None = None,
+        reconcile_only: bool = False,
     ) -> str:
         await self._ensure_project_canvas()
         try:
@@ -4850,6 +5117,7 @@ class GoogleFlowWorker:
                 reference_ids=reference_ids,
                 video_settings=video_settings,
                 scene_index=scene_index,
+                reconcile_only=reconcile_only,
             )
         finally:
             if self._is_asset_edit_url(str(self.page.url or "")):
@@ -4864,6 +5132,7 @@ class GoogleFlowWorker:
         reference_ids: list[str] | None = None,
         video_settings: dict | None = None,
         scene_index: int | None = None,
+        reconcile_only: bool = False,
     ) -> str:
         """Generate a video clip from start (and optional end) frame using Veo on Google Flow."""
         if not start_frame_path or not Path(start_frame_path).is_file():
@@ -4877,6 +5146,19 @@ class GoogleFlowWorker:
         self._video_completed_candidate_seen_at.clear()
         self._inspected_video_detail_keys.clear()
         self._record_video_timing("prepare_started")
+
+        full_prompt = self._build_video_prompt(prompt, avoid_prompt)
+        if reconcile_only:
+            existing_result = await self._find_video_for_prompt(full_prompt)
+            existing_state = str(existing_result.get("state") or "missing")
+            existing_source = str(existing_result.get("source") or "").strip()
+            if existing_state == "completed" and existing_source:
+                self._record_video_timing("playable_url_seen")
+                return existing_source
+            raise FlowVideoPending(
+                "Google Flow đã nhận yêu cầu video và chưa có file tải xuống; "
+                "sẽ tiếp tục đối soát mà không gửi lại prompt."
+            )
 
         await self._ensure_agent_session_ready()
         editor = await self.wait_for_editor(timeout=25.0)
@@ -4913,20 +5195,6 @@ class GoogleFlowWorker:
         baseline_keys = await self._capture_video_baseline()
         self._record_video_timing("baseline_captured")
         initial_error_texts = await self._get_existing_error_texts()
-
-        # 2. Add strict negative prompt for text/watermarks and static still frames
-        strict_avoid = "still frame, static image, cartoon, text, letters, words, typography, watermark, logo, headline, caption, subtitle, poster text"
-        combined_avoid = f"{avoid_prompt}, {strict_avoid}" if avoid_prompt else strict_avoid
-        clean_prompt = re.sub(r"\[IMAGE_URL:[^\]]*\]", "", prompt)
-        clean_prompt = re.sub(r"https?://\S+", "", clean_prompt)
-        clean_prompt = re.sub(r"/api/thumbnails/\S+", "", clean_prompt).strip()
-        clean_prompt = re.sub(
-            r"(?i)\b(?:still photograph|photography|35mm photography|photo|film still|raw photo|movie still|still photo)\b",
-            "cinematic video",
-            clean_prompt,
-        )
-        clean_prompt = re.sub(r"\s+", " ", clean_prompt).strip()
-        full_prompt = f"{clean_prompt}. Avoid: {combined_avoid}"
 
         for click_attempt in range(3):
             await self.dismiss_blocking_dialogs()

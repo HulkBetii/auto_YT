@@ -727,6 +727,32 @@ class SystemJobTests(unittest.TestCase):
 
         self.assertEqual(recovered["id"], "recovering-first")
 
+    def test_flow_retry_wait_does_not_block_a_later_queued_media_job(self):
+        database.create_system_job(
+            job_id="flow-waiting-first",
+            job_type="flow_media_generation",
+            title="Flow waiting",
+            payload={},
+        )
+        database.claim_next_system_job("flow_media_generation")
+        database.schedule_system_job_recovery(
+            "flow-waiting-first",
+            resume_from_step="flow_video_reconcile",
+            delay_seconds=3600,
+            error="Flow is still processing",
+        )
+        database.create_system_job(
+            job_id="flow-ready-second",
+            job_type="flow_media_generation",
+            title="Flow ready",
+            payload={},
+        )
+
+        self.assertTrue(database.has_claimable_system_jobs("flow_media_generation"))
+        claimed = database.claim_next_system_job("flow_media_generation")
+
+        self.assertEqual(claimed["id"], "flow-ready-second")
+
     def test_payload_and_result_are_round_tripped_as_objects(self):
         created = self.create_job("json")
         updated = database.update_system_job(

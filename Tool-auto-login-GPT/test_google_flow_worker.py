@@ -18,6 +18,7 @@ from auto_yt.services.google_flow_worker import (
     FlowResultMissingError,
     FlowSubmissionError,
     FlowUiStateError,
+    FlowVideoPending,
     GoogleFlowWorker,
     REFERENCE_RESULT_ATTACHED,
     REFERENCE_RESULT_NOT_FOUND,
@@ -835,6 +836,32 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(result, "blob:https://flow.google/video-new")
+
+    async def test_video_timeout_after_submission_is_recoverable_pending(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+
+        with (
+            patch.object(worker, "_wait_for_generation_poll", AsyncMock()),
+            patch.object(worker, "_resolve_new_media_source", AsyncMock(return_value="")),
+            patch.object(worker, "_read_generation_activity", AsyncMock(return_value=False)),
+            patch.object(worker, "_get_existing_error_texts", AsyncMock(return_value=set())),
+            patch.object(worker, "_get_snackbar_error", AsyncMock(return_value="")),
+            patch.object(worker, "handle_confirmation_prompts", AsyncMock()),
+            patch.object(worker, "_save_debug_screenshot", AsyncMock()),
+            patch("auto_yt.services.google_flow_worker.GENERATION_START_TIMEOUT_SECONDS", 0.0),
+        ):
+            with self.assertRaises(FlowVideoPending) as raised:
+                await worker._wait_for_new_media(
+                    media_type="video",
+                    baseline_keys=set(),
+                    initial_error_texts=set(),
+                    submitted_at=0.0,
+                    timeout_seconds=0.0,
+                )
+
+        self.assertEqual(raised.exception.reason_code, "flow_video_start_pending")
 
     async def test_video_candidate_keys_include_asset_and_poster_identity(self):
         page = MagicMock()
@@ -2610,6 +2637,118 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
         ensure_session.assert_not_awaited()
         sync_refs.assert_not_awaited()
         submit.assert_not_awaited()
+
+    async def test_completed_late_video_is_reused_before_frame_sync_or_resubmit(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+        late_source = "blob:https://flow.google/video-late-scene"
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(worker, "_ensure_project_canvas", AsyncMock()),
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(return_value={"state": "completed", "source": late_source}),
+            ),
+            patch.object(worker, "_ensure_agent_session_ready", AsyncMock()) as ensure_session,
+            patch.object(worker, "sync_agent_video_frames", AsyncMock()) as sync_frames,
+            patch.object(worker, "_submit_prompt_and_wait_for_ack", AsyncMock()) as submit,
+        ):
+            start_frame = Path(temp_dir) / "start.png"
+            end_frame = Path(temp_dir) / "end.png"
+            start_frame.write_bytes(_image_bytes())
+            end_frame.write_bytes(_image_bytes())
+            result = await worker.generate_scene_video(
+                "A camera moves through the command room",
+                "text",
+                start_frame_path=start_frame,
+                end_frame_path=end_frame,
+                scene_index=0,
+                reconcile_only=True,
+            )
+
+        self.assertEqual(result, late_source)
+        ensure_session.assert_not_awaited()
+        sync_frames.assert_not_awaited()
+        submit.assert_not_awaited()
+
+    async def test_video_reconciliation_never_resubmits_when_prompt_is_not_visible(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(worker, "_ensure_project_canvas", AsyncMock()),
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(return_value={"state": "missing", "source": ""}),
+            ),
+            patch.object(worker, "_ensure_agent_session_ready", AsyncMock()) as ensure_session,
+            patch.object(worker, "_submit_prompt_and_wait_for_ack", AsyncMock()) as submit,
+        ):
+            start_frame = Path(temp_dir) / "start.png"
+            end_frame = Path(temp_dir) / "end.png"
+            start_frame.write_bytes(_image_bytes())
+            end_frame.write_bytes(_image_bytes())
+            with self.assertRaises(FlowVideoPending):
+                await worker.generate_scene_video(
+                    "A camera moves through the command room",
+                    "text",
+                    start_frame_path=start_frame,
+                    end_frame_path=end_frame,
+                    scene_index=0,
+                    reconcile_only=True,
+                )
+
+        ensure_session.assert_not_awaited()
+        submit.assert_not_awaited()
+
+    async def test_video_reconciliation_excludes_existing_urls_when_opening_detail(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        page.evaluate = AsyncMock(
+            return_value={
+                "promptFound": True,
+                "queued": False,
+                "candidates": [
+                    {
+                        "src": "",
+                        "urls": [],
+                        "matchUrls": ["https://flow.google/poster-late.png"],
+                        "assetId": "late-video",
+                        "identityKeys": ["asset:late-video"],
+                        "completed": True,
+                    }
+                ],
+            }
+        )
+        worker = GoogleFlowWorker(page)
+        old_url = "blob:https://flow.google/old-video"
+        late_url = "blob:https://flow.google/late-video"
+
+        with (
+            patch.object(
+                worker,
+                "_collect_video_candidates",
+                AsyncMock(return_value=[{"src": old_url, "urls": [old_url]}]),
+            ),
+            patch.object(
+                worker,
+                "_inspect_video_candidate_detail",
+                AsyncMock(return_value=late_url),
+            ) as inspect_detail,
+        ):
+            result = await worker._find_video_for_prompt("late prompt")
+
+        self.assertEqual(result, {"state": "completed", "source": late_url})
+        self.assertIn(
+            worker._media_key(old_url),
+            inspect_detail.await_args.args[1],
+        )
 
     async def test_validated_payload_is_reused_by_download_image(self):
         with tempfile.TemporaryDirectory() as temp_dir:

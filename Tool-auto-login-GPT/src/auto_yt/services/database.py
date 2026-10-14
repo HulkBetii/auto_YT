@@ -4338,7 +4338,8 @@ def claim_next_system_job(job_type: str) -> dict | None:
             WHERE job_type = ? AND cancel_requested = 0
               AND status IN ('queued', 'retry_wait')
               AND (
-                  ? NOT IN ('comment_publish', 'comment_sync') OR status = 'queued'
+                  ? NOT IN ('comment_publish', 'comment_sync', 'flow_media_generation')
+                  OR status = 'queued'
                   OR next_retry_at = '' OR next_retry_at <= ?
               )
               AND (
@@ -4499,7 +4500,8 @@ def has_claimable_system_jobs(job_type: str) -> bool:
         WHERE job_type = ? AND cancel_requested = 0
           AND status IN ('queued', 'retry_wait')
           AND (
-              ? NOT IN ('comment_publish', 'comment_sync') OR status = 'queued'
+              ? NOT IN ('comment_publish', 'comment_sync', 'flow_media_generation')
+              OR status = 'queued'
               OR next_retry_at = '' OR next_retry_at <= ?
           )
           AND (
@@ -4542,8 +4544,8 @@ def get_next_system_job_retry_delay(job_type: str) -> float | None:
               )
           )
         ORDER BY
-            CASE WHEN ? IN ('comment_publish', 'comment_sync') AND status = 'queued' THEN 0 ELSE 1 END,
-            CASE WHEN ? IN ('comment_publish', 'comment_sync') THEN next_retry_at ELSE created_at END ASC,
+            CASE WHEN ? IN ('comment_publish', 'comment_sync', 'flow_media_generation') AND status = 'queued' THEN 0 ELSE 1 END,
+            CASE WHEN ? IN ('comment_publish', 'comment_sync', 'flow_media_generation') THEN next_retry_at ELSE created_at END ASC,
             created_at ASC
         LIMIT 1
         ''',

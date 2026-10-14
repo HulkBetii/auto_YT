@@ -55,6 +55,7 @@ PERCEPTUAL_DUPLICATE_DISTANCE = 6
 LOW_VARIANCE_IMAGE_THRESHOLD = 2.0
 LOW_VARIANCE_COLOR_DISTANCE = 8.0
 MAX_PERCEPTUAL_DUPLICATE_RETRIES = 2
+FLOW_VIDEO_RECONCILIATION_TTL_SECONDS = 3600.0
 PERCEPTUAL_RETRY_DIRECTIONS = (
     "Use a substantially different camera distance, viewpoint, and subject arrangement",
     "Change the foreground, background, direction of movement, and visual hierarchy completely",
@@ -83,6 +84,8 @@ VIDEO_FAILURE_STAGE_BY_ERROR = {
     "FlowGenerationStartError": "generation_start",
     "FlowGenerationTimeout": "generation_timeout",
     "FlowAgentStalledError": "generation_timeout",
+    "FlowVideoWaitExpired": "generation_timeout",
+    "FlowVideoPending": "reconciliation",
     "FlowResultMissingError": "result_missing",
     "FlowUiStateError": "ui_state",
 }
@@ -652,6 +655,8 @@ def cleanup_duplicate_scene_artifacts(video_id: int) -> int:
     seen_hashes: dict[str, str] = {}
     removed_count = 0
     for art in artifacts:
+        if art.get("status") in {"queued", "processing"}:
+            continue
         art_path = art.get("path")
         p = Path(art_path) if art_path else None
         if not p or not p.is_file() or p.stat().st_size == 0:
@@ -1531,6 +1536,12 @@ async def _generate_scene_video_async(
     worker,
     force_new_project: bool = False,
 ) -> Path:
+    from auto_yt.services.google_flow_worker import (
+        FlowFrameAttachmentError,
+        FlowVideoPending,
+        FlowVideoWaitExpired,
+    )
+
     settings = settings or {}
     video_neg = str(settings.get("video_negative_prompt") or "").strip()
     negative_prompt = video_neg if video_neg else str(settings.get("avoid_prompt") or settings.get("negative_prompt") or "")
@@ -1544,6 +1555,52 @@ async def _generate_scene_video_async(
     )
     artifact_type = f"scene_video:{scene['index']}"
     existing = db.get_latest_video_artifact(video_id, artifact_type)
+    existing_metadata = existing.get("metadata", {}) if existing else {}
+    recoverable_reason_codes = {
+        "flow_generation_timeout",
+        "flow_generation_start_error",
+        "flow_result_missing_error",
+        "flow_agent_stalled_error",
+    }
+    is_reconciliation_checkpoint = bool(
+        not force_new_project
+        and existing
+        and existing.get("content_hash") == content_hash
+        and (
+            existing.get("status") == "queued"
+            or (
+                existing.get("status") == "failed"
+                and str(existing_metadata.get("reason_code") or "")
+                in recoverable_reason_codes
+            )
+        )
+    )
+    pending_expired = False
+    if is_reconciliation_checkpoint:
+        queued_since = str(
+            existing_metadata.get("queued_since") or existing.get("updated_at") or ""
+        )
+        try:
+            queued_at = dt.datetime.fromisoformat(queued_since)
+            if queued_at.tzinfo is None:
+                queued_at = queued_at.replace(tzinfo=dt.timezone.utc)
+            pending_age = max(
+                0.0,
+                (dt.datetime.now(dt.timezone.utc) - queued_at).total_seconds(),
+            )
+        except (TypeError, ValueError):
+            pending_age = 0.0
+        try:
+            max_wait_seconds = max(
+                0.0,
+                float(
+                    settings.get("intro_video_max_wait_seconds")
+                    or FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
+                ),
+            )
+        except (TypeError, ValueError):
+            max_wait_seconds = FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
+        pending_expired = pending_age >= max_wait_seconds
 
     if (
         not force_new_project
@@ -1565,7 +1622,21 @@ async def _generate_scene_video_async(
 
     target = SCENES_DIR / f"{video_id}_{scene['index']}_video_{content_hash[:8]}.mp4"
     target.parent.mkdir(parents=True, exist_ok=True)
-    generation_attempt = existing.get("metadata", {}).get("generation_attempt", 0) + 1 if existing else 1
+    previous_attempt = int(existing_metadata.get("generation_attempt") or 0)
+    generation_attempt = (
+        previous_attempt if is_reconciliation_checkpoint else previous_attempt + 1
+    )
+    generation_attempt = max(1, generation_attempt)
+    checkpoint_metadata = {
+        **existing_metadata,
+        **scene,
+        "seed": fixed_seed,
+        "generation_attempt": generation_attempt,
+        "start_hash": start_hash,
+        "end_hash": end_hash,
+        "start_frame": start_frame_path.name if start_frame_path else "",
+        "end_frame": end_frame_path.name if end_frame_path else "",
+    }
     
     started_at = time.monotonic()
     progress(
@@ -1580,21 +1651,12 @@ async def _generate_scene_video_async(
         content_hash=content_hash,
         status="processing",
         mime_type="video/mp4",
-        metadata={
-            **scene,
-            "seed": fixed_seed,
-            "generation_attempt": generation_attempt,
-            "start_hash": start_hash,
-            "end_hash": end_hash,
-            "start_frame": start_frame_path.name if start_frame_path else "",
-            "end_frame": end_frame_path.name if end_frame_path else "",
-        },
+        metadata=checkpoint_metadata,
     )
 
     flow_timing: dict[str, object] = {}
+    clip_probe: dict[str, object] = {}
     try:
-        from auto_yt.services.google_flow_worker import FlowFrameAttachmentError
-
         if not start_frame_path or not start_frame_path.is_file():
             raise FlowFrameAttachmentError(
                 f"Thiếu start frame cho video scene {scene['index']}."
@@ -1602,6 +1664,11 @@ async def _generate_scene_video_async(
         if not end_frame_path or not end_frame_path.is_file():
             raise FlowFrameAttachmentError(
                 f"Thiếu end frame cho video scene {scene['index']}; cần đủ cặp ảnh gối đầu."
+            )
+        if pending_expired:
+            raise FlowVideoWaitExpired(
+                "Google Flow không cung cấp video tải xuống trước khi hết thời hạn "
+                f"đối soát {max_wait_seconds:.0f} giây."
             )
         _log_scene_generation(
             video_id=video_id,
@@ -1660,6 +1727,7 @@ async def _generate_scene_video_async(
                     "video_output_count": int(settings.get("video_output_count") or 1),
                 },
                 scene_index=int(scene.get("index", 0)),
+                reconcile_only=is_reconciliation_checkpoint,
             )
             await worker.download_video(video_url, str(target))
             timing_snapshot = worker.get_last_video_timing()
@@ -1667,6 +1735,43 @@ async def _generate_scene_video_async(
 
         if not target.exists() or target.stat().st_size < 1000:
             raise RuntimeError(f"Video tạo từ Google Flow Veo không hợp lệ hoặc quá nhỏ: {target}")
+        clip_probe = probe_scene_video(target)
+    except FlowVideoPending as exc:
+        if worker is not None and hasattr(worker, "get_last_video_timing"):
+            timing_snapshot = worker.get_last_video_timing()
+            flow_timing = timing_snapshot if isinstance(timing_snapshot, dict) else {}
+        safe_error = security_logging.redact_sensitive(exc)
+        queued_since = str(existing_metadata.get("queued_since") or db.utc_now())
+        db.upsert_video_artifact(
+            video_id=video_id,
+            artifact_type=artifact_type,
+            path=str(target),
+            content_hash=content_hash,
+            status="queued",
+            mime_type="video/mp4",
+            metadata={
+                **checkpoint_metadata,
+                "queued_since": queued_since,
+                "error": safe_error,
+                "failure_stage": "reconciliation",
+                "reason_code": _safe_reason_code(exc),
+                "flow_timing": flow_timing,
+            },
+        )
+        progress(
+            f"Google Flow vẫn đang xử lý video intro {scene['index'] + 1}/{scene_count}; sẽ tự đối soát lại",
+            "waiting_flow_video",
+        )
+        _log_scene_generation(
+            video_id=video_id,
+            scene_index=int(scene.get("index", 0)),
+            media_type="video",
+            state="reconciliation_pending",
+            attempt=generation_attempt,
+            started_at=started_at,
+            detail=_safe_reason_code(exc),
+        )
+        raise
     except Exception as exc:
         if worker is not None and hasattr(worker, "get_last_video_timing"):
             timing_snapshot = worker.get_last_video_timing()
@@ -1687,12 +1792,7 @@ async def _generate_scene_video_async(
             status="failed",
             mime_type="video/mp4",
             metadata={
-                **scene,
-                "generation_attempt": generation_attempt,
-                "start_hash": start_hash,
-                "end_hash": end_hash,
-                "start_frame": start_frame_path.name if start_frame_path else "",
-                "end_frame": end_frame_path.name if end_frame_path else "",
+                **checkpoint_metadata,
                 "error": safe_error,
                 "failure_stage": failure_stage,
                 "reason_code": reason_code,
@@ -1712,6 +1812,17 @@ async def _generate_scene_video_async(
         raise
 
     progress(f"Đã tải video {scene['index'] + 1}/{scene_count}", "downloading_flow_video")
+    completed_metadata = {
+        **checkpoint_metadata,
+        "flow_timing": flow_timing,
+    }
+    for stale_error_key in (
+        "error",
+        "failure_stage",
+        "reason_code",
+        "fallback_reason_code",
+    ):
+        completed_metadata.pop(stale_error_key, None)
     db.upsert_video_artifact(
         video_id=video_id,
         artifact_type=artifact_type,
@@ -1719,15 +1830,12 @@ async def _generate_scene_video_async(
         content_hash=content_hash,
         status="completed",
         mime_type="video/mp4",
-        metadata={
-            **scene,
-            "generation_attempt": generation_attempt,
-            "start_hash": start_hash,
-            "end_hash": end_hash,
-            "start_frame": start_frame_path.name if start_frame_path else "",
-            "end_frame": end_frame_path.name if end_frame_path else "",
-            "flow_timing": flow_timing,
-        },
+        size_bytes=target.stat().st_size,
+        duration_seconds=float(clip_probe.get("duration_seconds") or 0.0),
+        width=int(clip_probe.get("width") or 0),
+        height=int(clip_probe.get("height") or 0),
+        codecs={"video": str(clip_probe.get("video_codec") or "")},
+        metadata=completed_metadata,
     )
     _log_scene_generation(
         video_id=video_id,
@@ -1893,7 +2001,10 @@ def generate_scene_media(
                     from auto_yt.services.google_flow_worker import (
                         FlowModeError,
                         FlowAgentSettingsError,
+                        FlowVideoPending,
                     )
+                    if isinstance(exc, FlowVideoPending):
+                        raise
                     is_system_unsupported = isinstance(
                         exc, (FlowModeError, FlowAgentSettingsError)
                     ) or "không hỗ trợ" in str(exc).lower()
@@ -2129,6 +2240,56 @@ def _probe_media_with_av(path: Path) -> dict:
             }
     except (av.error.FFmpegError, OSError, ValueError) as exc:
         raise VideoProductionError("PyAV không đọc được media vừa tạo.") from exc
+
+
+def probe_scene_video(path: Path, ffmpeg_exe: str | None = None) -> dict:
+    """Validate a downloaded scene clip before marking its artifact completed."""
+    ffprobe = _find_ffprobe(ffmpeg_exe or imageio_ffmpeg.get_ffmpeg_exe())
+    if ffprobe is None:
+        probe = _probe_media_with_av(path)
+        duration = float(probe.get("duration_seconds") or 0.0)
+        streams = probe.get("streams") or []
+    else:
+        result = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration:stream=codec_type,codec_name,width,height",
+                "-of",
+                "json",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise VideoProductionError("ffprobe không đọc được video cảnh từ Google Flow.")
+        try:
+            payload = json.loads(result.stdout or "{}")
+            duration = float((payload.get("format") or {}).get("duration") or 0.0)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise VideoProductionError("Video cảnh có metadata thời lượng không hợp lệ.") from exc
+        streams = payload.get("streams") if isinstance(payload.get("streams"), list) else []
+    video_stream = next(
+        (item for item in streams if item.get("codec_type") == "video"),
+        None,
+    )
+    if not video_stream:
+        raise VideoProductionError("Video cảnh từ Google Flow không có video stream.")
+    width = int(video_stream.get("width") or 0)
+    height = int(video_stream.get("height") or 0)
+    if duration <= 0 or width <= 0 or height <= 0:
+        raise VideoProductionError("Video cảnh từ Google Flow không có hình hoặc thời lượng hợp lệ.")
+    return {
+        "duration_seconds": duration,
+        "width": width,
+        "height": height,
+        "video_codec": str(video_stream.get("codec_name") or ""),
+    }
 
 
 def probe_media_duration(path: Path, ffmpeg_exe: str | None = None) -> float:
