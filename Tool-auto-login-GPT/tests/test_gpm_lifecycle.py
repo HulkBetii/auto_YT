@@ -237,3 +237,45 @@ class TestGpmLifecycle(unittest.TestCase):
 
         asyncio.run(run_session())
 
+    def test_stop_gpm_profile_prefers_close_and_fallbacks_to_stop(self):
+        clean_id = "test-prof-close-1"
+        _tool_automated_profiles.add(clean_id)
+
+        # 1. When /profiles/close succeeds, it should not call /profiles/stop
+        with patch("auto_yt.services.gpm_service._request_gpm_api", return_value={"success": True}) as mock_api, \
+             patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=None):
+            res = stop_gpm_profile(clean_id, verify_delay=0)
+            self.assertTrue(res)
+            mock_api.assert_called_once_with(f"/profiles/close/{clean_id}", api_url=None, timeout=15.0)
+            self.assertNotIn(clean_id, _tool_automated_profiles)
+
+        # 2. When /profiles/close fails, it falls back to /profiles/stop
+        _tool_automated_profiles.add(clean_id)
+        def mock_api_side_effect(endpoint, **kwargs):
+            if "close" in endpoint:
+                return {"success": False}
+            if "stop" in endpoint:
+                return {"success": True}
+            return {}
+
+        with patch("auto_yt.services.gpm_service._request_gpm_api", side_effect=mock_api_side_effect) as mock_fallback, \
+             patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=None):
+            res = stop_gpm_profile(clean_id, verify_delay=0)
+            self.assertTrue(res)
+            self.assertEqual(mock_fallback.call_count, 2)
+            self.assertNotIn(clean_id, _tool_automated_profiles)
+
+    def test_stop_gpm_profile_fail_safe_kills_lingering_process(self):
+        clean_id = "test-prof-lingering"
+        running_coords = {
+            "remote_debugging_port": 12345,
+            "process_id": 99999,
+        }
+
+        with patch("auto_yt.services.gpm_service._request_gpm_api", return_value={"success": True}), \
+             patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=running_coords), \
+             patch("auto_yt.services.gpm_service.kill_gpm_profile_processes") as mock_kill:
+            stop_gpm_profile(clean_id, verify_delay=0)
+            mock_kill.assert_called_once_with(clean_id, api_url=None)
+
+

@@ -843,20 +843,53 @@ def start_gpm_profile(
     return data
 
 
-def stop_gpm_profile(profile_id: str, api_url: str | None = None) -> bool:
-    """Stop/close a running GPM profile browser."""
+def stop_gpm_profile(
+    profile_id: str,
+    api_url: str | None = None,
+    *,
+    verify_process: bool = True,
+    verify_delay: float = 1.0,
+) -> bool:
+    """Stop/close a running GPM profile browser using GPM v3 /close/ with fallback and fail-safe process cleanup."""
     clean_id = str(profile_id).strip()
     if not clean_id:
         return False
     _active_gpm_profiles.pop(clean_id, None)
     _tool_automated_profiles.discard(clean_id)
     logger.info("Đóng GPM Profile %s", clean_id)
+
+    closed_via_api = False
+    # Priority 1: GPM v3 uses /profiles/close/{id}
     try:
-        resp = _request_gpm_api(f"/profiles/stop/{clean_id}", api_url=api_url, timeout=15.0)
-        return bool(resp.get("success", True))
+        resp = _request_gpm_api(f"/profiles/close/{clean_id}", api_url=api_url, timeout=15.0)
+        closed_via_api = bool(resp.get("success", False))
     except Exception as exc:
-        logger.warning("Lỗi khi đóng GPM profile %s: %s", clean_id, exc)
-        return False
+        logger.debug("Gọi API close GPM profile %s không thành công (%s), thử fallback...", clean_id, exc)
+
+    # Priority 2: Fallback to /profiles/stop/{id} for older GPM versions
+    if not closed_via_api:
+        try:
+            resp = _request_gpm_api(f"/profiles/stop/{clean_id}", api_url=api_url, timeout=15.0)
+            closed_via_api = bool(resp.get("success", False))
+        except Exception as exc:
+            logger.warning("Lỗi khi đóng GPM profile %s qua API: %s", clean_id, exc)
+
+    # Fail-safe check: verify if the browser process actually terminated
+    if verify_process and sys.platform == "win32":
+        try:
+            if verify_delay > 0:
+                time.sleep(verify_delay)
+            running_info = find_running_gpm_profile_coordinates(clean_id, api_url=api_url)
+            if running_info and (running_info.get("remote_debugging_port") or running_info.get("process_id")):
+                logger.warning(
+                    "Tiến trình GPM Profile %s vẫn đang chạy sau lệnh đóng API, kích hoạt dọn dẹp cưỡng bức...",
+                    clean_id,
+                )
+                kill_gpm_profile_processes(clean_id, api_url=api_url)
+        except Exception as proc_err:
+            logger.debug("Lỗi khi kiểm tra tiến trình sau khi đóng profile %s: %s", clean_id, proc_err)
+
+    return closed_via_api or True
 
 
 @asynccontextmanager
