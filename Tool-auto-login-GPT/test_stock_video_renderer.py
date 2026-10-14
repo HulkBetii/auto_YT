@@ -309,11 +309,29 @@ class StockVideoRendererTests(unittest.TestCase):
             self.assertIn("eof_action=repeat", cmd_str)
             self.assertIn("format=yuv420p[bg]", cmd_str)
             self.assertIn("settb=AVTB,setpts=PTS-STARTPTS", cmd_str)
+            self.assertIn("between(t,0,3)", cmd_str)
+            self.assertIn("s=520x260:mode=cline", cmd_str)
+            self.assertIn("enable='gte(t,3)'", cmd_str)
 
-    def test_produce_stock_video_creates_captions_artifact(self):
+    def test_generate_title_text_overlay(self):
+        out_title = self.temp_path / "styled_title_text.png"
+        _, w, h, outline_col = stock_video_renderer.generate_title_text_overlay(
+            "Xuất Ngũ Trở Về, Anh Lính Rụng Rời Khi Thấy Vợ Bầu Bị Nhốt Trong Lồng Tre",
+            out_title,
+            max_width=1250,
+            font_size=42,
+        )
+        self.assertTrue(out_title.exists())
+        self.assertEqual(w, 1250)
+        self.assertGreater(h, 80)
+        self.assertIn(outline_col, stock_video_renderer.TITLE_OUTLINE_PALETTE)
+        with Image.open(out_title) as im:
+            self.assertEqual(im.size, (1250, h))
+
+    def test_produce_stock_video_omits_subtitles(self):
         video_id = db.save_video(
             "https://www.youtube.com/watch?v=stock-sub-test",
-            "Stock Video Captions Test",
+            "Stock Video Subtitle Omission Test",
             "Transcript",
             "### [METADATA & QUIZ]\nMÔ TẢ: Desc\n\n### [THUMBNAIL KHÔNG CHỮ]\n[IMAGE_URL:/api/thumbnails/test_thumb.png]",
             prompt_version="default",
@@ -324,43 +342,26 @@ class StockVideoRendererTests(unittest.TestCase):
 
         bg_video = self.temp_path / "stock1.mp4"
         bg_video.write_bytes(b"dummy_mp4_bytes")
-        icon_gif = self.temp_path / "star.gif"
-        icon_gif.write_bytes(b"GIF89a" + b"\x00" * 100)
-
-        dummy_srt = self.temp_path / f"video_{video_id}_caption.srt"
-        dummy_srt.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello\n", encoding="utf-8")
 
         class MockProc:
             returncode = 0
             def poll(self): return 0
             def kill(self): pass
 
+        captured_cmd = []
         def mock_popen(cmd, *args, **kwargs):
+            captured_cmd.append(" ".join(cmd))
             out_file = Path(cmd[-1])
             out_file.parent.mkdir(parents=True, exist_ok=True)
             out_file.write_bytes(b"dummy_video_mp4_bytes")
             return MockProc()
 
-        def mock_create_srt(audio_path, vid_id, progress):
-            db.upsert_video_artifact(
-                video_id=vid_id,
-                artifact_type="captions",
-                path=str(dummy_srt),
-                content_hash="mock_hash_123",
-                status="ready",
-                mime_type="application/x-subrip",
-                size_bytes=dummy_srt.stat().st_size,
-            )
-            return dummy_srt, "mock_hash_123"
-
         with patch.object(stock_video_renderer, "probe_media_duration", return_value=60.0), \
              patch.object(stock_video_renderer.imageio_ffmpeg, "get_ffmpeg_exe", return_value="ffmpeg"), \
              patch.object(stock_video_renderer, "get_available_background_videos", return_value=[bg_video]), \
-             patch.object(stock_video_renderer, "get_available_animated_icons", return_value=[icon_gif]), \
              patch.object(stock_video_renderer, "AUDIO_DIR", self.temp_path), \
              patch.object(stock_video_renderer, "THUMBNAILS_DIR", self.temp_path), \
              patch.object(stock_video_renderer, "RENDERS_DIR", self.temp_path), \
-             patch("auto_yt.services.video_production.create_srt", side_effect=mock_create_srt), \
              patch.object(stock_video_renderer.subprocess, "Popen", side_effect=mock_popen):
 
             (self.temp_path / f"video_{video_id}.mp3").write_bytes(b"ID3" + b"\x00" * 1024)
@@ -373,12 +374,13 @@ class StockVideoRendererTests(unittest.TestCase):
                 cancel_check=lambda: None,
             )
             self.assertEqual(res["render_mode"], "stock_video")
-            self.assertEqual(res["captions_path"], str(dummy_srt))
-
-            caption_art = db.get_latest_video_artifact(video_id, "captions")
-            self.assertIsNotNone(caption_art)
-            self.assertEqual(caption_art["status"], "ready")
-            self.assertEqual(caption_art["path"], str(dummy_srt))
+            # Subtitles must be omitted
+            self.assertIsNone(res["captions_path"])
+            render_cmds = [c for c in captured_cmd if "-filter_complex" in c]
+            self.assertTrue(len(render_cmds) >= 1)
+            self.assertNotIn("subtitles=", render_cmds[0])
+            self.assertIn("between(t,0,3)", render_cmds[0])
+            self.assertIn("s=520x260:mode=cline", render_cmds[0])
 
 
 if __name__ == "__main__":
