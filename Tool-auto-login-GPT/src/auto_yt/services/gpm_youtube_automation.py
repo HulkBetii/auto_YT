@@ -24,12 +24,132 @@ from auto_yt.services.channel_scanner_service import (
     channel_browser_session,
     cleanup_owned_page,
 )
+from auto_yt.services.browser_diagnostics import capture_browser_diagnostics_async
 
 logger = logging.getLogger(__name__)
 
 
 class GpmAutomationError(RuntimeError):
     """Raised when an automation action fails inside a GPM browser session."""
+
+
+_COMMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+_COMMENTS_ROOT_SELECTOR = "ytd-comments, ytd-watch-flexy #comments"
+_COMMENT_RENDERER_SELECTOR = "ytd-comment-thread-renderer, ytd-comment-view-model"
+
+
+def _validate_comment_id(comment_id: str) -> str:
+    clean_id = str(comment_id or "").strip()
+    if clean_id and not _COMMENT_ID_PATTERN.fullmatch(clean_id):
+        raise ValueError("comment_id YouTube không hợp lệ.")
+    return clean_id
+
+
+async def _wait_for_target_comment_thread(
+    page: Any,
+    comment_id: str,
+    *,
+    timeout_seconds: float,
+) -> Any:
+    """Trigger comment lazy-loading and return only the verified target thread."""
+    clean_comment_id = _validate_comment_id(comment_id)
+    if not clean_comment_id:
+        raise GpmAutomationError("Thiếu comment_id để xác minh bình luận mục tiêu.")
+
+    timeout_ms = max(1000, min(int(timeout_seconds * 1000), 15000))
+    try:
+        await page.wait_for_selector(
+            _COMMENTS_ROOT_SELECTOR,
+            state="attached",
+            timeout=timeout_ms,
+        )
+        # YouTube initially mounts ytd-comments as a zero-position placeholder.
+        # Scrolling at that point is a no-op; wait until layout places the real
+        # comments section below the player (or the page already scrolled there).
+        await page.wait_for_function(
+            """() => {
+                const comments = document.querySelector('ytd-comments')
+                    || document.querySelector('ytd-watch-flexy #comments');
+                if (!comments) return false;
+                const rect = comments.getBoundingClientRect();
+                const documentTop = rect.top + window.scrollY;
+                return rect.width > 0
+                    && rect.height > 0
+                    && (documentTop > 200 || window.scrollY > 200);
+            }""",
+            timeout=timeout_ms,
+        )
+        await page.evaluate(
+            """() => {
+                const comments = document.querySelector('ytd-comments')
+                    || document.querySelector('ytd-watch-flexy #comments');
+                if (comments) comments.scrollIntoView({block: 'center', inline: 'nearest'});
+            }"""
+        )
+        await page.wait_for_selector(
+            _COMMENT_RENDERER_SELECTOR,
+            state="visible",
+            timeout=timeout_ms,
+        )
+    except Exception as exc:
+        raise GpmAutomationError(
+            "YouTube không tải được danh sách bình luận sau khi layout đã sẵn sàng."
+        ) from exc
+
+    target_selector = (
+        f'ytd-comment-thread-renderer:has(a[href*="lc={clean_comment_id}"]), '
+        f'ytd-comment-view-model:has(a[href*="lc={clean_comment_id}"])'
+    )
+    try:
+        target_thread = await page.wait_for_selector(
+            target_selector,
+            state="visible",
+            timeout=timeout_ms,
+        )
+    except Exception as exc:
+        raise GpmAutomationError(
+            f"Không xác minh được bình luận mục tiêu '{clean_comment_id}' trên trang YouTube."
+        ) from exc
+    if not target_thread:
+        raise GpmAutomationError(
+            f"Không xác minh được bình luận mục tiêu '{clean_comment_id}' trên trang YouTube."
+        )
+    return target_thread
+
+
+async def _collect_comment_page_state(page: Any) -> dict[str, Any]:
+    """Collect non-sensitive DOM state for failure logs."""
+    try:
+        state = await page.evaluate(
+            """() => {
+                const comments = document.querySelector('ytd-comments')
+                    || document.querySelector('ytd-watch-flexy #comments');
+                const rect = comments ? comments.getBoundingClientRect() : null;
+                const body = (document.body?.innerText || '').toLowerCase();
+                const markers = [
+                    'comments are turned off', 'comments are disabled',
+                    'restricted mode has hidden comments',
+                    'chế độ hạn chế đã ẩn bình luận', 'bình luận bị tắt',
+                    'confirm your age', 'xác nhận tuổi',
+                    'unusual traffic', 'lưu lượng truy cập bất thường'
+                ];
+                return {
+                    ready_state: document.readyState,
+                    scroll_y: window.scrollY,
+                    comments_document_top: rect ? rect.top + window.scrollY : null,
+                    comments_height: rect ? rect.height : null,
+                    thread_count: document.querySelectorAll('ytd-comment-thread-renderer').length,
+                    view_model_count: document.querySelectorAll('ytd-comment-view-model').length,
+                    highlighted_count: document.querySelectorAll(
+                        'ytd-comment-thread-renderer[is-highlighted], ytd-comment-view-model[is-highlighted]'
+                    ).length,
+                    markers: markers.filter(marker => body.includes(marker)),
+                };
+            }"""
+        )
+        return state if isinstance(state, dict) else {}
+    except Exception:
+        return {}
 
 
 async def verify_youtube_login(
@@ -133,7 +253,7 @@ async def post_comment_reply_via_gpm(
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
     """Post a comment reply (and optionally give Creator Heart) to a video watch page using the channel's GPM profile."""
-    clean_comment_id = str(comment_id or "").strip()
+    clean_comment_id = _validate_comment_id(comment_id)
     target_url = str(video_url or "").strip()
     if clean_comment_id and f"lc={clean_comment_id}" not in target_url:
         delimiter = "&" if "?" in target_url else "?"
@@ -153,18 +273,15 @@ async def post_comment_reply_via_gpm(
         await page.bring_to_front()
         try:
             await page.goto(target_url, wait_until="domcontentloaded", timeout=int(timeout_seconds * 1000))
-            await asyncio.sleep(2.0)
-
-            # Scroll down to load comments section
-            await page.evaluate("window.scrollBy(0, 500)")
-            await asyncio.sleep(1.5)
 
             # If replying to a specific linked comment
             if clean_comment_id:
-                # 1. Locate the highlighted or target comment thread
-                target_thread = await page.wait_for_selector(
-                    "ytd-comment-thread-renderer[is-highlighted], ytd-comment-view-model[is-highlighted], ytd-comment-thread-renderer",
-                    timeout=10000,
+                # 1. Wait for YouTube's deferred layout, trigger lazy loading,
+                # and prove the selected thread owns the target permalink.
+                target_thread = await _wait_for_target_comment_thread(
+                    page,
+                    clean_comment_id,
+                    timeout_seconds=timeout_seconds,
                 )
 
                 # 2. Perform Creator Heart if auto_heart is requested
@@ -197,6 +314,10 @@ async def post_comment_reply_via_gpm(
                 if reply_btn:
                     await reply_btn.click()
                     await asyncio.sleep(0.5)
+                else:
+                    raise GpmAutomationError(
+                        "Không tìm thấy nút Trả lời trong bình luận mục tiêu đã xác minh."
+                    )
 
                 # 4. Find editable reply box in the active reply dialog or page
                 editable = await page.wait_for_selector(
@@ -255,8 +376,29 @@ async def post_comment_reply_via_gpm(
             }
         except Exception as exc:
             failed = True
-            logger.error("Lỗi khi đăng bình luận qua GPM: %s", exc)
-            raise GpmAutomationError(f"Không thể đăng bình luận qua GPM: {exc}") from exc
+            page_state = await _collect_comment_page_state(page)
+            logger.error(
+                "Lỗi khi đăng bình luận qua GPM: %s (page_state=%s)",
+                exc,
+                page_state,
+            )
+            diagnostic_name = ""
+            try:
+                diagnostic = await capture_browser_diagnostics_async(
+                    page=page,
+                    service="youtube_comment_reply",
+                    job_id=clean_comment_id or None,
+                    error=exc,
+                    action_name="post_comment_reply_via_gpm",
+                )
+                diagnostic_path = str(diagnostic.get("dom_path") or diagnostic.get("screenshot_path") or "")
+                diagnostic_name = Path(diagnostic_path).name if diagnostic_path else ""
+            except Exception as diagnostic_exc:
+                logger.warning("Không thể lưu chẩn đoán lỗi bình luận: %s", diagnostic_exc)
+            diagnostic_hint = f" Chẩn đoán: {diagnostic_name}." if diagnostic_name else ""
+            raise GpmAutomationError(
+                f"Không thể đăng bình luận qua GPM: {exc}.{diagnostic_hint}"
+            ) from exc
         finally:
             await cleanup_owned_page(context, page, preserve=failed)
 

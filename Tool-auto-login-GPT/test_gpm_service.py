@@ -452,7 +452,8 @@ def test_post_comment_reply_via_gpm_with_auto_heart():
     mock_page = AsyncMock()
     mock_page.goto = AsyncMock()
     mock_page.evaluate = AsyncMock()
-    async def page_wait_for_selector(sel, timeout=5000):
+    mock_page.wait_for_function = AsyncMock(return_value=True)
+    async def page_wait_for_selector(sel, **kwargs):
         if "comment-thread" in sel:
             return mock_thread
         if "contenteditable" in sel:
@@ -493,6 +494,173 @@ def test_post_comment_reply_via_gpm_with_auto_heart():
         mock_submit_btn.click.assert_called_once()
 
     print("✓ test_post_comment_reply_via_gpm_with_auto_heart passed")
+
+
+def test_wait_for_target_comment_thread_waits_for_layout_before_scrolling():
+    """The comments placeholder must settle below the player before lazy-load scrolling."""
+    from auto_yt.services import gpm_youtube_automation
+
+    events = []
+    target_thread = AsyncMock()
+
+    class FakePage:
+        async def wait_for_selector(self, selector, **kwargs):
+            events.append(("selector", selector))
+            if "lc=Ugx_TARGET_1" in selector:
+                return target_thread
+            return AsyncMock()
+
+        async def wait_for_function(self, expression, **kwargs):
+            events.append(("layout", expression))
+            return True
+
+        async def evaluate(self, expression, *args):
+            events.append(("evaluate", expression))
+            return None
+
+    result = asyncio.run(
+        gpm_youtube_automation._wait_for_target_comment_thread(
+            FakePage(),
+            "Ugx_TARGET_1",
+            timeout_seconds=5.0,
+        )
+    )
+
+    assert result is target_thread
+    layout_index = next(i for i, event in enumerate(events) if event[0] == "layout")
+    scroll_index = next(i for i, event in enumerate(events) if event[0] == "evaluate")
+    target_index = next(
+        i for i, event in enumerate(events)
+        if event[0] == "selector" and "lc=Ugx_TARGET_1" in event[1]
+    )
+    assert layout_index < scroll_index < target_index
+    assert "documentTop" in events[layout_index][1]
+    print("✓ test_wait_for_target_comment_thread_waits_for_layout_before_scrolling passed")
+
+
+def test_wait_for_target_comment_thread_fails_closed_when_target_is_missing():
+    """Never fall back to the first visible comment when the target permalink is absent."""
+    from auto_yt.services import gpm_youtube_automation
+
+    first_thread = AsyncMock()
+
+    class FakePage:
+        async def wait_for_selector(self, selector, **kwargs):
+            if "lc=Ugx_MISSING_1" in selector:
+                return None
+            if "ytd-comment-thread-renderer" in selector:
+                return first_thread
+            return AsyncMock()
+
+        async def wait_for_function(self, expression, **kwargs):
+            return True
+
+        async def evaluate(self, expression, *args):
+            return None
+
+    try:
+        asyncio.run(
+            gpm_youtube_automation._wait_for_target_comment_thread(
+                FakePage(),
+                "Ugx_MISSING_1",
+                timeout_seconds=5.0,
+            )
+        )
+    except gpm_youtube_automation.GpmAutomationError as exc:
+        assert "bình luận mục tiêu" in str(exc)
+    else:
+        raise AssertionError("Missing target comment must fail closed")
+
+    first_thread.query_selector.assert_not_called()
+    print("✓ test_wait_for_target_comment_thread_fails_closed_when_target_is_missing passed")
+
+
+def test_post_comment_reply_via_gpm_rejects_unsafe_comment_id():
+    """Untrusted comment IDs must not be interpolated into a CSS selector."""
+    from auto_yt.services import gpm_youtube_automation
+
+    try:
+        asyncio.run(
+            gpm_youtube_automation.post_comment_reply_via_gpm(
+                profile_id="p1",
+                video_url="https://www.youtube.com/watch?v=TEST_VID_1",
+                comment_text="Cảm ơn bạn!",
+                comment_id='Ugx_bad\"]:has(*)',
+            )
+        )
+    except ValueError as exc:
+        assert "comment_id" in str(exc)
+    else:
+        raise AssertionError("Unsafe comment_id must be rejected before browser use")
+    print("✓ test_post_comment_reply_via_gpm_rejects_unsafe_comment_id passed")
+
+
+def test_post_comment_reply_via_gpm_captures_diagnostics_before_failing_closed():
+    """A missing target produces redacted diagnostics and never touches another thread."""
+    from contextlib import asynccontextmanager
+    from auto_yt.services import gpm_youtube_automation
+
+    first_thread = AsyncMock()
+    mock_page = AsyncMock()
+    mock_page.url = "https://www.youtube.com/watch?v=TEST_VID_1&lc=Ugx_MISSING_1"
+    mock_page.goto = AsyncMock()
+    mock_page.bring_to_front = AsyncMock()
+    mock_page.wait_for_function = AsyncMock(return_value=True)
+    mock_page.evaluate = AsyncMock(side_effect=[None, {"thread_count": 1}])
+
+    async def page_wait_for_selector(selector, **kwargs):
+        if "lc=Ugx_MISSING_1" in selector:
+            return None
+        if "ytd-comment-thread-renderer" in selector:
+            return first_thread
+        return AsyncMock()
+
+    mock_page.wait_for_selector = AsyncMock(side_effect=page_wait_for_selector)
+    mock_context = AsyncMock()
+    mock_context.new_page = AsyncMock(return_value=mock_page)
+
+    @asynccontextmanager
+    async def dummy_session(profile_id):
+        yield (mock_context, AsyncMock(), {"id": profile_id})
+
+    diagnostics = AsyncMock(
+        return_value={"dom_path": "debug_youtube_comment_reply_safe.html"}
+    )
+    cleanup = AsyncMock()
+    with (
+        patch(
+            "auto_yt.services.gpm_youtube_automation.channel_browser_session",
+            side_effect=dummy_session,
+        ),
+        patch(
+            "auto_yt.services.gpm_youtube_automation.capture_browser_diagnostics_async",
+            diagnostics,
+        ),
+        patch(
+            "auto_yt.services.gpm_youtube_automation.cleanup_owned_page",
+            cleanup,
+        ),
+    ):
+        try:
+            asyncio.run(
+                gpm_youtube_automation.post_comment_reply_via_gpm(
+                    profile_id="p1",
+                    video_url="https://www.youtube.com/watch?v=TEST_VID_1",
+                    comment_text="Cảm ơn bạn!",
+                    comment_id="Ugx_MISSING_1",
+                    auto_heart=True,
+                    timeout_seconds=5.0,
+                )
+            )
+        except gpm_youtube_automation.GpmAutomationError as exc:
+            assert "debug_youtube_comment_reply_safe.html" in str(exc)
+        else:
+            raise AssertionError("Missing target must fail after diagnostics capture")
+
+    diagnostics.assert_awaited_once()
+    first_thread.query_selector.assert_not_called()
+    cleanup.assert_awaited_once_with(mock_context, mock_page, preserve=True)
+    print("✓ test_post_comment_reply_via_gpm_captures_diagnostics_before_failing_closed passed")
 
 
 def test_gpm_session_reuses_running_profile_without_duplicate_window():
@@ -581,9 +749,9 @@ def test_gpm_session_stops_profile_when_started_by_session_on_success():
 
         asyncio.run(run_session())
 
-        # The session starts once, disconnects Playwright, and stops the profile on success.
+        # The session starts once, disconnects Playwright, and closes the profile on success.
         assert any("start" in call for call in api_calls), f"Expected start call in {api_calls}"
-        assert any("stop" in call for call in api_calls), f"Expected stop call in {api_calls}"
+        assert any("close" in call for call in api_calls), f"Expected close call in {api_calls}"
         mock_playwright.stop.assert_called_once()
 
     print("✓ test_gpm_session_stops_profile_when_started_by_session_on_success passed")
@@ -698,6 +866,10 @@ if __name__ == "__main__":
     test_database_gpm_channel_mapping()
     test_fastapi_gpm_endpoints()
     test_post_comment_reply_via_gpm_with_auto_heart()
+    test_wait_for_target_comment_thread_waits_for_layout_before_scrolling()
+    test_wait_for_target_comment_thread_fails_closed_when_target_is_missing()
+    test_post_comment_reply_via_gpm_rejects_unsafe_comment_id()
+    test_post_comment_reply_via_gpm_captures_diagnostics_before_failing_closed()
     test_gpm_session_reuses_running_profile_without_duplicate_window()
     test_gpm_session_stops_profile_when_started_by_session_on_success()
     test_gpm_session_preserves_profile_when_started_by_session_on_error()
