@@ -1348,6 +1348,7 @@ def start_gpm_profile_endpoint(
             addition_args=req.addition_args,
             market_timezone=resolved_tz,
             api_url=api_url,
+            manual=True,
         )
     except gpm_service.GpmProfileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

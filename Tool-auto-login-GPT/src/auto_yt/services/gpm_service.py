@@ -25,6 +25,7 @@ from auto_yt.paths import DATA_DIR
 logger = logging.getLogger(__name__)
 
 _active_gpm_profiles: dict[str, dict[str, Any]] = {}
+_tool_automated_profiles: set[str] = set()
 def get_cdp_version_info(port: int | None, timeout: float = 1.5) -> dict[str, Any] | None:
     """Query Chromium /json/version endpoint and return JSON dictionary if responsive."""
     if not port or port <= 0:
@@ -635,6 +636,7 @@ def kill_gpm_profile_processes(profile_id: str, api_url: str | None = None) -> i
     if not clean_id or sys.platform != "win32":
         return 0
     _active_gpm_profiles.pop(clean_id, None)
+    _tool_automated_profiles.discard(clean_id)
     profile_path = ""
     try:
         detail = get_gpm_profile_detail(clean_id, api_url=api_url)
@@ -709,18 +711,22 @@ def start_gpm_profile(
     require_cdp: bool = True,
     api_url: str | None = None,
     market_timezone: str | None = None,
+    manual: bool = False,
 ) -> dict[str, Any]:
     """Start a GPM profile browser or reuse an existing running instance, returning CDP coordinates."""
     clean_id = str(profile_id).strip()
     if not clean_id:
         raise ValueError("Profile ID không được để trống.")
 
+    if manual:
+        _tool_automated_profiles.discard(clean_id)
+
     # Reuse an existing profile process. Operational code must never stop or
     # restart a browser in order to obtain a new CDP endpoint.
     running_info = find_running_gpm_profile_coordinates(clean_id, api_url=api_url)
     if running_info and (running_info.get("remote_debugging_port") or running_info.get("websocket_debugging_url")):
         logger.info("Phát hiện GPM Profile %s đang mở sẵn với port %s, tái sử dụng cửa sổ hiện tại", clean_id, running_info.get("remote_debugging_port"))
-        running_info["already_running"] = True
+        running_info["already_running"] = (clean_id not in _tool_automated_profiles)
         _active_gpm_profiles[clean_id] = running_info
         return running_info
     if running_info and running_info.get("already_running_no_cdp"):
@@ -806,7 +812,7 @@ def start_gpm_profile(
         running_info = find_running_gpm_profile_coordinates(clean_id, api_url=api_url)
         if running_info and (running_info.get("remote_debugging_port") or running_info.get("websocket_debugging_url")):
             logger.info("Phát hiện GPM Profile %s đang mở sẵn với port %s", clean_id, running_info.get("remote_debugging_port"))
-            running_info["already_running"] = True
+            running_info["already_running"] = (clean_id not in _tool_automated_profiles)
             _active_gpm_profiles[clean_id] = running_info
             return running_info
 
@@ -829,6 +835,10 @@ def start_gpm_profile(
             }
         raise GpmProfileLaunchError(f"GPM không thể mở profile với cổng CDP: {msg}")
 
+    if not manual:
+        _tool_automated_profiles.add(clean_id)
+    else:
+        _tool_automated_profiles.discard(clean_id)
     _active_gpm_profiles[clean_id] = data
     return data
 
@@ -839,6 +849,7 @@ def stop_gpm_profile(profile_id: str, api_url: str | None = None) -> bool:
     if not clean_id:
         return False
     _active_gpm_profiles.pop(clean_id, None)
+    _tool_automated_profiles.discard(clean_id)
     logger.info("Đóng GPM Profile %s", clean_id)
     try:
         resp = _request_gpm_api(f"/profiles/stop/{clean_id}", api_url=api_url, timeout=15.0)

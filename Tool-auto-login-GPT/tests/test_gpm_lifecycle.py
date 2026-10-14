@@ -10,7 +10,13 @@ from auto_yt.services.channel_scanner_service import (
     _profile_operation_guard,
     is_profile_busy_or_queued,
 )
-from auto_yt.services.gpm_service import gpm_browser_session
+from auto_yt.services.gpm_service import (
+    _active_gpm_profiles,
+    _tool_automated_profiles,
+    gpm_browser_session,
+    start_gpm_profile,
+    stop_gpm_profile,
+)
 
 
 class TestGpmLifecycle(unittest.TestCase):
@@ -21,12 +27,17 @@ class TestGpmLifecycle(unittest.TestCase):
         self.db_patch.start()
         db.init_db()
 
+        _tool_automated_profiles.clear()
+        _active_gpm_profiles.clear()
+
         with _profile_operation_guard:
             _profile_operation_counts.clear()
 
     def tearDown(self):
         self.db_patch.stop()
         self.temp_dir.cleanup()
+        _tool_automated_profiles.clear()
+        _active_gpm_profiles.clear()
         with _profile_operation_guard:
             _profile_operation_counts.clear()
 
@@ -134,3 +145,95 @@ class TestGpmLifecycle(unittest.TestCase):
                 mock_stop.assert_called_once_with(clean_id, api_url=None)
 
         asyncio.run(run_session())
+
+    def test_automated_start_registers_tool_ownership_and_reuses_without_already_running(self):
+        clean_id = "test-prof-auto-1"
+        fake_api_resp = {
+            "success": True,
+            "data": {
+                "remote_debugging_port": 12345,
+                "websocket_debugging_url": "ws://127.0.0.1:12345",
+            },
+        }
+
+        # 1. Automated start: Tool sends start request
+        with patch("auto_yt.services.gpm_service._request_gpm_api", return_value=fake_api_resp), \
+             patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=None):
+            info = start_gpm_profile(clean_id, manual=False)
+            self.assertIn(clean_id, _tool_automated_profiles)
+            self.assertEqual(info.get("remote_debugging_port"), 12345)
+
+        # 2. Subsequent call (e.g. inside gpm_browser_session after ensure_profile_automation_ready)
+        running_coords = {
+            "remote_debugging_port": 12345,
+            "websocket_debugging_url": "ws://127.0.0.1:12345",
+        }
+        with patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=running_coords):
+            reuse_info = start_gpm_profile(clean_id, manual=False)
+            # Must NOT be marked as already_running so gpm_browser_session will auto-close it
+            self.assertFalse(reuse_info.get("already_running"))
+
+        # 3. Stop profile cleans up ownership
+        with patch("auto_yt.services.gpm_service._request_gpm_api", return_value={"success": True}):
+            stop_gpm_profile(clean_id)
+            self.assertNotIn(clean_id, _tool_automated_profiles)
+
+    def test_external_start_detected_as_already_running(self):
+        clean_id = "test-prof-ext-1"
+        running_coords = {
+            "remote_debugging_port": 12345,
+            "websocket_debugging_url": "ws://127.0.0.1:12345",
+        }
+        with patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=running_coords):
+            info = start_gpm_profile(clean_id, manual=False)
+            # Was NOT opened by tool -> must be marked already_running = True
+            self.assertTrue(info.get("already_running"))
+            self.assertNotIn(clean_id, _tool_automated_profiles)
+
+    def test_manual_start_revokes_tool_ownership(self):
+        clean_id = "test-prof-man-1"
+        _tool_automated_profiles.add(clean_id)
+
+        running_coords = {
+            "remote_debugging_port": 12345,
+            "websocket_debugging_url": "ws://127.0.0.1:12345",
+        }
+        with patch("auto_yt.services.gpm_service.find_running_gpm_profile_coordinates", return_value=running_coords):
+            info = start_gpm_profile(clean_id, manual=True)
+            # Manual start explicitly revokes tool ownership
+            self.assertTrue(info.get("already_running"))
+            self.assertNotIn(clean_id, _tool_automated_profiles)
+
+    def test_gpm_browser_session_skips_stop_when_externally_running(self):
+        clean_id = "test-prof-ext-session"
+
+        fake_launch = {
+            "already_running": True,
+            "remote_debugging_port": 12345,
+            "websocket_debugging_url": "ws://127.0.0.1:12345",
+        }
+
+        mock_context = MagicMock()
+        mock_context.pages = []
+        mock_browser = MagicMock()
+        mock_browser.contexts = [mock_context]
+
+        mock_playwright = AsyncMock()
+        mock_playwright.chromium.connect_over_cdp = AsyncMock(return_value=mock_browser)
+        mock_playwright.stop = AsyncMock()
+
+        mock_cm = AsyncMock()
+        mock_cm.start = AsyncMock(return_value=mock_playwright)
+
+        async def run_session():
+            with patch("auto_yt.services.gpm_service.start_gpm_profile", return_value=fake_launch), \
+                 patch("auto_yt.services.gpm_service.wait_for_cdp_readiness", new_callable=AsyncMock, return_value="ws://127.0.0.1:12345"), \
+                 patch("playwright.async_api.async_playwright", return_value=mock_cm), \
+                 patch("auto_yt.services.gpm_service.stop_gpm_profile") as mock_stop, \
+                 patch("auto_yt.services.channel_scanner_service.is_profile_busy_or_queued", return_value=(False, "")):
+                async with gpm_browser_session(clean_id) as (ctx, browser):
+                    pass
+                mock_stop.assert_not_called()
+
+        asyncio.run(run_session())
+
