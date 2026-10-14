@@ -744,6 +744,49 @@ class TestBrowserYouTubeUploader(unittest.IsolatedAsyncioTestCase):
         meta = build_upload_metadata(video, publishing_settings)
         self.assertEqual(meta["snippet"]["description"], "Raw Source Fallback Description")
 
+    def test_build_upload_metadata_does_not_fallback_to_source_title_for_generated_video(self):
+        from auto_yt.services.youtube_publisher import (
+            YouTubePublishError,
+            build_upload_metadata,
+        )
+
+        video = {
+            "source_type": "generated",
+            "title": "Original source title must not be published",
+            "generated_title": "",
+            "generated_script": "### [TIÊU ĐỀ]\n" + ("Mô tả dài bị đặt sai vị trí. " * 8),
+            "description": "Original source description",
+        }
+
+        with self.assertRaisesRegex(YouTubePublishError, "tiêu đề được tạo"):
+            build_upload_metadata(video, {"description_template": "{description}"})
+
+    def test_build_upload_metadata_prefers_valid_script_title_for_generated_video(self):
+        from auto_yt.services.youtube_publisher import build_upload_metadata
+
+        script_title = "Tiêu Đề Mới Trong Script | MC Văn Sâm"
+        description = (
+            "Đây là phần mô tả hợp lệ cho video, trình bày rõ nội dung câu chuyện "
+            "và thông điệp để người xem hiểu chính xác trước khi theo dõi."
+        )
+        video = {
+            "source_type": "generated",
+            "title": "Original source title",
+            "generated_title": "Stale generated title",
+            "generated_script": (
+                f"### [TIÊU ĐỀ]\n{script_title}\n\n"
+                f"### [MÔ TẢ]\n{description}"
+            ),
+        }
+
+        meta = build_upload_metadata(
+            video,
+            {"description_template": "{title}\n\n{description}"},
+        )
+
+        self.assertEqual(meta["snippet"]["title"], script_title)
+        self.assertTrue(meta["snippet"]["description"].startswith(script_title))
+
 
 if __name__ == "__main__":
     unittest.main()

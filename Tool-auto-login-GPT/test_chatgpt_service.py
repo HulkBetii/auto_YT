@@ -462,6 +462,61 @@ class ChatGptServiceTests(unittest.TestCase):
         )
         self.assertEqual(resp, "Body response text")
 
+    def test_mapping_tree_payload_rejects_sibling_when_current_branch_is_incomplete(self):
+        payload = {
+            "current_node": "node-current-assistant",
+            "mapping": {
+                "node-current-assistant": {
+                    "id": "node-current-assistant",
+                    "message": {
+                        "id": "node-current-assistant",
+                        "author": {"role": "assistant"},
+                        "status": "in_progress",
+                        "end_turn": False,
+                        "content": {"content_type": "text", "parts": [""]},
+                        "create_time": 103.0,
+                    },
+                    "parent": "node-missing-user",
+                    "children": [],
+                },
+                "node-title-user": {
+                    "id": "node-title-user",
+                    "message": {
+                        "id": "node-title-user",
+                        "author": {"role": "user"},
+                        "status": "finished_successfully",
+                        "content": {"content_type": "text", "parts": ["Title prompt"]},
+                        "create_time": 100.0,
+                    },
+                    "parent": "node-root",
+                    "children": [],
+                },
+                "node-sibling-assistant": {
+                    "id": "node-sibling-assistant",
+                    "message": {
+                        "id": "node-sibling-assistant",
+                        "author": {"role": "assistant"},
+                        "status": "finished_successfully",
+                        "end_turn": True,
+                        "content": {
+                            "content_type": "text",
+                            "parts": ["Wrong description from another branch"],
+                        },
+                        "create_time": 101.0,
+                    },
+                    "parent": "node-other-user",
+                    "children": [],
+                },
+            },
+        }
+
+        response = chatgpt_worker.extract_assistant_response_from_conversation_payload(
+            payload,
+            "Title prompt",
+        )
+
+        self.assertEqual(response, "")
+
     def test_dil_payload_extraction_keeps_same_prompt_on_current_exchange(self):
         payload = make_paginated_dil_conversation_payload()
         payload["messages"][0:0] = [
@@ -1542,22 +1597,25 @@ class ChatGptServiceTests(unittest.TestCase):
         self.assertEqual(result["chat_url"], "https://chatgpt.com/c/test")
 
     def test_partial_worker_metadata_is_returned_to_the_backend(self):
-        completed_process = Mock(
-            returncode=0,
-            stdout=(
+        completed_process = Mock(returncode=0)
+        completed_process.communicate.return_value = (
+            (
                 b"Partial script\n"
                 b"###CHAT_URL###https://chatgpt.com/c/test\n"
                 b"###WORKER_META###"
                 b'{"warning":"chapters: timed out",'
                 b'"failed_step":"chapters",'
-                b'"complete_for_audio":true}'
+                b'"complete_for_audio":true,'
+                b'"metadata_ready":false,'
+                b'"metadata_errors":["title: missing title"],'
+                b'"publish_ready":false}'
             ),
-            stderr=b"",
+            b"",
         )
 
         with patch.object(
             chatgpt_service.subprocess,
-            "run",
+            "Popen",
             return_value=completed_process,
         ):
             result = chatgpt_service.process_prompt_via_chatgpt("transcript")
@@ -1566,6 +1624,9 @@ class ChatGptServiceTests(unittest.TestCase):
         self.assertEqual(result["chat_url"], "https://chatgpt.com/c/test")
         self.assertEqual(result["failed_step"], "chapters")
         self.assertTrue(result["complete_for_audio"])
+        self.assertFalse(result["metadata_ready"])
+        self.assertEqual(result["metadata_errors"], ["title: missing title"])
+        self.assertFalse(result["publish_ready"])
         self.assertIn("timed out", result["warning"])
 
     def test_chapter_timeout_preserves_complete_core_script(self):

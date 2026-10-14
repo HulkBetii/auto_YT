@@ -1,7 +1,18 @@
+import copy
+
 import pytest
-from auto_yt.services.chatgpt_worker import clean_text, sanitize_and_repair_metadata
+from auto_yt.services.chatgpt_worker import (
+    build_video_script,
+    clean_text,
+    sanitize_and_repair_metadata,
+)
 from auto_yt.dialogue_parser import clean_turn_text_for_tts, sanitize_dialogue_script
 from auto_yt.services.browser_youtube_uploader import _sanitize_youtube_metadata_field
+from auto_yt.services.metadata_validation import (
+    metadata_component_error,
+    repair_swapped_script_metadata,
+    validate_required_metadata,
+)
 
 
 def test_clean_text_decodes_html_entities():
@@ -50,6 +61,60 @@ def test_sanitize_and_repair_metadata():
     assert ":::writing" not in state["description"]
     assert ":::" not in state["description"]
     assert state["description"] == "Mô tả video tâm lý."
+
+
+@pytest.mark.parametrize("content_mode", ["monologue", "dialogue"])
+def test_build_video_script_does_not_mutate_generation_state(content_mode):
+    state = {
+        "content_mode": content_mode,
+        "intro": "Mở đầu đủ dài cho nội dung thử nghiệm của video.",
+        "body_parts": ["Nội dung chính đủ dài cho thử nghiệm."],
+        "outro": "Kết thúc đủ dài cho nội dung thử nghiệm của video.",
+        "title": "Một " + "tiêu đề rất dài " * 20,
+        "slug": "slug-hop-le",
+        "description": "Đây là phần mô tả đủ dài để kiểm tra việc dựng script không thay đổi state gốc của tiến trình tạo video.",
+    }
+    before = copy.deepcopy(state)
+
+    build_video_script(state)
+
+    assert state == before
+
+
+def test_metadata_validator_rejects_swapped_and_duplicated_fields():
+    long_description = (
+        "Câu chuyện kể về một gia đình trải qua nhiều biến cố và những lựa chọn "
+        "khó khăn, từ đó làm rõ giá trị của lòng tin, trách nhiệm và sự bao dung."
+    )
+    title = "Đại Úy Thay Vợ Bầu Ăn Cơm Thừa Trong Miếu Hoang | MC Văn Sâm"
+
+    assert metadata_component_error("title", long_description)
+    assert metadata_component_error("description", title)
+    assert metadata_component_error("slug", "Đây không phải slug")
+    assert validate_required_metadata(
+        {"title": title, "slug": "dai-uy-trong-mieu-hoang", "description": title},
+        {"title": True, "slug": True, "description": True},
+    )
+
+
+def test_repair_swapped_script_metadata_only_repairs_unambiguous_swap():
+    description = (
+        "Câu chuyện kể về một gia đình trải qua nhiều biến cố và những lựa chọn "
+        "khó khăn, từ đó làm rõ giá trị của lòng tin, trách nhiệm và sự bao dung."
+    )
+    title = "Đại Úy Thay Vợ Bầu Ăn Cơm Thừa Trong Miếu Hoang | MC Văn Sâm"
+    script = (
+        f"### [TIÊU ĐỀ]\n{description}\n\n"
+        "### [SLUG]\ndai-uy-trong-mieu-hoang\n\n"
+        f"### [MÔ TẢ]\n{title}\n\n"
+        "### [HASHTAGS]\n#MCVanSam #TamSu"
+    )
+
+    repaired, changed = repair_swapped_script_metadata(script)
+
+    assert changed is True
+    assert f"### [TIÊU ĐỀ]\n{title}" in repaired
+    assert f"### [MÔ TẢ]\n{description}" in repaired
 
 
 def test_dialogue_parser_cleaning():
@@ -195,6 +260,5 @@ def test_audio_review_allows_emphasis_question_marks():
     report = audit_script_for_audio(test_script)
     error_codes = [e["code"] for e in report["errors"]]
     assert "corrupted_unicode" not in error_codes
-
 
 

@@ -2,6 +2,7 @@ import sys
 import time
 import asyncio
 import base64
+import copy
 import html
 import json
 import os
@@ -35,6 +36,10 @@ from auto_yt.services.network_security import (
     MAX_IMAGE_DOWNLOAD_BYTES,
     validate_chatgpt_image_url,
     validate_image_bytes,
+)
+from auto_yt.services.metadata_validation import (
+    metadata_component_error,
+    validate_required_metadata,
 )
 from auto_yt.services import chatgpt_browser_service
 from auto_yt.services.chatgpt_runtime import (
@@ -3018,6 +3023,14 @@ def _get_payload_parent_id(message: dict) -> str:
 def _get_completed_payload_assistant_text(message: dict) -> str:
     if _get_payload_message_role(message) != "assistant":
         return ""
+    content = message.get("content")
+    content_type = (
+        str(content.get("content_type") or "").casefold()
+        if isinstance(content, dict)
+        else ""
+    )
+    if content_type in ("thought", "thoughts"):
+        return ""
     recipient = str(message.get("recipient") or "").lower()
     if recipient in ("thought", "thoughts", "browser", "python", "dalle", "interpreter"):
         return ""
@@ -3027,6 +3040,52 @@ def _get_completed_payload_assistant_text(message: dict) -> str:
     if message.get("end_turn") is False:
         return ""
     return _get_payload_assistant_text(message)
+
+
+def _extract_correlated_descendant_response(
+    mapping: dict,
+    current_node: str,
+    correlation_field: str,
+    correlation_value: object,
+) -> str:
+    candidates: list[str] = []
+    for node_id, node in mapping.items():
+        if not isinstance(node, dict) or str(node_id) == current_node:
+            continue
+        message = node.get("message")
+        if not isinstance(message, dict):
+            continue
+        if _get_payload_message_metadata(message).get(correlation_field) != correlation_value:
+            continue
+
+        ancestor_id = str(node.get("parent") or _get_payload_parent_id(message) or "")
+        seen: set[str] = set()
+        is_descendant = False
+        while ancestor_id and ancestor_id not in seen:
+            if ancestor_id == current_node:
+                is_descendant = True
+                break
+            seen.add(ancestor_id)
+            ancestor = mapping.get(ancestor_id)
+            if not isinstance(ancestor, dict):
+                break
+            ancestor_message = ancestor.get("message")
+            ancestor_id = str(
+                ancestor.get("parent")
+                or (
+                    _get_payload_parent_id(ancestor_message)
+                    if isinstance(ancestor_message, dict)
+                    else ""
+                )
+                or ""
+            )
+        if not is_descendant:
+            continue
+        response = _get_completed_payload_assistant_text(message)
+        if response and not _is_pure_thinking_indicator(response):
+            candidates.append(response)
+
+    return candidates[0] if len(candidates) == 1 else ""
 
 
 def _extract_payload_response_after_user(
@@ -3194,12 +3253,32 @@ def extract_assistant_response_from_conversation_payload(
                     "accepted",
                 )
                 return exchange_response
+            mapping = payload.get("mapping")
+            descendant_response = (
+                _extract_correlated_descendant_response(
+                    mapping,
+                    current_node,
+                    correlation_field,
+                    correlation_value,
+                )
+                if isinstance(mapping, dict)
+                else ""
+            )
+            if descendant_response:
+                _log_payload_recovery_selection(
+                    len(messages),
+                    parent_chain_incomplete,
+                    f"{correlation_field}_descendant",
+                    "accepted",
+                )
+                return descendant_response
             _log_payload_recovery_selection(
                 len(messages),
                 parent_chain_incomplete,
                 correlation_field,
                 "matching_response_missing",
             )
+            return ""
 
     if current_message is not None:
         current_index = messages.index(current_message)
@@ -3231,7 +3310,11 @@ def extract_assistant_response_from_conversation_payload(
         if current_node
         else _extract_payload_response_after_user(messages, expected_user_text)
     )
-    if not response_text and isinstance(payload.get("mapping"), dict):
+    if (
+        not response_text
+        and not current_node
+        and isinstance(payload.get("mapping"), dict)
+    ):
         all_msgs = [
             node["message"]
             for node in payload["mapping"].values()
@@ -4326,6 +4409,16 @@ def remove_vietnamese_accents(text: str) -> str:
     return "".join(c for c in text if not unicodedata.combining(c))
 
 
+def normalize_and_validate_metadata_component(
+    component: str,
+    value: object,
+) -> tuple[str, str]:
+    cleaned = clean_text(str(value or "")).strip()
+    if looks_like_chatgpt_error(cleaned) or _is_pure_thinking_indicator(cleaned):
+        return cleaned, f"{component} contains a ChatGPT error or thinking placeholder"
+    return cleaned, metadata_component_error(component, cleaned)
+
+
 def sanitize_and_repair_metadata(state: dict) -> None:
     if not isinstance(state, dict):
         return
@@ -4407,6 +4500,7 @@ def sanitize_and_repair_metadata(state: dict) -> None:
 
 
 def build_monologue_video_script(state: dict) -> str:
+    state = copy.deepcopy(state)
     sanitize_and_repair_metadata(state)
     intro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("intro", "")))
     body = "\n\n".join(
@@ -4449,6 +4543,7 @@ def build_monologue_video_script(state: dict) -> str:
 
 
 def build_dialogue_video_script(state: dict) -> str:
+    state = copy.deepcopy(state)
     sanitize_and_repair_metadata(state)
     intro = dedup_consecutive_paragraphs(sanitize_narrative_response(state.get("intro", "")))
     body = "\n\n".join(
@@ -4748,11 +4843,11 @@ def _run_monologue_pre_audio_pipeline(
             "title",
             prompt_title,
         )
-        title = title.strip() if isinstance(title, str) else ""
-        if not title or looks_like_chatgpt_error(title) or _is_pure_thinking_indicator(title) or len(title) < 10:
+        title, validation_error = normalize_and_validate_metadata_component("title", title)
+        if validation_error:
             clear_pending_generation_prompt(state, "title", prompt_title)
             persist_generation_state(state)
-            raise RuntimeError(f"ChatGPT returned an invalid or incomplete title (got: {repr(title[:60])}).")
+            raise RuntimeError(f"ChatGPT returned an invalid title: {validation_error}.")
         state["title"] = title
         clear_pending_generation_prompt(state, "title", prompt_title)
         persist_generation_state(state)
@@ -4768,11 +4863,11 @@ def _run_monologue_pre_audio_pipeline(
             "slug",
             prompt_slug,
         )
-        slug = slug.strip() if isinstance(slug, str) else ""
-        if not slug or looks_like_chatgpt_error(slug) or _is_pure_thinking_indicator(slug) or len(slug) < 3:
+        slug, validation_error = normalize_and_validate_metadata_component("slug", slug)
+        if validation_error:
             clear_pending_generation_prompt(state, "slug", prompt_slug)
             persist_generation_state(state)
-            raise RuntimeError(f"ChatGPT returned an invalid or incomplete slug (got: {repr(slug[:60])}).")
+            raise RuntimeError(f"ChatGPT returned an invalid slug: {validation_error}.")
         state["slug"] = slug
         clear_pending_generation_prompt(state, "slug", prompt_slug)
         persist_generation_state(state)
@@ -4788,11 +4883,14 @@ def _run_monologue_pre_audio_pipeline(
             "description",
             prompt_desc,
         )
-        description = description.strip() if isinstance(description, str) else ""
-        if not description or looks_like_chatgpt_error(description) or _is_pure_thinking_indicator(description) or len(description) < 80:
+        description, validation_error = normalize_and_validate_metadata_component(
+            "description",
+            description,
+        )
+        if validation_error:
             clear_pending_generation_prompt(state, "description", prompt_desc)
             persist_generation_state(state)
-            raise RuntimeError(f"ChatGPT returned an invalid or incomplete description (got: {repr(description[:60])}).")
+            raise RuntimeError(f"ChatGPT returned an invalid description: {validation_error}.")
         state["description"] = description
         clear_pending_generation_prompt(state, "description", prompt_desc)
         persist_generation_state(state)
@@ -5037,13 +5135,24 @@ def _run_monologue_pre_audio_pipeline(
     state["current_step"] = "complete"
     persist_generation_state(state)
     complete_for_audio = is_core_script_complete(transcript, state)
-    warning = "" if complete_for_audio else "The core video script is incomplete."
+    metadata_errors = validate_required_metadata(state, pipeline)
+    metadata_ready = not metadata_errors
+    publish_ready = complete_for_audio and metadata_ready
+    warning_parts = []
+    if not complete_for_audio:
+        warning_parts.append("The core video script is incomplete.")
+    if metadata_errors:
+        warning_parts.append("Metadata is not publish-ready: " + "; ".join(metadata_errors))
+    warning = " ".join(warning_parts)
     return {
         "script": build_monologue_video_script(state),
         "chat_url": chat_url,
         "warning": warning,
         "failed_step": "" if complete_for_audio else state["current_step"],
         "complete_for_audio": complete_for_audio,
+        "metadata_ready": metadata_ready,
+        "metadata_errors": metadata_errors,
+        "publish_ready": publish_ready,
         "pipeline": pipeline,
         "content_mode": "monologue",
     }
@@ -5268,11 +5377,11 @@ def _run_dialogue_pre_audio_pipeline(
             "title",
             prompt_title,
         )
-        title = title.strip() if isinstance(title, str) else ""
-        if not title or looks_like_chatgpt_error(title) or _is_pure_thinking_indicator(title) or len(title) < 10:
+        title, validation_error = normalize_and_validate_metadata_component("title", title)
+        if validation_error:
             clear_pending_generation_prompt(state, "title", prompt_title)
             persist_generation_state(state)
-            raise RuntimeError(f"ChatGPT returned an invalid or incomplete title (got: {repr(title[:60])}).")
+            raise RuntimeError(f"ChatGPT returned an invalid title: {validation_error}.")
         state["title"] = title
         clear_pending_generation_prompt(state, "title", prompt_title)
         persist_generation_state(state)
@@ -5288,11 +5397,11 @@ def _run_dialogue_pre_audio_pipeline(
             "slug",
             prompt_slug,
         )
-        slug = slug.strip() if isinstance(slug, str) else ""
-        if not slug or looks_like_chatgpt_error(slug) or _is_pure_thinking_indicator(slug) or len(slug) < 3:
+        slug, validation_error = normalize_and_validate_metadata_component("slug", slug)
+        if validation_error:
             clear_pending_generation_prompt(state, "slug", prompt_slug)
             persist_generation_state(state)
-            raise RuntimeError(f"ChatGPT returned an invalid or incomplete slug (got: {repr(slug[:60])}).")
+            raise RuntimeError(f"ChatGPT returned an invalid slug: {validation_error}.")
         state["slug"] = slug
         clear_pending_generation_prompt(state, "slug", prompt_slug)
         persist_generation_state(state)
@@ -5308,11 +5417,14 @@ def _run_dialogue_pre_audio_pipeline(
             "description",
             prompt_desc,
         )
-        description = description.strip() if isinstance(description, str) else ""
-        if not description or looks_like_chatgpt_error(description) or _is_pure_thinking_indicator(description) or len(description) < 80:
+        description, validation_error = normalize_and_validate_metadata_component(
+            "description",
+            description,
+        )
+        if validation_error:
             clear_pending_generation_prompt(state, "description", prompt_desc)
             persist_generation_state(state)
-            raise RuntimeError(f"ChatGPT returned an invalid or incomplete description (got: {repr(description[:60])}).")
+            raise RuntimeError(f"ChatGPT returned an invalid description: {validation_error}.")
         state["description"] = description
         clear_pending_generation_prompt(state, "description", prompt_desc)
         persist_generation_state(state)
@@ -5557,13 +5669,24 @@ def _run_dialogue_pre_audio_pipeline(
     state["current_step"] = "complete"
     persist_generation_state(state)
     complete_for_audio = is_core_script_complete(transcript, state)
-    warning = "" if complete_for_audio else "The core video script is incomplete."
+    metadata_errors = validate_required_metadata(state, pipeline)
+    metadata_ready = not metadata_errors
+    publish_ready = complete_for_audio and metadata_ready
+    warning_parts = []
+    if not complete_for_audio:
+        warning_parts.append("The core video script is incomplete.")
+    if metadata_errors:
+        warning_parts.append("Metadata is not publish-ready: " + "; ".join(metadata_errors))
+    warning = " ".join(warning_parts)
     return {
         "script": build_dialogue_video_script(state),
         "chat_url": chat_url,
         "warning": warning,
         "failed_step": "" if complete_for_audio else state["current_step"],
         "complete_for_audio": complete_for_audio,
+        "metadata_ready": metadata_ready,
+        "metadata_errors": metadata_errors,
+        "publish_ready": publish_ready,
         "pipeline": pipeline,
         "content_mode": "dialogue",
     }
@@ -5703,6 +5826,9 @@ def run(transcript: str) -> dict:
             file=sys.stderr,
         )
         complete_for_audio = is_core_script_complete(transcript, state)
+        pipeline = normalize_prompt_pipeline(state.get("pipeline"))
+        metadata_errors = validate_required_metadata(state, pipeline)
+        metadata_ready = not metadata_errors
         persist_generation_state(state)
         return {
             "script": build_video_script(state),
@@ -5710,7 +5836,10 @@ def run(transcript: str) -> dict:
             "warning": warning,
             "failed_step": failed_step,
             "complete_for_audio": complete_for_audio,
-            "pipeline": normalize_prompt_pipeline(state.get("pipeline")),
+            "metadata_ready": metadata_ready,
+            "metadata_errors": metadata_errors,
+            "publish_ready": complete_for_audio and metadata_ready,
+            "pipeline": pipeline,
         }
 
 
@@ -6248,6 +6377,21 @@ if __name__ == "__main__":
             "failed_step": result.get("failed_step", "") if isinstance(result, dict) else "",
             "complete_for_audio": (
                 result.get("complete_for_audio", True)
+                if isinstance(result, dict)
+                else True
+            ),
+            "metadata_ready": (
+                result.get("metadata_ready", True)
+                if isinstance(result, dict)
+                else True
+            ),
+            "metadata_errors": (
+                result.get("metadata_errors", [])
+                if isinstance(result, dict)
+                else []
+            ),
+            "publish_ready": (
+                result.get("publish_ready", True)
                 if isinstance(result, dict)
                 else True
             ),

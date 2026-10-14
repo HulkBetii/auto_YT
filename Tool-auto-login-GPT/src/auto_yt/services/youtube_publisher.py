@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 
 from auto_yt.services import database as db
+from auto_yt.services.metadata_validation import metadata_component_error
 from auto_yt.services.proxy_utils import create_proxy_opener
 
 
@@ -184,11 +185,56 @@ def build_actual_youtube_description(video: dict, publishing_settings: dict | No
 
 
 def build_upload_metadata(video: dict, publishing_settings: dict) -> dict:
-    title = str(video.get("generated_title") or video.get("title") or "").strip()
-    if not title:
-        title = db.extract_generated_video_title(video.get("generated_script") or "")
+    script = str(video.get("generated_script") or "")
+    generated_title = str(
+        video.get("generated_title")
+        or db.extract_generated_video_title(script)
+        or ""
+    ).strip()
+    is_generated_video = video.get("source_type") == db.VIDEO_SOURCE_GENERATED
+    raw_title_match = db.TITLE_SECTION_PATTERN.search(script)
+    raw_generated_title = (
+        raw_title_match.group(1).strip() if raw_title_match else ""
+    )
+    if is_generated_video and raw_generated_title:
+        raw_title_error = metadata_component_error("title", raw_generated_title)
+        if raw_title_error:
+            raise YouTubePublishError(
+                f"Section tiêu đề được tạo chưa hợp lệ: {raw_title_error}."
+            )
+        generated_title = raw_generated_title
+    if is_generated_video and not generated_title:
+        raise YouTubePublishError(
+            "Video được tạo chưa có tiêu đề được tạo hợp lệ; không dùng tiêu đề nguồn để publish."
+        )
+    title = generated_title or str(video.get("title") or "").strip()
 
-    description = build_actual_youtube_description(video, publishing_settings)
+    if is_generated_video:
+        title_error = metadata_component_error("title", title)
+        if title_error:
+            raise YouTubePublishError(f"Tiêu đề được tạo chưa hợp lệ: {title_error}.")
+        description_template = str(
+            publishing_settings.get("description_template") or "{description}\n\n{chapters}\n\n{hashtags}"
+        )
+        if "{description}" in description_template:
+            generated_description = db.extract_generated_video_description(script)
+            description_error = metadata_component_error(
+                "description",
+                generated_description,
+            )
+            if description_error:
+                raise YouTubePublishError(
+                    f"Mô tả được tạo chưa hợp lệ: {description_error}."
+                )
+            if generated_description.strip().casefold() == title.casefold():
+                raise YouTubePublishError("Tiêu đề và mô tả được tạo đang bị trùng nhau.")
+
+    description_video = dict(video)
+    description_video["generated_title"] = title
+    description = build_actual_youtube_description(
+        description_video,
+        publishing_settings,
+    )
     if not description:
         description = str(video.get("description") or "").strip()
 

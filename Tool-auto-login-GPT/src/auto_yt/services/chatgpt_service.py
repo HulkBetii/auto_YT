@@ -83,6 +83,9 @@ def process_prompt_via_chatgpt(
         "warning": "",
         "failed_step": "",
         "complete_for_audio": True,
+        "metadata_ready": True,
+        "metadata_errors": [],
+        "publish_ready": True,
     }
     if WORKER_META_MARKER in output:
         output, raw_meta = output.rsplit(WORKER_META_MARKER, 1)
