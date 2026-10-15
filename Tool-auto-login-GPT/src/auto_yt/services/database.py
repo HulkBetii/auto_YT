@@ -890,6 +890,18 @@ def init_db():
         )
     ''')
     c.execute('''
+        CREATE TABLE IF NOT EXISTS metadata_reviews (
+            video_id INTEGER PRIMARY KEY,
+            script_hash TEXT NOT NULL,
+            metadata_hash TEXT NOT NULL,
+            status TEXT NOT NULL,
+            report_json TEXT DEFAULT '{}',
+            reviewed_at TEXT DEFAULT '',
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(video_id) REFERENCES videos(id) ON DELETE CASCADE
+        )
+    ''')
+    c.execute('''
         CREATE TABLE IF NOT EXISTS tts_previews (
             id TEXT PRIMARY KEY,
             provider_task_id TEXT NOT NULL,
@@ -3568,6 +3580,64 @@ def list_audio_reviews(limit: int | None = 100) -> list[dict]:
         review.pop("report_json", None)
         reviews.append(review)
     return reviews
+
+
+def get_metadata_review(video_id: int) -> dict | None:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('SELECT * FROM metadata_reviews WHERE video_id = ?', (video_id,))
+    row = c.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    review = dict(row)
+    try:
+        review["report"] = json.loads(review.get("report_json") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        review["report"] = {}
+    review.pop("report_json", None)
+    return review
+
+
+def upsert_metadata_review(
+    video_id: int,
+    script_hash: str,
+    metadata_hash: str,
+    status: str,
+    report: dict,
+    reviewed_at: str = "",
+) -> dict:
+    now = utc_now()
+    conn = sqlite3.connect(str(DB_PATH))
+    c = conn.cursor()
+    c.execute(
+        '''
+        INSERT INTO metadata_reviews (
+            video_id, script_hash, metadata_hash, status, report_json,
+            reviewed_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(video_id) DO UPDATE SET
+            script_hash = excluded.script_hash,
+            metadata_hash = excluded.metadata_hash,
+            status = excluded.status,
+            report_json = excluded.report_json,
+            reviewed_at = excluded.reviewed_at,
+            updated_at = excluded.updated_at
+        ''',
+        (
+            video_id,
+            script_hash,
+            metadata_hash,
+            status,
+            json.dumps(report, ensure_ascii=False),
+            reviewed_at,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return get_metadata_review(video_id)
 
 def get_audio_task_by_request_hash(request_hash: str) -> dict:
     conn = sqlite3.connect(str(DB_PATH))

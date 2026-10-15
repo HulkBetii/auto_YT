@@ -13,7 +13,10 @@ import uuid
 from pathlib import Path
 
 from auto_yt.services import database as db
-from auto_yt.services.metadata_validation import metadata_component_error
+from auto_yt.services.metadata_validation import (
+    MetadataQualityGate,
+    metadata_component_error,
+)
 from auto_yt.services.proxy_utils import create_proxy_opener
 
 
@@ -184,6 +187,78 @@ def build_actual_youtube_description(video: dict, publishing_settings: dict | No
     return actual_desc
 
 
+def enforce_upload_metadata_quality(metadata: dict, video: dict) -> tuple[dict, dict]:
+    """Apply the final metadata gate to the exact payload sent to YouTube."""
+    payload = dict(metadata or {})
+    snippet = dict(payload.get("snippet") or {})
+    script = str(video.get("generated_script") or "")
+    is_generated_video = video.get("source_type") == db.VIDEO_SOURCE_GENERATED
+    gate_input = {
+        "title": snippet.get("title", ""),
+        "description": snippet.get("description", ""),
+        "tags": snippet.get("tags", []),
+        "hashtags": db.extract_generated_video_hashtags(script),
+        "slug": db.extract_generated_video_slug(
+            script,
+            default_title=str(snippet.get("title") or ""),
+        ),
+    }
+    report = MetadataQualityGate().run(
+        gate_input,
+        script_text=script,
+        require_description=is_generated_video,
+        require_slug=False,
+        check_content_consistency=is_generated_video,
+        strict_title_shape=is_generated_video,
+    )
+    cleaned = report.pop("cleaned_metadata")
+    snippet["title"] = cleaned["title"]
+    snippet["description"] = cleaned["description"]
+    snippet["tags"] = cleaned["tags"]
+    payload["snippet"] = snippet
+
+    stored_review = None
+    video_id = int(video.get("id") or 0)
+    if video_id:
+        stored_review = db.get_metadata_review(video_id)
+    raw_title = db.extract_generated_video_title(script)
+    review_binding = MetadataQualityGate().run(
+        {
+            "title": raw_title,
+            "slug": db.extract_generated_video_slug(
+                script,
+                default_title=raw_title,
+            ),
+            "description": db.extract_generated_video_description(script),
+            "hashtags": db.extract_generated_video_hashtags(script),
+            "tags": db.extract_generated_video_tags(script),
+        },
+        script_text=script,
+        require_description=is_generated_video,
+        require_slug=is_generated_video,
+        check_content_consistency=is_generated_video,
+        strict_title_shape=is_generated_video,
+    )
+    manually_approved = bool(
+        stored_review
+        and stored_review.get("status") == "approved"
+        and stored_review.get("script_hash") == review_binding["script_hash"]
+        and stored_review.get("metadata_hash") == review_binding["metadata_hash"]
+    )
+    if report["decision"] == "block" or (
+        report["decision"] == "review" and not manually_approved
+    ):
+        issues = report.get("errors") or report.get("review_required") or []
+        message = "; ".join(
+            str(item.get("message") or "") for item in issues if item.get("message")
+        )
+        raise YouTubePublishError(
+            "Metadata không đạt quality gate"
+            + (f": {message}" if message else ".")
+        )
+    return payload, report
+
+
 def build_upload_metadata(video: dict, publishing_settings: dict) -> dict:
     script = str(video.get("generated_script") or "")
     generated_title = str(
@@ -296,7 +371,7 @@ def build_upload_metadata(video: dict, publishing_settings: dict) -> dict:
     language = str(publishing_settings.get("language") or "vi").strip() or "vi"
     audio_language = str(publishing_settings.get("audio_language") or language).strip() or language
 
-    return {
+    metadata = {
         "snippet": {
             "title": title,
             "description": description,
@@ -316,6 +391,8 @@ def build_upload_metadata(video: dict, publishing_settings: dict) -> dict:
             "publicStatsViewable": True,
         },
     }
+    metadata, _report = enforce_upload_metadata_quality(metadata, video)
+    return metadata
 
 
 def start_resumable_upload(

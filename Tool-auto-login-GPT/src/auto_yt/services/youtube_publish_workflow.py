@@ -506,7 +506,19 @@ def _build_preflight_context(
             )
         except youtube_publisher.YouTubePublishError as exc:
             raise PublishConfigurationRequired(["metadata"], str(exc)) from exc
-        snapshot["youtube_metadata"] = metadata
+    try:
+        metadata, metadata_quality = (
+            youtube_publisher.enforce_upload_metadata_quality(metadata, video)
+        )
+    except youtube_publisher.YouTubePublishError as exc:
+        raise PublishConfigurationRequired(["metadata"], str(exc)) from exc
+    snapshot["youtube_metadata"] = metadata
+    snapshot["metadata_quality"] = {
+        "quality_gate_version": metadata_quality.get("quality_gate_version", 1),
+        "script_hash": metadata_quality.get("script_hash", ""),
+        "metadata_hash": metadata_quality.get("metadata_hash", ""),
+        "decision": metadata_quality.get("decision", "block"),
+    }
 
     image_settings = snapshot.get("image_generation_settings")
     if not isinstance(image_settings, dict):

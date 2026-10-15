@@ -139,6 +139,131 @@ class TestTrustBuilderAutomation(unittest.TestCase):
 
         enqueue.assert_called_once_with(1, source="scheduled", run_immediately=False)
 
+    def test_daily_work_state_requires_both_search_and_watch_quotas(self):
+        plan = {
+            "id": 1,
+            "warmup_phase": "phase_1_consumer",
+            "daily_search_target": 3,
+            "daily_watch_target": 5,
+        }
+        state = service.get_daily_work_state(
+            plan,
+            {"search_count": 3, "watch_count": 3},
+        )
+        self.assertFalse(state["daily_complete"])
+        self.assertFalse(state["needs_search"])
+        self.assertTrue(state["needs_watch"])
+
+    def test_daily_work_state_bounds_failed_engagement_attempts(self):
+        plan = {
+            "id": 1,
+            "warmup_phase": "phase_2_engage",
+            "publication_timezone": "UTC",
+            "daily_search_target": 1,
+            "daily_watch_target": 1,
+            "daily_like_target": 0,
+            "daily_comment_target": 1,
+            "daily_subscribe_target": 0,
+        }
+        with patch.object(
+            service,
+            "_daily_engagement_attempts",
+            return_value={"like": 0, "comment": 3, "subscribe": 0},
+        ):
+            state = service.get_daily_work_state(
+                plan,
+                {"search_count": 1, "watch_count": 1, "comment_count": 0},
+            )
+        self.assertTrue(state["daily_complete"])
+        self.assertTrue(state["exhausted"]["comment"])
+        self.assertFalse(state["engagement_pending"])
+
+    def test_scheduler_keeps_phase_two_due_when_engagement_is_pending(self):
+        now = datetime.datetime(2026, 10, 9, 20, 0, tzinfo=datetime.timezone.utc)
+        plan = {
+            "id": 8,
+            "status": "active",
+            "warmup_phase": "phase_2_engage",
+            "publication_timezone": "UTC",
+            "next_run_at": "",
+            "daily_search_target": 1,
+            "daily_watch_target": 1,
+            "daily_like_target": 0,
+            "daily_comment_target": 1,
+            "daily_subscribe_target": 0,
+        }
+        enqueue = unittest.mock.Mock()
+        with patch.object(scheduler, "_utc_now", return_value=now), patch.object(
+            db, "list_channel_trust_plans", return_value=[plan]
+        ), patch.object(
+            db,
+            "get_trust_daily_activity_stats",
+            return_value={"search_count": 1, "watch_count": 1, "like_count": 0, "comment_count": 0, "subscribe_count": 0},
+        ), patch.object(db, "list_trust_activity_logs", return_value=[]), patch.object(
+            scheduler, "enqueue_trust_builder_session", enqueue
+        ), patch.object(scheduler, "_drain_job_queue", new=AsyncMock()):
+            asyncio.run(scheduler._evaluate_active_plans())
+
+        enqueue.assert_called_once_with(8, source="scheduled", run_immediately=False)
+
+    def test_completed_plan_with_missing_engagement_can_be_reopened(self):
+        plan = self._plan(
+            status="completed",
+            warmup_phase="phase_3_ready",
+            daily_comment_target=1,
+            daily_subscribe_target=1,
+        )
+        with patch.object(router, "validate_plan_browser_configuration", return_value="gpm-profile-test"):
+            reopened = router.start_plan(plan["id"])["plan"]
+
+        self.assertEqual(reopened["status"], "active")
+        self.assertEqual(reopened["warmup_phase"], "phase_2_engage")
+
+    def test_failed_engagement_is_persisted_without_increasing_success_stats(self):
+        plan = self._plan(
+            status="paused",
+            warmup_phase="phase_2_engage",
+            daily_watch_target=1,
+            daily_search_target=1,
+            daily_like_target=0,
+            daily_comment_target=1,
+            daily_subscribe_target=1,
+            min_watch_minutes=1,
+        )
+        context = unittest.mock.Mock()
+        context.new_page = AsyncMock(return_value=object())
+        with patch.object(service, "validate_plan_browser_configuration", return_value="gpm-profile-test"), patch.object(
+            service, "is_profile_browser_busy", return_value=False
+        ), patch.object(service, "channel_browser_session", return_value=_BrowserSession(context)), patch.object(
+            service, "cleanup_owned_page", new=AsyncMock()
+        ), patch.object(
+            service,
+            "action_search_and_pick_video",
+            new=AsyncMock(return_value={"url": "https://youtube.com/watch?v=safe2", "title": "Safe video", "channel": "Safe channel"}),
+        ), patch.object(
+            service,
+            "action_watch_video",
+            new=AsyncMock(return_value={"watched_seconds": 60.0, "total_duration": 100.0, "retention_percentage": 60.0}),
+        ), patch.object(service.safety, "is_safe_for_interaction", return_value=(True, "")), patch.object(
+            service,
+            "action_comment_video",
+            new=AsyncMock(return_value={"status": "failed", "reason_code": "comment_submit_disabled", "message": "Nút gửi chưa bật."}),
+        ), patch.object(
+            service,
+            "action_subscribe_channel",
+            new=AsyncMock(return_value={"status": "performed", "reason_code": "subscribe_confirmed", "message": ""}),
+        ):
+            result = asyncio.run(service.run_warmup_session(plan["id"]))
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["partial_success"])
+        logs = db.list_trust_activity_logs(plan["id"], limit=20)
+        failed_comment = next(item for item in logs if item["activity_type"] == "comment_attempt")
+        self.assertEqual(failed_comment["detail_json"]["reason_code"], "comment_submit_disabled")
+        stats = db.get_trust_activity_stats(plan["id"])
+        self.assertEqual(stats["comment_count"], 0)
+        self.assertEqual(stats["subscribe_count"], 1)
+
     def test_safety_shield_blocks_like_comment_and_subscribe(self):
         plan = self._plan(status="paused", warmup_phase="phase_2_engage")
         context = unittest.mock.Mock()

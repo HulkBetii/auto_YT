@@ -16,6 +16,7 @@ from auto_yt.services.trust_builder_service import (
     audit_channel_branding_for_plan,
     audit_feature_eligibility_for_plan,
     calculate_trust_score,
+    engagement_requirements_met,
     get_active_plan_job,
     request_cancel_plan_jobs,
     validate_plan_browser_configuration,
@@ -177,7 +178,9 @@ def start_plan(plan_id: int):
     plan = db.get_channel_trust_plan(plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Không tìm thấy Trust Plan.")
-    if plan.get("status") == "completed":
+    stats = db.get_trust_activity_stats(plan_id)
+    reopening_engagement = plan.get("status") == "completed" and not engagement_requirements_met(plan, stats)
+    if plan.get("status") == "completed" and not reopening_engagement:
         raise HTTPException(
             status_code=400,
             detail="Plan đã hoàn tất. Hãy tạo plan mới nếu cần warm-up lại.",
@@ -187,7 +190,7 @@ def start_plan(plan_id: int):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    current_phase = plan.get("warmup_phase")
+    current_phase = "phase_2_engage" if reopening_engagement else plan.get("warmup_phase")
     if current_phase == "idle":
         current_phase = "phase_1_consumer"
 

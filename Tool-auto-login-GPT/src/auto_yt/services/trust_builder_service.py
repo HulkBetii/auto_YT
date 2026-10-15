@@ -12,6 +12,7 @@ import logging
 import random
 import re
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from auto_yt.services import database as db, security_logging, trust_builder_safety as safety
 from auto_yt.services.channel_scanner_service import (
@@ -28,6 +29,7 @@ from auto_yt.services.trust_builder_actions import (
     ACTION_PERFORMED,
     action_audit_feature_eligibility,
     action_audit_channel_branding,
+    action_browse_and_pick_video,
     action_comment_video,
     action_like_video,
     action_search_and_pick_video,
@@ -38,6 +40,7 @@ from auto_yt.services.trust_builder_actions import (
 logger = logging.getLogger(__name__)
 
 TRUST_JOB_TYPE = "trust_builder_session"
+ENGAGEMENT_ACTIONS = ("like", "comment", "subscribe")
 
 # Mutex lock per plan_id to prevent concurrent runs on the same plan
 _plan_locks: dict[int, asyncio.Lock] = {}
@@ -106,6 +109,132 @@ def calculate_trust_score(plan: dict[str, Any], stats: dict[str, Any]) -> int:
 
     final_score = int(round(min(100.0, max(0.0, score))))
     return final_score
+
+
+def engagement_requirements_met(plan: dict[str, Any], stats: dict[str, Any]) -> bool:
+    """Require at least one verified action for every enabled high-risk engagement."""
+    if int(plan.get("daily_comment_target") or 0) > 0 and int(stats.get("comment_count") or 0) <= 0:
+        return False
+    if int(plan.get("daily_subscribe_target") or 0) > 0 and int(stats.get("subscribe_count") or 0) <= 0:
+        return False
+    return True
+
+
+def _normalize_action_result(result: Any) -> dict[str, str]:
+    if isinstance(result, dict):
+        return {
+            "status": str(result.get("status") or "failed"),
+            "reason_code": str(result.get("reason_code") or ""),
+            "message": str(result.get("message") or ""),
+        }
+    return {"status": str(result or "failed"), "reason_code": "", "message": ""}
+
+
+def _activity_local_date(value: str, timezone: ZoneInfo) -> datetime.date | None:
+    try:
+        parsed = datetime.datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed.astimezone(timezone).date()
+
+
+def _daily_engagement_attempts(plan_id: int, timezone_name: str) -> dict[str, int]:
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        timezone = ZoneInfo("Asia/Ho_Chi_Minh")
+    local_today = datetime.datetime.now(datetime.timezone.utc).astimezone(timezone).date()
+    counts = {action: 0 for action in ENGAGEMENT_ACTIONS}
+    for log in db.list_trust_activity_logs(plan_id, limit=200):
+        if _activity_local_date(str(log.get("executed_at") or ""), timezone) != local_today:
+            continue
+        activity_type = str(log.get("activity_type") or "").lower()
+        for action in ENGAGEMENT_ACTIONS:
+            if activity_type in {action, f"{action}_attempt"}:
+                counts[action] += 1
+                break
+    return counts
+
+
+def get_daily_work_state(
+    plan: dict[str, Any],
+    daily_stats: dict[str, Any],
+) -> dict[str, Any]:
+    """Return pending daily work with bounded engagement retries."""
+    phase = str(plan.get("warmup_phase") or "phase_1_consumer")
+    needs_search = int(daily_stats.get("search_count") or 0) < int(plan.get("daily_search_target") or 0)
+    needs_watch = int(daily_stats.get("watch_count") or 0) < int(plan.get("daily_watch_target") or 0)
+    attempts = {action: 0 for action in ENGAGEMENT_ACTIONS}
+    if phase == "phase_2_engage":
+        attempts = _daily_engagement_attempts(
+            int(plan.get("id") or 0),
+            str(plan.get("publication_timezone") or "Asia/Ho_Chi_Minh"),
+        )
+    pending: dict[str, bool] = {action: False for action in ENGAGEMENT_ACTIONS}
+    exhausted: dict[str, bool] = {action: False for action in ENGAGEMENT_ACTIONS}
+    if phase == "phase_2_engage":
+        stat_keys = {
+            "like": "like_count",
+            "comment": "comment_count",
+            "subscribe": "subscribe_count",
+        }
+        target_keys = {
+            "like": "daily_like_target",
+            "comment": "daily_comment_target",
+            "subscribe": "daily_subscribe_target",
+        }
+        for action in ENGAGEMENT_ACTIONS:
+            target = int(plan.get(target_keys[action]) or 0)
+            completed = int(daily_stats.get(stat_keys[action]) or 0)
+            max_attempts = max(target * 3, target + 2) if target > 0 else 0
+            exhausted[action] = target > 0 and attempts[action] >= max_attempts and completed < target
+            pending[action] = target > 0 and completed < target and not exhausted[action]
+
+    base_complete = not needs_search and not needs_watch
+    engagement_pending = any(pending.values())
+    engagement_complete = not engagement_pending
+    return {
+        "needs_search": needs_search,
+        "needs_watch": needs_watch,
+        "base_complete": base_complete,
+        "engagement_pending": engagement_pending,
+        "engagement_complete": engagement_complete,
+        "pending": pending,
+        "attempts": attempts,
+        "exhausted": exhausted,
+        "daily_complete": base_complete and engagement_complete,
+    }
+
+
+def _record_engagement_result(
+    *,
+    plan_id: int,
+    action: str,
+    result: Any,
+    target_url: str,
+    target_title: str,
+    extra_detail: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    normalized = _normalize_action_result(result)
+    status = normalized["status"]
+    performed = status == ACTION_PERFORMED
+    detail = {
+        "status": status,
+        "reason_code": normalized["reason_code"],
+        **(extra_detail or {}),
+    }
+    db.create_trust_activity_log(
+        plan_id=plan_id,
+        activity_type=action if performed else f"{action}_attempt",
+        target_url=target_url,
+        target_title=target_title,
+        detail_json=detail,
+        success=performed,
+        error_message="" if performed else normalized["message"],
+    )
+    return normalized
 
 
 LANGUAGE_COMMENT_TEMPLATES: dict[str, list[str]] = {
@@ -573,22 +702,18 @@ async def run_warmup_session(
 
         timezone_name = str(plan.get("publication_timezone") or "Asia/Ho_Chi_Minh")
         daily_stats = db.get_trust_daily_activity_stats(plan_id, timezone_name)
-        daily_search_target = int(plan.get("daily_search_target") or 0)
-        daily_watch_target = int(plan.get("daily_watch_target") or 0)
-        if (
-            daily_stats.get("search_count", 0) >= daily_search_target
-            or daily_stats.get("watch_count", 0) >= daily_watch_target
-        ):
+        work_state = get_daily_work_state(plan, daily_stats)
+        if work_state["daily_complete"]:
             return {
                 "success": True,
                 "skipped": True,
                 "quota_reached": True,
-                "message": "Đã đạt quota Search/Watch hôm nay.",
+                "message": "Đã đạt quota Trust Builder hôm nay.",
             }
 
         keywords = [k.strip() for k in (plan.get("niche_keywords") or []) if k.strip()]
         target_channels = [c.strip() for c in (plan.get("target_channels") or []) if c.strip()]
-        if not keywords:
+        if work_state["needs_search"] and not keywords:
             if timezone_name == "Asia/Ho_Chi_Minh":
                 keywords = ["công nghệ", "tin tức xu hướng", "kiến thức thú vị"]
             elif not target_channels:
@@ -622,6 +747,13 @@ async def run_warmup_session(
             return not current_plan or current_plan.get("status") != "active"
 
         session_result = {
+            "session_mode": (
+                "search_watch"
+                if work_state["needs_search"]
+                else "watch_only"
+                if work_state["needs_watch"]
+                else "engagement_retry"
+            ),
             "keyword": selected_keyword,
             "target_channel": selected_target_channel,
             "searched": False,
@@ -640,46 +772,54 @@ async def run_warmup_session(
                 page = await context.new_page()
                 preserve_page = True
                 try:
-                    pick_res = await action_search_and_pick_video(
-                        page,
-                        keyword=selected_keyword,
-                        target_channel=selected_target_channel,
-                        excluded_video_ids=excluded_video_ids,
-                    )
+                    if work_state["needs_search"]:
+                        pick_res = await action_search_and_pick_video(
+                            page,
+                            keyword=selected_keyword,
+                            target_channel=selected_target_channel,
+                            excluded_video_ids=excluded_video_ids,
+                        )
+                    else:
+                        pick_res = await action_browse_and_pick_video(
+                            page,
+                            target_channel=selected_target_channel,
+                            excluded_video_ids=excluded_video_ids,
+                        )
                     video_url = pick_res.get("url", "")
                     video_title = pick_res.get("title", "")
                     session_result["video_url"] = video_url
                     session_result["video_title"] = video_title
-                    session_result["searched"] = True
-
-                    db.create_trust_activity_log(
-                        plan_id=plan_id,
-                        activity_type="search",
-                        target_url=video_url,
-                        target_title=video_title,
-                        detail_json={"keyword": selected_keyword, "matched_channel": pick_res.get("channel", "")},
-                        success=True,
-                    )
+                    if work_state["needs_search"]:
+                        session_result["searched"] = True
+                        db.create_trust_activity_log(
+                            plan_id=plan_id,
+                            activity_type="search",
+                            target_url=video_url,
+                            target_title=video_title,
+                            detail_json={"keyword": selected_keyword, "matched_channel": pick_res.get("channel", "")},
+                            success=True,
+                        )
 
                     if should_cancel():
                         raise asyncio.CancelledError
+                    count_as_watch = bool(work_state["needs_watch"])
                     min_watch_minutes = int(plan.get("min_watch_minutes") or 10)
-                    min_watch_sec = float(min_watch_minutes * 60)
-                    max_watch_sec = max(min_watch_sec, 1200.0)
+                    min_watch_sec = float(min_watch_minutes * 60) if count_as_watch else 30.0
+                    max_watch_sec = max(min_watch_sec, 1200.0) if count_as_watch else 60.0
                     watch_res = await action_watch_video(
                         page,
                         video_url=video_url,
-                        min_pct=60.0,
-                        max_pct=90.0,
+                        min_pct=60.0 if count_as_watch else 5.0,
+                        max_pct=90.0 if count_as_watch else 15.0,
                         min_watch_seconds=min_watch_sec,
                         max_watch_seconds=max_watch_sec,
                         cancel_check=should_cancel,
                     )
-                    session_result["watched"] = True
+                    session_result["watched"] = count_as_watch
 
                     db.create_trust_activity_log(
                         plan_id=plan_id,
-                        activity_type="watch",
+                        activity_type="watch" if count_as_watch else "engagement_preview",
                         target_url=video_url,
                         target_title=video_title,
                         duration_seconds=watch_res.get("watched_seconds", 0.0),
@@ -711,69 +851,63 @@ async def run_warmup_session(
                     daily_stats = db.get_trust_daily_activity_stats(plan_id, timezone_name)
                     if warmup_phase == "phase_2_engage" and is_safe_engage and not should_cancel():
                         daily_like_target = int(plan.get("daily_like_target") or 0)
-                        if (
-                            daily_stats.get("like_count", 0) < daily_like_target
-                            and random.random() < 0.75
-                        ):
+                        if daily_stats.get("like_count", 0) < daily_like_target and work_state["pending"]["like"]:
                             like_status = await action_like_video(page)
-                            session_result["like_status"] = like_status
-                            if like_status == ACTION_PERFORMED:
+                            like_result = _record_engagement_result(
+                                plan_id=plan_id,
+                                action="like",
+                                result=like_status,
+                                target_url=video_url,
+                                target_title=video_title,
+                            )
+                            session_result["like_status"] = like_result["status"]
+                            session_result["like_reason_code"] = like_result["reason_code"]
+                            if like_result["status"] == ACTION_PERFORMED:
                                 session_result["liked"] = True
-                                db.create_trust_activity_log(
-                                    plan_id=plan_id,
-                                    activity_type="like",
-                                    target_url=video_url,
-                                    target_title=video_title,
-                                    success=True,
-                                )
 
                     daily_stats = db.get_trust_daily_activity_stats(plan_id, timezone_name)
                     if warmup_phase == "phase_2_engage" and is_safe_engage and not should_cancel():
                         daily_comment_target = int(plan.get("daily_comment_target") or 0)
-                        if (
-                            daily_stats.get("comment_count", 0) < daily_comment_target
-                            and random.random() < 0.50
-                        ):
+                        if daily_stats.get("comment_count", 0) < daily_comment_target and work_state["pending"]["comment"]:
                             comment_text = generate_contextual_comment(
                                 video_title,
                                 excluded_comments=used_comments,
                                 market_timezone=timezone_name,
                             )
-                            comment_status = (
+                            raw_comment_result = (
                                 await action_comment_video(page, comment_text)
                                 if comment_text
-                                else "already_done"
+                                else {"status": "failed", "reason_code": "comment_template_missing", "message": "Không tạo được nội dung bình luận."}
                             )
-                            session_result["comment_status"] = comment_status
-                            if comment_status == ACTION_PERFORMED:
+                            comment_result = _record_engagement_result(
+                                plan_id=plan_id,
+                                action="comment",
+                                result=raw_comment_result,
+                                target_url=video_url,
+                                target_title=video_title,
+                                extra_detail={"comment_text": comment_text},
+                            )
+                            session_result["comment_status"] = comment_result["status"]
+                            session_result["comment_reason_code"] = comment_result["reason_code"]
+                            if comment_result["status"] == ACTION_PERFORMED:
                                 session_result["commented"] = True
-                                db.create_trust_activity_log(
-                                    plan_id=plan_id,
-                                    activity_type="comment",
-                                    target_url=video_url,
-                                    target_title=video_title,
-                                    detail_json={"comment_text": comment_text},
-                                    success=True,
-                                )
 
                     daily_stats = db.get_trust_daily_activity_stats(plan_id, timezone_name)
                     if warmup_phase == "phase_2_engage" and is_safe_engage and not should_cancel():
                         daily_sub_target = int(plan.get("daily_subscribe_target") or 0)
-                        if (
-                            daily_stats.get("subscribe_count", 0) < daily_sub_target
-                            and random.random() < 0.40
-                        ):
-                            subscribe_status = await action_subscribe_channel(page)
-                            session_result["subscribe_status"] = subscribe_status
-                            if subscribe_status == ACTION_PERFORMED:
+                        if daily_stats.get("subscribe_count", 0) < daily_sub_target and work_state["pending"]["subscribe"]:
+                            raw_subscribe_result = await action_subscribe_channel(page)
+                            subscribe_result = _record_engagement_result(
+                                plan_id=plan_id,
+                                action="subscribe",
+                                result=raw_subscribe_result,
+                                target_url=video_url,
+                                target_title=video_title,
+                            )
+                            session_result["subscribe_status"] = subscribe_result["status"]
+                            session_result["subscribe_reason_code"] = subscribe_result["reason_code"]
+                            if subscribe_result["status"] == ACTION_PERFORMED:
                                 session_result["subscribed"] = True
-                                db.create_trust_activity_log(
-                                    plan_id=plan_id,
-                                    activity_type="subscribe",
-                                    target_url=video_url,
-                                    target_title=video_title,
-                                    success=True,
-                                )
 
                     preserve_page = False
                 finally:
@@ -789,11 +923,19 @@ async def run_warmup_session(
                     next_phase = "phase_2_engage"
                     phase_started_at = db.utc_now()
             elif warmup_phase == "phase_2_engage":
-                if updated_score >= 70:
+                if updated_score >= 70 and engagement_requirements_met(plan, stats):
                     next_phase = "phase_3_ready"
                     next_status = "completed"
                     phase_started_at = db.utc_now()
 
+            attempted_statuses = [
+                str(session_result.get(f"{action}_status") or "")
+                for action in ENGAGEMENT_ACTIONS
+                if session_result.get(f"{action}_status")
+            ]
+            partial_success = any(status != ACTION_PERFORMED for status in attempted_statuses)
+            post_daily_stats = db.get_trust_daily_activity_stats(plan_id, timezone_name)
+            post_work_state = get_daily_work_state({**plan, "warmup_phase": next_phase}, post_daily_stats)
             db.update_channel_trust_plan(
                 plan_id=plan_id,
                 total_videos_watched=stats.get("watch_count", 0),
@@ -806,7 +948,11 @@ async def run_warmup_session(
                 phase_started_at=phase_started_at,
                 status=next_status,
                 last_session_at=db.utc_now(),
-                error_message="",
+                error_message=(
+                    "Một số hành động tương tác chưa được YouTube xác nhận. Xem Nhật ký hoạt động."
+                    if partial_success
+                    else ""
+                ),
             )
 
             logger.info(
@@ -820,6 +966,8 @@ async def run_warmup_session(
                 "trust_score": updated_score,
                 "warmup_phase": next_phase,
                 "details": session_result,
+                "partial_success": partial_success,
+                "retryable_engagement": partial_success and post_work_state["engagement_pending"],
             }
         except asyncio.CancelledError:
             logger.info("Session Trust Builder Plan ID %d đã dừng tại checkpoint.", plan_id)

@@ -25,6 +25,21 @@ ACTION_PERFORMED = "performed"
 ACTION_ALREADY_DONE = "already_done"
 ACTION_NOT_FOUND = "not_found"
 ACTION_FAILED = "failed"
+ACTION_BLOCKED = "blocked"
+ACTION_UNCERTAIN = "uncertain"
+
+
+def action_result(
+    status: str,
+    reason_code: str = "",
+    message: str = "",
+) -> dict[str, str]:
+    """Return a stable, persistence-safe result for an engagement action."""
+    return {
+        "status": status,
+        "reason_code": reason_code,
+        "message": message,
+    }
 
 
 async def human_type(page: Any, selector: str, text: str, min_delay_ms: int = 40, max_delay_ms: int = 120) -> None:
@@ -449,6 +464,126 @@ async def action_search_and_pick_video(
     return selected_video
 
 
+async def action_browse_and_pick_video(
+    page: Any,
+    target_channel: str = "",
+    excluded_video_ids: set[str] | None = None,
+    timeout_seconds: float = 30.0,
+) -> dict[str, Any]:
+    """Pick a safe video without consuming another keyword-search action."""
+    clean_target = str(target_channel or "").strip()
+    browse_url = "https://www.youtube.com"
+    if clean_target.startswith("@"):  # Direct channel browsing is not a search.
+        encoded_handle = urllib.parse.quote(clean_target, safe="@._-")
+        browse_url = f"https://www.youtube.com/{encoded_handle}/videos"
+    elif clean_target.startswith(("http://", "https://")):
+        parsed = urllib.parse.urlparse(clean_target)
+        host = str(parsed.hostname or "").lower()
+        if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+            browse_url = f"https://www.youtube.com{parsed.path.rstrip('/')}"
+            if not browse_url.endswith("/videos"):
+                browse_url += "/videos"
+
+    logger.info("Chọn video Watch-only từ: %s", browse_url)
+    await page.goto(
+        browse_url,
+        wait_until="domcontentloaded",
+        timeout=int(timeout_seconds * 1000),
+    )
+    await asyncio.sleep(random.uniform(1.5, 3.0))
+    await dismiss_common_popups(page)
+    try:
+        await page.wait_for_selector(
+            "a#video-title[href*='/watch?v='], a#thumbnail[href*='/watch?v='], a[href*='/watch?v=']",
+            state="attached",
+            timeout=12000,
+        )
+    except Exception:
+        pass
+    await natural_scroll(page, min_scrolls=1, max_scrolls=3)
+
+    candidates: list[dict[str, str]] = await page.evaluate(
+        """targetChannel => {
+            const results = [];
+            const seen = new Set();
+            const nodes = document.querySelectorAll(
+                'ytd-video-renderer, ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-rich-grid-media'
+            );
+            for (const node of nodes) {
+                const titleNode = node.querySelector('a#video-title, a#video-title-link, h3 a');
+                const thumbNode = node.querySelector('a#thumbnail[href*="/watch?v="], a[href*="/watch?v="]');
+                const channelNode = node.querySelector(
+                    'ytd-channel-name a, #channel-info a, #byline a, a[href*="/@"], a[href*="/channel/"]'
+                );
+                const url = (titleNode?.href || thumbNode?.href || '').trim();
+                const title = (
+                    titleNode?.getAttribute('title')
+                    || titleNode?.innerText
+                    || titleNode?.getAttribute('aria-label')
+                    || ''
+                ).trim();
+                if (!url.includes('/watch?v=') || !title || seen.has(url)) continue;
+                seen.add(url);
+                results.push({
+                    url,
+                    title,
+                    channel: (channelNode?.innerText || channelNode?.getAttribute('title') || targetChannel || '').trim(),
+                    channel_href: (channelNode?.href || '').trim(),
+                });
+            }
+            if (results.length === 0) {
+                for (const link of document.querySelectorAll('a#video-title[href*="/watch?v="], a[href*="/watch?v="]')) {
+                    const url = (link.href || '').trim();
+                    const title = (
+                        link.getAttribute('title')
+                        || link.innerText
+                        || link.getAttribute('aria-label')
+                        || ''
+                    ).trim();
+                    if (!url.includes('/watch?v=') || title.length < 6 || seen.has(url)) continue;
+                    seen.add(url);
+                    results.push({url, title, channel: targetChannel || '', channel_href: ''});
+                }
+            }
+            return results;
+        }""",
+        clean_target,
+    )
+    if not candidates:
+        raise RuntimeError("Không tìm thấy video phù hợp cho phiên Watch-only.")
+
+    excluded_ids = excluded_video_ids or set()
+    safe_candidates: list[dict[str, str]] = []
+    for candidate in candidates:
+        match = re.search(r"[?&]v=([a-zA-Z0-9_-]+)", candidate.get("url", ""))
+        if match and match.group(1) in excluded_ids:
+            continue
+        is_safe, blocked_reason = safety.is_safe_for_interaction(
+            title=candidate.get("title", ""),
+            channel_name=candidate.get("channel", ""),
+            channel_url=candidate.get("channel_href", ""),
+            channel_handle=candidate.get("channel", ""),
+        )
+        if is_safe:
+            safe_candidates.append(candidate)
+        else:
+            logger.warning(
+                "SAFETY SHIELD: Bỏ qua video Watch-only '%s' do vi phạm: %s",
+                candidate.get("title", ""),
+                blocked_reason,
+            )
+    if not safe_candidates:
+        raise RuntimeError("Không còn video Watch-only mới và an toàn.")
+
+    selected = random.choice(safe_candidates[: min(8, len(safe_candidates))])
+    logger.info(
+        "Đã chọn video Watch-only an toàn: '%s' từ kênh '%s'",
+        selected.get("title", ""),
+        selected.get("channel", ""),
+    )
+    return selected
+
+
 async def action_watch_video(
     page: Any,
     video_url: str,
@@ -684,11 +819,11 @@ async def action_like_video(page: Any) -> str:
         return ACTION_FAILED
 
 
-async def action_comment_video(page: Any, comment_text: str) -> str:
+async def action_comment_video(page: Any, comment_text: str) -> dict[str, str]:
     """Add a contextual comment to the current video."""
     clean_text = comment_text.strip()
     if not clean_text:
-        return ACTION_FAILED
+        return action_result(ACTION_FAILED, "empty_comment", "Nội dung bình luận trống.")
 
     logger.info("Thực hiện bình luận video: '%s'", clean_text)
     try:
@@ -696,23 +831,99 @@ async def action_comment_video(page: Any, comment_text: str) -> str:
         await natural_scroll(page, min_scrolls=2, max_scrolls=3)
         await asyncio.sleep(random.uniform(1.5, 2.5))
 
-        # Focus comment box
-        placeholder_sel = "#placeholder-area, #simplebox-placeholder, ytd-comment-simplebox-renderer #placeholder-area, ytd-comments-header-renderer"
-        try:
-            placeholder = await page.wait_for_selector(placeholder_sel, state="attached", timeout=8000)
-            if placeholder:
-                await placeholder.scroll_into_view_if_needed()
-                await placeholder.click()
-                await asyncio.sleep(random.uniform(0.6, 1.2))
-        except Exception:
-            pass
+        composer_info = await page.evaluate(
+            """() => {
+                const visible = node => {
+                    if (!node) return false;
+                    const rect = node.getBoundingClientRect();
+                    const style = window.getComputedStyle(node);
+                    return rect.width > 0 && rect.height > 0
+                        && style.visibility !== 'hidden' && style.display !== 'none';
+                };
+                const disabledText = Array.from(document.querySelectorAll(
+                    'ytd-comments-message-renderer, ytd-message-renderer, #message, #contents-message'
+                )).map(node => (node.textContent || '').toLowerCase()).join(' ');
+                if (disabledText.includes('comments are turned off')
+                    || disabledText.includes('comments are disabled')
+                    || disabledText.includes('bình luận đã bị tắt')
+                    || disabledText.includes('đã tắt tính năng bình luận')) {
+                    return {found: false, blocked: true};
+                }
+                const selectors = [
+                    'ytd-comments ytd-comment-simplebox-renderer #placeholder-area',
+                    'ytd-comments #simplebox-placeholder',
+                    'ytd-comment-simplebox-renderer #placeholder-area',
+                    '#placeholder-area'
+                ];
+                for (const selector of selectors) {
+                    const node = Array.from(document.querySelectorAll(selector)).find(visible);
+                    if (!node) continue;
+                    node.setAttribute('data-trust-builder-action', 'comment-placeholder');
+                    return {found: true, blocked: false};
+                }
+                return {found: false, blocked: false};
+            }"""
+        )
+        if composer_info.get("blocked"):
+            logger.info("Video đã tắt tính năng bình luận.")
+            return action_result(ACTION_BLOCKED, "comments_disabled", "Video đã tắt bình luận.")
+        if not composer_info.get("found"):
+            logger.warning("Không tìm thấy vùng mở trình soạn thảo bình luận.")
+            return action_result(ACTION_NOT_FOUND, "comment_placeholder_missing", "Không tìm thấy vùng bình luận.")
 
-        # Find contenteditable input
-        input_sel = "#contenteditable-root, ytd-commentbox #contenteditable-root, div#contenteditable-textarea"
-        input_elem = await page.wait_for_selector(input_sel, state="attached", timeout=8000)
+        placeholder = await page.query_selector('[data-trust-builder-action="comment-placeholder"]')
+        if not placeholder:
+            return action_result(ACTION_NOT_FOUND, "comment_placeholder_stale", "Vùng bình luận không còn khả dụng.")
+        await placeholder.scroll_into_view_if_needed()
+        await placeholder.click()
+        await asyncio.sleep(random.uniform(0.6, 1.2))
+
+        try:
+            await page.wait_for_function(
+                """() => Array.from(document.querySelectorAll(
+                    'ytd-commentbox #contenteditable-root[contenteditable="true"], '
+                    + 'ytd-comment-simplebox-renderer #contenteditable-root[contenteditable="true"], '
+                    + 'div#contenteditable-root[contenteditable="true"], '
+                    + 'ytd-commentbox div[contenteditable="true"][role="textbox"]'
+                )).some(node => {
+                    const rect = node.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                })""",
+                timeout=10000,
+            )
+        except Exception:
+            logger.warning("Ô soạn thảo bình luận không xuất hiện sau khi mở.")
+            return action_result(
+                ACTION_NOT_FOUND,
+                "comment_editor_timeout",
+                "Ô soạn thảo bình luận không xuất hiện.",
+            )
+        input_info = await page.evaluate(
+            """() => {
+                const selectors = [
+                    'ytd-commentbox #contenteditable-root[contenteditable="true"]',
+                    'ytd-comment-simplebox-renderer #contenteditable-root[contenteditable="true"]',
+                    'div#contenteditable-root[contenteditable="true"]',
+                    'ytd-commentbox div[contenteditable="true"][role="textbox"]'
+                ];
+                for (const selector of selectors) {
+                    const node = Array.from(document.querySelectorAll(selector)).find(item => {
+                        const rect = item.getBoundingClientRect();
+                        return rect.width > 0 && rect.height > 0;
+                    });
+                    if (!node) continue;
+                    node.setAttribute('data-trust-builder-action', 'comment-editor');
+                    return {found: true};
+                }
+                return {found: false};
+            }"""
+        )
+        if not input_info.get("found"):
+            logger.warning("Không tìm thấy ô soạn thảo bình luận đang hiển thị.")
+            return action_result(ACTION_NOT_FOUND, "comment_editor_missing", "Không tìm thấy ô soạn thảo bình luận.")
+        input_elem = await page.query_selector('[data-trust-builder-action="comment-editor"]')
         if not input_elem:
-            logger.warning("Không tìm thấy ô soạn thảo bình luận.")
-            return ACTION_NOT_FOUND
+            return action_result(ACTION_NOT_FOUND, "comment_editor_stale", "Ô soạn thảo không còn khả dụng.")
 
         await input_elem.scroll_into_view_if_needed()
         await input_elem.click()
@@ -725,10 +936,46 @@ async def action_comment_video(page: Any, comment_text: str) -> str:
 
         await asyncio.sleep(random.uniform(1.0, 2.0))
 
-        # Submit comment
-        submit_btn_sel = "#submit-button button, ytd-commentbox #submit-button button, ytd-button-renderer#submit-button button"
-        submit_btn = await page.query_selector(submit_btn_sel)
-        if submit_btn and await submit_btn.is_enabled():
+        submit_info = await page.evaluate(
+            r"""expectedText => {
+                const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+                const editor = document.querySelector('[data-trust-builder-action="comment-editor"]');
+                const selectors = [
+                    'ytd-commentbox #submit-button button',
+                    'ytd-commentbox ytd-button-renderer#submit-button button',
+                    'ytd-comment-simplebox-renderer #submit-button button',
+                    'ytd-comments button[aria-label="Comment"]',
+                    'ytd-comments button[aria-label="Bình luận"]'
+                ];
+                for (const selector of selectors) {
+                    const button = Array.from(document.querySelectorAll(selector)).find(node => {
+                        const rect = node.getBoundingClientRect();
+                        return rect.width > 0 && rect.height > 0;
+                    });
+                    if (!button) continue;
+                    button.setAttribute('data-trust-builder-action', 'comment-submit');
+                    return {
+                        found: true,
+                        enabled: !button.disabled && button.getAttribute('aria-disabled') !== 'true',
+                        text_ready: normalize(editor?.textContent) === normalize(expectedText),
+                    };
+                }
+                return {found: false, enabled: false, text_ready: false};
+            }""",
+            clean_text,
+        )
+        if not submit_info.get("text_ready"):
+            logger.warning("YouTube không giữ đúng nội dung trong ô bình luận.")
+            return action_result(ACTION_FAILED, "comment_text_not_ready", "Nội dung chưa sẵn sàng để gửi.")
+        if not submit_info.get("found"):
+            logger.warning("Không tìm thấy nút Gửi bình luận đang hiển thị.")
+            return action_result(ACTION_NOT_FOUND, "comment_submit_missing", "Không tìm thấy nút gửi bình luận.")
+        if not submit_info.get("enabled"):
+            logger.warning("Nút Gửi bình luận không kích hoạt.")
+            return action_result(ACTION_FAILED, "comment_submit_disabled", "Nút gửi bình luận chưa được kích hoạt.")
+
+        submit_btn = await page.query_selector('[data-trust-builder-action="comment-submit"]')
+        if submit_btn:
             await submit_btn.click()
             try:
                 await page.wait_for_function(
@@ -738,40 +985,42 @@ async def action_comment_video(page: Any, comment_text: str) -> str:
                         const visibleComment = Array.from(document.querySelectorAll(
                             'ytd-comment-thread-renderer #content-text, ytd-comment-renderer #content-text'
                         )).some(node => normalize(node.textContent) === expected);
-                        const editor = document.querySelector(
-                            '#contenteditable-root, ytd-commentbox #contenteditable-root, div#contenteditable-textarea'
-                        );
-                        const submit = document.querySelector(
-                            '#submit-button button, ytd-commentbox #submit-button button'
-                        );
+                        const editor = document.querySelector('[data-trust-builder-action="comment-editor"]');
+                        const submit = document.querySelector('[data-trust-builder-action="comment-submit"]');
+                        const toastText = Array.from(document.querySelectorAll(
+                            'tp-yt-paper-toast, yt-notification-action-renderer, ytd-notification-topbar-button-renderer'
+                        )).map(node => normalize(node.textContent).toLowerCase()).join(' ');
                         const editorReset = Boolean(
-                            editor
-                            && normalize(editor.textContent) === ''
-                            && submit
-                            && (submit.disabled || submit.getAttribute('aria-disabled') === 'true')
+                            (!editor || normalize(editor.textContent) === '')
+                            && (!submit || submit.disabled || submit.getAttribute('aria-disabled') === 'true')
                         );
-                        return visibleComment || editorReset;
+                        const toastConfirmed = toastText.includes('comment added')
+                            || toastText.includes('đã thêm bình luận');
+                        return visibleComment || editorReset || toastConfirmed;
                     }""",
                     clean_text,
-                    timeout=8000,
+                    timeout=12000,
                 )
             except Exception:
                 logger.warning("YouTube chưa xác nhận bình luận sau khi gửi.")
-                return ACTION_FAILED
+                return action_result(
+                    ACTION_UNCERTAIN,
+                    "comment_confirmation_timeout",
+                    "Đã bấm gửi nhưng YouTube chưa xác nhận; sẽ không gửi lại trên video này.",
+                )
             logger.info("YouTube đã xác nhận bình luận được gửi.")
-            return ACTION_PERFORMED
+            return action_result(ACTION_PERFORMED, "comment_confirmed", "YouTube đã xác nhận bình luận.")
 
-        logger.warning("Nút Gửi bình luận không kích hoạt.")
-        return ACTION_FAILED
+        return action_result(ACTION_NOT_FOUND, "comment_submit_stale", "Nút gửi không còn khả dụng.")
     except Exception as exc:
         logger.warning(
             "Lỗi khi đăng bình luận: %s",
             security_logging.redact_sensitive(exc),
         )
-        return ACTION_FAILED
+        return action_result(ACTION_FAILED, "comment_interaction_error", "Không thể hoàn tất thao tác bình luận.")
 
 
-async def action_subscribe_channel(page: Any) -> str:
+async def action_subscribe_channel(page: Any) -> dict[str, str]:
     """Subscribe to the channel of the current video if not subscribed."""
     logger.info("Thực hiện hành động Đăng ký kênh (Subscribe)...")
     try:
@@ -788,13 +1037,21 @@ async def action_subscribe_channel(page: Any) -> str:
                     if (subBtn) {
                         const rect = subBtn.getBoundingClientRect();
                         if (rect.width <= 0 || rect.height <= 0) continue;
-                        const text = (subBtn.innerText || subBtn.getAttribute('aria-label') || '').toLowerCase();
-                        const subscribed = text.includes('subscribed') || text.includes('đã đăng ký');
+                        const renderer = subBtn.closest('ytd-subscribe-button-renderer, subscribe-button-view-model');
+                        const text = `${subBtn.innerText || ''} ${subBtn.getAttribute('aria-label') || ''}`.toLowerCase();
+                        const subscribed = subBtn.getAttribute('aria-pressed') === 'true'
+                            || renderer?.hasAttribute('subscribed')
+                            || renderer?.getAttribute('is-subscribed') === 'true'
+                            || text.includes('subscribed')
+                            || text.includes('đã đăng ký')
+                            || text.includes('unsubscribe')
+                            || text.includes('hủy đăng ký');
                         subBtn.setAttribute('data-trust-builder-action', 'subscribe');
                         return {
                             found: true,
                             subscribed,
-                            selector: '[data-trust-builder-action="subscribe"]'
+                            selector: '[data-trust-builder-action="subscribe"]',
+                            signature: `${subBtn.innerText || ''}|${subBtn.getAttribute('aria-label') || ''}|${subBtn.getAttribute('aria-pressed') || ''}`
                         };
                     }
                 }
@@ -804,11 +1061,11 @@ async def action_subscribe_channel(page: Any) -> str:
 
         if not sub_info.get("found"):
             logger.warning("Không tìm thấy nút Subscribe trên trang.")
-            return ACTION_NOT_FOUND
+            return action_result(ACTION_NOT_FOUND, "subscribe_button_missing", "Không tìm thấy nút đăng ký kênh.")
 
         if sub_info.get("subscribed"):
             logger.info("Kênh đã được đăng ký trước đó. Bỏ qua.")
-            return ACTION_ALREADY_DONE
+            return action_result(ACTION_ALREADY_DONE, "already_subscribed", "Kênh đã được đăng ký trước đó.")
 
         matched_sel = sub_info.get("selector")
         btn = await page.query_selector(matched_sel) if matched_sel else None
@@ -818,7 +1075,7 @@ async def action_subscribe_channel(page: Any) -> str:
             await btn.click()
             try:
                 await page.wait_for_function(
-                    """() => {
+                    """initialSignature => {
                         const selectors = [
                             '[data-trust-builder-action="subscribe"]',
                             'ytd-watch-metadata #subscribe-button button',
@@ -829,26 +1086,38 @@ async def action_subscribe_channel(page: Any) -> str:
                         return selectors.some(selector => {
                             const node = document.querySelector(selector);
                             if (!node) return false;
-                            const text = (node.innerText || node.getAttribute('aria-label') || '').toLowerCase();
-                            return text.includes('subscribed')
+                            const renderer = node.closest('ytd-subscribe-button-renderer, subscribe-button-view-model');
+                            const text = `${node.innerText || ''} ${node.getAttribute('aria-label') || ''}`.toLowerCase();
+                            const signature = `${node.innerText || ''}|${node.getAttribute('aria-label') || ''}|${node.getAttribute('aria-pressed') || ''}`;
+                            return node.getAttribute('aria-pressed') === 'true'
+                                || renderer?.hasAttribute('subscribed')
+                                || renderer?.getAttribute('is-subscribed') === 'true'
+                                || text.includes('subscribed')
                                 || text.includes('đã đăng ký')
-                                || node.getAttribute('aria-pressed') === 'true';
+                                || text.includes('unsubscribe')
+                                || text.includes('hủy đăng ký')
+                                || (Boolean(initialSignature) && signature !== initialSignature);
                         });
                     }""",
-                    timeout=6000,
+                    sub_info.get("signature", ""),
+                    timeout=10000,
                 )
             except Exception:
                 logger.warning("YouTube chưa xác nhận trạng thái Subscribe sau khi click.")
-                return ACTION_FAILED
+                return action_result(
+                    ACTION_UNCERTAIN,
+                    "subscribe_confirmation_timeout",
+                    "Đã click đăng ký nhưng YouTube chưa xác nhận; sẽ không click lại trên video này.",
+                )
             logger.info("YouTube đã xác nhận kênh ở trạng thái Subscribed.")
-            return ACTION_PERFORMED
-        return ACTION_NOT_FOUND
+            return action_result(ACTION_PERFORMED, "subscribe_confirmed", "YouTube đã xác nhận đăng ký kênh.")
+        return action_result(ACTION_NOT_FOUND, "subscribe_button_stale", "Nút đăng ký không còn khả dụng.")
     except Exception as exc:
         logger.warning(
             "Lỗi khi bấm Subscribe: %s",
             security_logging.redact_sensitive(exc),
         )
-        return ACTION_FAILED
+        return action_result(ACTION_FAILED, "subscribe_interaction_error", "Không thể hoàn tất thao tác đăng ký kênh.")
 
 
 async def action_audit_channel_branding(

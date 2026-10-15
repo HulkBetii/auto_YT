@@ -57,10 +57,10 @@ import auto_yt.services.database as db
 import auto_yt.services.audio_utils as audio_utils
 import auto_yt.services.tts_registry as tts
 from auto_yt.services.audio_review import (
-    audit_script_for_audio,
+    ScriptQualityGate,
     get_audio_script,
-    get_audio_script_hash,
 )
+from auto_yt.services.metadata_validation import MetadataQualityGate
 from auto_yt.dialogue_parser import (
     parse_dialogue_turns,
     is_dialogue_script,
@@ -2472,9 +2472,14 @@ def _audio_review_response(review: dict) -> dict:
         "reviewed_at": review.get("reviewed_at", ""),
         "updated_at": review.get("updated_at", ""),
         "can_approve": bool(report.get("can_approve")),
+        "can_manual_approve": bool(report.get("can_manual_approve")),
+        "decision": report.get("decision", "block"),
         "errors": report.get("errors") or [],
+        "review_required": report.get("review_required") or [],
         "warnings": report.get("warnings") or [],
+        "fixes": report.get("fixes") or [],
         "metrics": report.get("metrics") or {},
+        "quality_gate_version": report.get("quality_gate_version", 1),
     }
 
 
@@ -2488,25 +2493,35 @@ def _prepare_audio_review(video_id: int) -> dict:
         )
 
     script_text = video.get("generated_script", "")
-    sanitized_script = sanitize_generated_script(script_text)
-    if sanitized_script != script_text:
-        if not db.update_script(video_id, sanitized_script):
+    gate_result = ScriptQualityGate(sanitizer=sanitize_generated_script).run(
+        script_text,
+        auto_fix=True,
+    )
+    cleaned_script = gate_result.pop("cleaned_script")
+    report = gate_result
+    if cleaned_script != script_text and report.get("decision") != "block":
+        latest_video = db.get_video(video_id)
+        if not latest_video or latest_video.get("generated_script", "") != script_text:
+            raise RuntimeError(
+                "Kịch bản đã thay đổi trong lúc kiểm tra; hãy chạy lại quality gate."
+            )
+        if not db.update_script(video_id, cleaned_script):
             raise RuntimeError("Không thể lưu kịch bản đã làm sạch.")
-        script_text = sanitized_script
+        script_text = cleaned_script
 
-    report = audit_script_for_audio(script_text)
     previous_review = db.get_audio_review(video_id)
     same_approved_script = (
         previous_review
         and previous_review.get("status") == "approved"
         and previous_review.get("script_hash") == report["script_hash"]
-        and report["can_approve"]
+        and report.get("can_manual_approve")
     )
-    status = (
-        "approved"
-        if same_approved_script
-        else "pending" if report["can_approve"] else "blocked"
-    )
+    if same_approved_script:
+        status = "approved"
+    elif report.get("decision") == "block":
+        status = "blocked"
+    else:
+        status = "pending"
     reviewed_at = (
         previous_review.get("reviewed_at", "") if same_approved_script else ""
     )
@@ -2523,13 +2538,117 @@ def _automatically_approve_audio_review(video_id: int) -> dict:
     """Approve the current narrative hash only when deterministic checks pass."""
     review = _prepare_audio_review(video_id)
     report = review.get("report") or {}
-    if not report.get("can_approve"):
+    if report.get("decision") != "pass" or not report.get("can_approve"):
         return review
     if review.get("status") == "approved":
         return review
     return db.upsert_audio_review(
         video_id=video_id,
         script_hash=review["script_hash"],
+        status="approved",
+        report=report,
+        reviewed_at=db.utc_now(),
+    )
+
+
+def _metadata_state_from_script(script_text: str) -> dict:
+    title = db.extract_generated_video_title(script_text)
+    return {
+        "title": title,
+        "slug": db.extract_generated_video_slug(script_text, default_title=title),
+        "description": db.extract_generated_video_description(script_text),
+        "hashtags": db.extract_generated_video_hashtags(script_text),
+        "tags": db.extract_generated_video_tags(script_text),
+    }
+
+
+def _metadata_review_response(review: dict) -> dict:
+    report = review.get("report") or {}
+    return {
+        "video_id": review["video_id"],
+        "script_hash": review.get("script_hash", ""),
+        "metadata_hash": review.get("metadata_hash", ""),
+        "status": review.get("status", "pending"),
+        "reviewed_at": review.get("reviewed_at", ""),
+        "updated_at": review.get("updated_at", ""),
+        "can_approve": bool(report.get("can_approve")),
+        "can_manual_approve": bool(report.get("can_manual_approve")),
+        "decision": report.get("decision", "block"),
+        "errors": report.get("errors") or [],
+        "review_required": report.get("review_required") or [],
+        "warnings": report.get("warnings") or [],
+        "fixes": report.get("fixes") or [],
+        "metrics": report.get("metrics") or {},
+        "quality_gate_version": report.get("quality_gate_version", 1),
+    }
+
+
+def _prepare_metadata_review(
+    video_id: int,
+    *,
+    video: dict | None = None,
+    script_text: str | None = None,
+) -> dict:
+    video = video or db.get_video(video_id)
+    if not video:
+        raise RuntimeError("Video không tồn tại.")
+    if video.get("video_status") == db.VIDEO_STATUS_ERROR:
+        raise RuntimeError("Video đang ở trạng thái Lỗi; bỏ qua kiểm tra metadata.")
+
+    script_text = (
+        str(script_text)
+        if script_text is not None
+        else str(video.get("generated_script") or "")
+    )
+    gate_result = MetadataQualityGate().run(
+        _metadata_state_from_script(script_text),
+        script_text=script_text,
+        require_description=True,
+        require_slug=True,
+    )
+    gate_result.pop("cleaned_metadata", None)
+    previous_review = db.get_metadata_review(video_id)
+    same_approved_metadata = (
+        previous_review
+        and previous_review.get("status") == "approved"
+        and previous_review.get("script_hash") == gate_result["script_hash"]
+        and previous_review.get("metadata_hash") == gate_result["metadata_hash"]
+        and gate_result.get("can_manual_approve")
+    )
+    if same_approved_metadata:
+        status = "approved"
+    elif gate_result.get("decision") == "block":
+        status = "blocked"
+    else:
+        status = "pending"
+    reviewed_at = (
+        previous_review.get("reviewed_at", "") if same_approved_metadata else ""
+    )
+    return db.upsert_metadata_review(
+        video_id=video_id,
+        script_hash=gate_result["script_hash"],
+        metadata_hash=gate_result["metadata_hash"],
+        status=status,
+        report=gate_result,
+        reviewed_at=reviewed_at,
+    )
+
+
+def _automatically_approve_metadata_review(video_id: int) -> dict:
+    """Approve metadata only after the current script has passed its own gate."""
+    script_review = _automatically_approve_audio_review(video_id)
+    review = _prepare_metadata_review(video_id)
+    report = review.get("report") or {}
+    if script_review.get("status") != "approved":
+        return review
+    if report.get("decision") != "pass" or not report.get("can_approve"):
+        return review
+    if review.get("status") == "approved":
+        return review
+    return db.upsert_metadata_review(
+        video_id=video_id,
+        script_hash=review["script_hash"],
+        metadata_hash=review["metadata_hash"],
         status="approved",
         report=report,
         reviewed_at=db.utc_now(),
@@ -5194,6 +5313,7 @@ def _execute_video_job(job: dict) -> None:
         audio_task = None
         audio_error = ""
         audio_review = None
+        metadata_review = None
         if complete_for_audio and pipeline["audio"]:
             audio_review, audio_task, audio_error = _auto_review_and_create_audio(
                 video_id,
@@ -5202,6 +5322,10 @@ def _execute_video_job(job: dict) -> None:
             )
         elif not complete_for_audio:
             audio_review = _prepare_audio_review(video_id)
+        else:
+            audio_review = _automatically_approve_audio_review(video_id)
+        if complete_for_audio:
+            metadata_review = _automatically_approve_metadata_review(video_id)
         review_response = (
             _audio_review_response(audio_review) if audio_review else None
         )
@@ -5222,6 +5346,11 @@ def _execute_video_job(job: dict) -> None:
             ),
             "audio_error": audio_error or None,
             "audio_review": review_response,
+            "metadata_review": (
+                _metadata_review_response(metadata_review)
+                if metadata_review
+                else None
+            ),
             "generation_warning": generation_warning,
             "complete_for_audio": complete_for_audio,
             "failed_step": failed_step,
@@ -6821,6 +6950,7 @@ def continue_video_generation(video_id: int):
             audio_task = None
             audio_error = ""
             audio_review = None
+            metadata_review = None
             if complete_for_audio and pipeline["audio"]:
                 audio_review, audio_task, audio_error = _auto_review_and_create_audio(
                     video_id,
@@ -6829,6 +6959,10 @@ def continue_video_generation(video_id: int):
                 )
             elif not complete_for_audio:
                 audio_review = _prepare_audio_review(video_id)
+            else:
+                audio_review = _automatically_approve_audio_review(video_id)
+            if complete_for_audio:
+                metadata_review = _automatically_approve_metadata_review(video_id)
 
             legacy_status = (
                 "error"
@@ -6882,6 +7016,11 @@ def continue_video_generation(video_id: int):
                         "audio_review": (
                             _audio_review_response(audio_review)
                             if audio_review
+                            else None
+                        ),
+                        "metadata_review": (
+                            _metadata_review_response(metadata_review)
+                            if metadata_review
                             else None
                         ),
                         "generation_warning": generation_warning,
@@ -7221,12 +7360,37 @@ def _audio_review_job_center_item(review: dict) -> dict:
         "blocked": "review_blocked",
         "approved": "done",
     }
-    progress_map = {
-        "pending": "Bản ghi cũ chưa chạy bước tự động kiểm tra audio",
-        "blocked": "Kịch bản không đạt kiểm tra tự động; chưa gửi Genmax",
-        "approved": "Kịch bản đã được hệ thống tự động duyệt",
-    }
     status = review.get("status", "blocked")
+    report = review.get("report") or {}
+    review_issues = [
+        item.get("message", "")
+        for item in report.get("review_required", [])
+        if item.get("message")
+    ]
+    if status == "pending":
+        if review_issues:
+            progress = f"Cần duyệt thủ công: {'; '.join(review_issues)}"
+        elif report.get("decision") == "review":
+            progress = "Kịch bản có điểm nghi vấn cần duyệt thủ công; chưa gửi Genmax"
+        else:
+            progress = "Bản ghi cũ chưa chạy bước tự động kiểm tra audio"
+    elif status == "blocked":
+        progress = "Kịch bản không đạt kiểm tra tự động; chưa gửi Genmax"
+    elif status == "approved":
+        progress = "Kịch bản đã được hệ thống tự động duyệt"
+    else:
+        progress = str(status)
+
+    error_message = ""
+    if status == "blocked":
+        error_message = "; ".join(
+            item.get("message", "")
+            for item in report.get("errors", [])
+            if item.get("message")
+        )
+    elif status == "pending" and review_issues:
+        error_message = "; ".join(review_issues)
+
     return {
         "id": f"audio-review:{review['video_id']}",
         "raw_id": str(review["video_id"]),
@@ -7237,16 +7401,8 @@ def _audio_review_job_center_item(review: dict) -> dict:
         "original_title": review.get("original_title", ""),
         "generated_title": review.get("generated_title", ""),
         "video_url": review.get("video_url", ""),
-        "progress": progress_map.get(status, status),
-        "error": (
-            "; ".join(
-                item.get("message", "")
-                for item in (review.get("report") or {}).get("errors", [])
-                if item.get("message")
-            )
-            if status == "blocked"
-            else ""
-        ),
+        "progress": progress,
+        "error": error_message,
         "video_id": review["video_id"],
         "created_at": review.get("updated_at", ""),
         "updated_at": review.get("updated_at", ""),
@@ -8428,11 +8584,17 @@ async def generate_metadata_endpoint(req: GenerateMetadataRequest):
         )
         if not db.update_script(req.video_id, updated_script):
             raise RuntimeError("Video not found")
+        metadata_review = _prepare_metadata_review(
+            req.video_id,
+            video=latest_video,
+            script_text=updated_script,
+        )
         return {
             "success": True,
             "video_id": req.video_id,
             "metadata": metadata,
             "script": updated_script,
+            "metadata_review": _metadata_review_response(metadata_review),
         }
     except Exception as exc:
         print(f"Error in generate_metadata_endpoint: {exc}", file=sys.stderr)
@@ -8658,6 +8820,50 @@ def get_audio_review(video_id: int):
     return {"success": True, "audio_review": _audio_review_response(review)}
 
 
+@app.get("/api/videos/{video_id}/metadata-review")
+def get_metadata_review(video_id: int):
+    _require_actionable_video(video_id)
+    review = _prepare_metadata_review(video_id)
+    return {
+        "success": True,
+        "metadata_review": _metadata_review_response(review),
+    }
+
+
+@app.post("/api/videos/{video_id}/metadata-review/approve")
+def approve_metadata_review(video_id: int):
+    _require_actionable_video(video_id)
+    script_review = _prepare_audio_review(video_id)
+    if script_review.get("status") != "approved":
+        return {
+            "success": False,
+            "requires_review": True,
+            "error": "Kịch bản hiện tại chưa được duyệt; chưa thể duyệt metadata.",
+            "audio_review": _audio_review_response(script_review),
+        }
+    review = _prepare_metadata_review(video_id)
+    report = review.get("report") or {}
+    if not report.get("can_manual_approve"):
+        return {
+            "success": False,
+            "requires_review": True,
+            "error": "Metadata còn lỗi bắt buộc; chưa thể duyệt.",
+            "metadata_review": _metadata_review_response(review),
+        }
+    approved = db.upsert_metadata_review(
+        video_id=video_id,
+        script_hash=review["script_hash"],
+        metadata_hash=review["metadata_hash"],
+        status="approved",
+        report=report,
+        reviewed_at=db.utc_now(),
+    )
+    return {
+        "success": True,
+        "metadata_review": _metadata_review_response(approved),
+    }
+
+
 @app.post("/api/videos/{video_id}/audio-review/approve")
 def approve_audio_review(
     video_id: int,
@@ -8685,7 +8891,7 @@ def approve_audio_review(
 
     review = _prepare_audio_review(video_id)
     report = review.get("report") or {}
-    if not report.get("can_approve"):
+    if not report.get("can_manual_approve"):
         return {
             "success": False,
             "requires_review": True,

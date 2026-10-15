@@ -131,7 +131,7 @@ function AudioDurationBadge({ videoId, audioUrl, savedDurationSeconds, audioRevi
       ? formatAudioDuration(durationSeconds)
       : loadFailed ? 'Audio không khả dụng' : 'Đang tải...'
   } else if (audioReviewStatus === 'pending') {
-    label = 'Chưa tự động kiểm tra'
+    label = 'Chờ duyệt kịch bản'
   } else if (audioReviewStatus === 'blocked') {
     label = 'Kịch bản cần sửa'
   }

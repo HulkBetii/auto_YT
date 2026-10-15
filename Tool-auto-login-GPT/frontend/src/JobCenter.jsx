@@ -16,7 +16,7 @@ const STATUS_META = {
   running: { label: 'Đang chạy', color: '#2ecc71' },
   retry_wait: { label: 'Chờ tự phục hồi', color: '#4dd0e1' },
   paused: { label: 'Tạm dừng', color: '#f1c40f' },
-  awaiting_review: { label: 'Chưa tự động kiểm tra', color: '#f5b041' },
+  awaiting_review: { label: 'Chờ duyệt thủ công', color: '#f5b041' },
   review_blocked: { label: 'Tự kiểm tra không đạt', color: '#ff6b6b' },
   done: { label: 'Hoàn thành', color: '#4dd0e1' },
   error: { label: 'Lỗi', color: '#ff5c5c' },

@@ -58,7 +58,11 @@ function getActivityIcon(type) {
     case 'watch': return '👁️'
     case 'like': return '👍'
     case 'comment': return '💬'
+    case 'comment_attempt': return '💬'
     case 'subscribe': return '🔔'
+    case 'subscribe_attempt': return '🔔'
+    case 'like_attempt': return '👍'
+    case 'engagement_preview': return '👁️'
     case 'branding_audit': return '🛡️'
     case 'error': return '⚠️'
     default: return '⚡'
@@ -606,6 +610,12 @@ export default function TrustBuilder() {
     !String(currentChannel.gpm_profile_id).startsWith('local_') &&
     selectedPlan?.gpm_proxy_configured
   )
+  const needsEngagementRepair = Boolean(
+    selectedPlan?.status === 'completed' && (
+      (Number(selectedPlan.daily_comment_target || 0) > 0 && Number(selectedPlan.total_comments || 0) === 0) ||
+      (Number(selectedPlan.daily_subscribe_target || 0) > 0 && Number(selectedPlan.total_subscriptions || 0) === 0)
+    )
+  )
 
   return (
     <div className="trust-builder-container">
@@ -812,9 +822,9 @@ export default function TrustBuilder() {
                       type="button"
                       className="trust-btn start-btn"
                       onClick={() => handlePlanAction(selectedPlan.status === 'paused' ? 'resume' : 'start')}
-                      disabled={actionBusy || selectedPlan.status === 'completed' || !profileIsReady}
+                      disabled={actionBusy || (selectedPlan.status === 'completed' && !needsEngagementRepair) || !profileIsReady}
                     >
-                      ▶ {selectedPlan.status === 'completed' ? 'Warm-up đã hoàn tất' : selectedPlan.status === 'paused' ? 'Tiếp tục Nuôi Kênh' : 'Bắt đầu Nuôi Kênh'}
+                      ▶ {needsEngagementRepair ? 'Mở lại Engagement' : selectedPlan.status === 'completed' ? 'Warm-up đã hoàn tất' : selectedPlan.status === 'paused' ? 'Tiếp tục Nuôi Kênh' : 'Bắt đầu Nuôi Kênh'}
                     </button>
                   ) : (
                     <button
@@ -1090,6 +1100,8 @@ export default function TrustBuilder() {
                   ) : (
                     activities.map((log) => {
                       const matchedChannel = log.detail_json?.matched_channel || ''
+                      const actionStatus = log.detail_json?.status || ''
+                      const reasonCode = log.detail_json?.reason_code || ''
                       return (
                         <div key={log.id} className={`activity-log-row ${log.success ? 'success' : 'failed'}`}>
                           <div className="activity-type-icon">{getActivityIcon(log.activity_type)}</div>
@@ -1099,6 +1111,11 @@ export default function TrustBuilder() {
                             </div>
                             {log.detail_json?.comment_text && (
                               <div className="activity-detail-comment">"{log.detail_json.comment_text}"</div>
+                            )}
+                            {actionStatus && (
+                              <div className={log.success ? 'activity-detail-comment' : 'activity-detail-error'}>
+                                Trạng thái: {actionStatus}{reasonCode ? ` · ${reasonCode}` : ''}
+                              </div>
                             )}
                             {log.error_message && (
                               <div className="activity-detail-error">Lỗi: {log.error_message}</div>
