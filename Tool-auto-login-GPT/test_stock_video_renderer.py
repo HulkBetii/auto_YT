@@ -381,6 +381,42 @@ class StockVideoRendererTests(unittest.TestCase):
             self.assertNotIn("subtitles=", render_cmds[0])
             self.assertIn("between(t,0,3)", render_cmds[0])
             self.assertIn("s=520x260:mode=cline", render_cmds[0])
+            # Audio must be delayed by 3s
+            self.assertIn("adelay=delays=3000:all=1", render_cmds[0])
+            self.assertEqual(res["duration"], 63.0)  # 60s + 3s intro delay
+            # Wave color must never be black
+            self.assertNotIn("black", str(res.get("wave_color")).lower())
+            self.assertIn(res.get("wave_color"), stock_video_renderer.WAVE_COLORS_PALETTE)
+
+    def test_random_waveform_placement_strictly_avoids_collisions(self):
+        corners = ["bottom_left", "bottom_right", "top_left", "top_right"]
+        for corner in corners:
+            for _ in range(30):
+                coords = stock_video_renderer.calculate_layout_coordinates(
+                    corner=corner,
+                    thumb_w=460,
+                    thumb_h=259,
+                    card_w=1250,
+                    card_h=150,
+                    wave_w=520,
+                    wave_h=260,
+                )
+                t_x, t_y = coords["thumb"]
+                c_x, c_y = coords["card"]
+                w_x, w_y = coords["wave"]
+
+                t_box = (t_x, t_y, t_x + 460, t_y + 259)
+                c_box = (c_x, c_y, c_x + 1250, c_y + 150)
+                w_box = (w_x, w_y, w_x + 520, w_y + 260)
+
+                self.assertFalse(
+                    stock_video_renderer._boxes_intersect(w_box, t_box),
+                    f"Waveform collided with Thumbnail in {corner} layout: wave={w_box}, thumb={t_box}",
+                )
+                self.assertFalse(
+                    stock_video_renderer._boxes_intersect(w_box, c_box),
+                    f"Waveform collided with Title in {corner} layout: wave={w_box}, card={c_box}",
+                )
 
 
 if __name__ == "__main__":

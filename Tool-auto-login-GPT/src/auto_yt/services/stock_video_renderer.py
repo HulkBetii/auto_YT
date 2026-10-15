@@ -478,6 +478,84 @@ def generate_title_text_overlay(
     return output_path, total_w, total_h, outline_color
 
 
+WAVE_COLORS_PALETTE: list[str] = [
+    "white@0.95",       # Bright White
+    "#00E5FF@0.95",     # Electric Cyan
+    "#FFD700@0.95",     # Golden Yellow
+    "#22C55E@0.95",     # Vibrant Green
+    "#FF6B00@0.95",     # Bright Orange
+    "#F43F5E@0.95",     # Neon Rose / Pink
+    "#A855F7@0.95",     # Electric Purple
+    "#38BDF8@0.95",     # Sky Blue
+]
+
+
+def _boxes_intersect(b1: tuple[int, int, int, int], b2: tuple[int, int, int, int]) -> bool:
+    """Return True if rectangle b1 intersects rectangle b2 (x1, y1, x2, y2)."""
+    return not (b1[2] < b2[0] or b1[0] > b2[2] or b1[3] < b2[1] or b1[1] > b2[3])
+
+
+def pick_random_waveform_coordinates(
+    thumb_x: int,
+    thumb_y: int,
+    thumb_w: int,
+    thumb_h: int,
+    card_x: int,
+    card_y: int,
+    card_w: int,
+    card_h: int,
+    wave_w: int = 520,
+    wave_h: int = 260,
+    canvas_w: int = TARGET_WIDTH,
+    canvas_h: int = TARGET_HEIGHT,
+    margin: int = 40,
+    buffer_pad: int = 25,
+) -> tuple[int, int]:
+    """Pick random (x, y) coordinates for the large waveform strictly avoiding Thumbnail and Title overlays."""
+    t_box = (
+        thumb_x - buffer_pad,
+        thumb_y - buffer_pad,
+        thumb_x + thumb_w + buffer_pad,
+        thumb_y + thumb_h + buffer_pad,
+    )
+    c_box = (
+        card_x - buffer_pad,
+        card_y - buffer_pad,
+        card_x + card_w + buffer_pad,
+        card_y + card_h + buffer_pad,
+    )
+
+    max_x = max(margin, canvas_w - wave_w - margin)
+    max_y = max(margin, canvas_h - wave_h - margin)
+
+    center_x = (canvas_w - wave_w) // 2
+    center_y = (canvas_h - wave_h) // 2
+
+    # Attempt random placement (100 tries)
+    for _ in range(100):
+        rx = secrets.randbelow(max_x - margin + 1) + margin
+        ry = secrets.randbelow(max_y - margin + 1) + margin
+        w_box = (rx, ry, rx + wave_w, ry + wave_h)
+        if not _boxes_intersect(w_box, t_box) and not _boxes_intersect(w_box, c_box):
+            return rx, ry
+
+    # Balanced fallback positions across canvas
+    safe_candidates = [
+        (center_x, center_y),                          # Exact center
+        (center_x, margin + 40),                       # Top center
+        (max_x - 40, margin + 40),                     # Top right
+        (margin + 40, margin + 40),                    # Top left
+        (center_x, max(margin, center_y - 120)),       # Upper center
+        (max_x - 40, max(margin, center_y - 80)),      # Mid right
+    ]
+    for sx, sy in safe_candidates:
+        w_box = (sx, sy, sx + wave_w, sy + wave_h)
+        if not _boxes_intersect(w_box, t_box) and not _boxes_intersect(w_box, c_box):
+            return sx, sy
+
+    return center_x, center_y
+
+
 def calculate_layout_coordinates(
     corner: str = "bottom_left",
     thumb_w: int = 460,
@@ -494,17 +572,11 @@ def calculate_layout_coordinates(
 ) -> dict[str, tuple[int, int]]:
     """Compute (x, y) coordinates for Thumbnail, Title Card, Icon, and Waveform.
     
-    Waveform is always placed at the visual center of the canvas.
+    Waveform is placed at a collision-free random position (avoiding Thumbnail & Title).
     Thumbnail PiP is placed at the specified corner (default: bottom-left).
     Title text is placed at the opposite corner (default: bottom-right).
     """
     coords = {}
-
-    # Center waveform & icon placeholder
-    wave_x = max(0, (canvas_w - wave_w) // 2)
-    wave_y = max(0, (canvas_h - wave_h) // 2)
-    coords["wave"] = (wave_x, wave_y)
-    coords["icon"] = (wave_x, wave_y)
 
     if corner == "bottom_right":
         # Thumbnail bottom-right, Title Card bottom-left
@@ -524,6 +596,28 @@ def calculate_layout_coordinates(
         card_x = canvas_w - card_w - margin
         card_y = canvas_h - card_h - margin
         coords["card"] = (card_x, card_y)
+
+    t_x, t_y = coords["thumb"]
+    c_x, c_y = coords["card"]
+
+    # Random waveform coordinates avoiding thumbnail and title
+    wave_x, wave_y = pick_random_waveform_coordinates(
+        thumb_x=t_x,
+        thumb_y=t_y,
+        thumb_w=thumb_w,
+        thumb_h=thumb_h,
+        card_x=c_x,
+        card_y=c_y,
+        card_w=card_w,
+        card_h=card_h,
+        wave_w=wave_w,
+        wave_h=wave_h,
+        canvas_w=canvas_w,
+        canvas_h=canvas_h,
+        margin=margin,
+    )
+    coords["wave"] = (wave_x, wave_y)
+    coords["icon"] = (wave_x, wave_y)
 
     return coords
 
@@ -787,7 +881,11 @@ def produce_stock_video(
     cancel_check()
     progress("Đang chuẩn bị playlist video nền và bố cục ngẫu nhiên...", "stock_video_layout")
 
-    playlist, video_durations = build_background_playlist(available_videos, audio_duration)
+    # Audio starts after 3.0s full intro thumbnail
+    intro_delay = 3.0
+    total_duration = audio_duration + intro_delay
+
+    playlist, video_durations = build_background_playlist(available_videos, total_duration)
 
     # 5. Corner layout (Default: bottom-left for thumbnail PiP, bottom-right for title)
     corner = str((snapshot.get("stock_video_settings") or {}).get("thumbnail_corner_mode") or "bottom_left").strip().lower()
@@ -819,7 +917,7 @@ def produce_stock_video(
         font_size=42,
     )
 
-    # 7. Calculate Coordinates (Waveform centered, Thumb PiP bottom-left, Title bottom-right)
+    # 7. Calculate Coordinates (Collision-free random Waveform, Thumb PiP bottom-left, Title bottom-right)
     with Image.open(thumb_styled_path) as im_t:
         thumb_total_w, thumb_total_h = im_t.size
 
@@ -848,12 +946,14 @@ def produce_stock_video(
     c_x, c_y = coords["card"]
     w_x, w_y = coords["wave"]
 
+    chosen_wave_color = secrets.choice(WAVE_COLORS_PALETTE)
+
     filter_complex = (
         f"[0:v]settb=AVTB,setpts=N/({TARGET_FPS}*TB),fps={TARGET_FPS},"
         f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:force_original_aspect_ratio=increase,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT},setsar=1,format=yuv420p[bg];"
-        f"[1:a]asplit=2[a_wave][a_out];"
-        f"[a_wave]showwaves=s=520x260:mode=cline:colors=white@0.95:scale=sqrt:r={TARGET_FPS},"
+        f"[1:a]adelay=delays=3000:all=1,asplit=2[a_delayed_wave][a_out];"
+        f"[a_delayed_wave]showwaves=s=520x260:mode=cline:colors={chosen_wave_color}:scale=sqrt:r={TARGET_FPS},"
         f"format=yuva420p,settb=AVTB,setpts=PTS-STARTPTS[wave];"
         f"[bg][2:v]overlay=0:0:enable='between(t,0,3)':eof_action=repeat[v_intro];"
         f"[v_intro][wave]overlay={w_x}:{w_y}:enable='gte(t,3)':eof_action=pass[v_wave];"
@@ -896,7 +996,7 @@ def produce_stock_video(
         "-fps_mode", "cfr",
         "-max_muxing_queue_size", "4096",
         "-threads", "0",
-        "-t", f"{audio_duration:.3f}",
+        "-t", f"{total_duration:.3f}",
         str(output_path),
     ]
 
@@ -933,9 +1033,9 @@ def produce_stock_video(
                                 match = re.search(r"time=(\d+:\d+:\d+(?:\.\d+)?)", line)
                                 if match:
                                     current_time_str = match.group(1)
-                                    tot_h = int(audio_duration // 3600)
-                                    tot_m = int((audio_duration % 3600) // 60)
-                                    tot_s = int(audio_duration % 60)
+                                    tot_h = int(total_duration // 3600)
+                                    tot_m = int((total_duration % 3600) // 60)
+                                    tot_s = int(total_duration % 60)
                                     progress(
                                         f"Đang encode MP4 ({current_time_str} / {tot_h:02d}:{tot_m:02d}:{tot_s:02d})...",
                                         "stock_video_encoding",
@@ -1002,7 +1102,7 @@ def produce_stock_video(
         path=str(output_path.resolve()),
         content_hash=f"stock_{video_id}_{timestamp_str}",
         size_bytes=output_path.stat().st_size,
-        duration_seconds=audio_duration,
+        duration_seconds=total_duration,
         mime_type="video/mp4",
         status="ready",
     )
@@ -1012,8 +1112,10 @@ def produce_stock_video(
         "render_mode": "stock_video",
         "video_path": str(output_path),
         "captions_path": None,
-        "duration": audio_duration,
+        "duration": total_duration,
         "corner": corner,
         "icon": "center_waveform",
         "title_outline_color": list(chosen_outline),
+        "wave_color": chosen_wave_color,
+        "wave_coords": [w_x, w_y],
     }
