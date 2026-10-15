@@ -185,6 +185,8 @@ def test_action_subscribe_channel():
         assert subscribed["status"] == ACTION_PERFORMED
         assert subscribed["reason_code"] == "subscribe_confirmed"
         assert mock_btn.click.called
+        confirmation_script = mock_page.wait_for_function.await_args.args[0]
+        assert "signature !==" not in confirmation_script
 
     asyncio.run(_run())
 

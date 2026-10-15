@@ -1050,8 +1050,7 @@ async def action_subscribe_channel(page: Any) -> dict[str, str]:
                         return {
                             found: true,
                             subscribed,
-                            selector: '[data-trust-builder-action="subscribe"]',
-                            signature: `${subBtn.innerText || ''}|${subBtn.getAttribute('aria-label') || ''}|${subBtn.getAttribute('aria-pressed') || ''}`
+                            selector: '[data-trust-builder-action="subscribe"]'
                         };
                     }
                 }
@@ -1075,7 +1074,7 @@ async def action_subscribe_channel(page: Any) -> dict[str, str]:
             await btn.click()
             try:
                 await page.wait_for_function(
-                    """initialSignature => {
+                    """() => {
                         const selectors = [
                             '[data-trust-builder-action="subscribe"]',
                             'ytd-watch-metadata #subscribe-button button',
@@ -1088,18 +1087,15 @@ async def action_subscribe_channel(page: Any) -> dict[str, str]:
                             if (!node) return false;
                             const renderer = node.closest('ytd-subscribe-button-renderer, subscribe-button-view-model');
                             const text = `${node.innerText || ''} ${node.getAttribute('aria-label') || ''}`.toLowerCase();
-                            const signature = `${node.innerText || ''}|${node.getAttribute('aria-label') || ''}|${node.getAttribute('aria-pressed') || ''}`;
                             return node.getAttribute('aria-pressed') === 'true'
                                 || renderer?.hasAttribute('subscribed')
                                 || renderer?.getAttribute('is-subscribed') === 'true'
                                 || text.includes('subscribed')
                                 || text.includes('đã đăng ký')
                                 || text.includes('unsubscribe')
-                                || text.includes('hủy đăng ký')
-                                || (Boolean(initialSignature) && signature !== initialSignature);
+                                || text.includes('hủy đăng ký');
                         });
                     }""",
-                    sub_info.get("signature", ""),
                     timeout=10000,
                 )
             except Exception:
