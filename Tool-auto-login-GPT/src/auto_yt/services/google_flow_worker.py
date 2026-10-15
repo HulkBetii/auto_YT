@@ -2798,6 +2798,7 @@ class GoogleFlowWorker:
             "flow-media-tile[data-error='true']",
             "[data-tile-state='error']",
             ".error-tile",
+            "[role='alert']",
         ]
         for sel in canvas_err_selectors:
             try:
@@ -2805,10 +2806,47 @@ class GoogleFlowWorker:
                 count = await locs.count()
                 for i in range(min(count, 10)):
                     t = (await locs.nth(i).inner_text() or "").strip()
-                    if t:
+                    if t and _is_valid_flow_error_text(t):
                         err_texts.add(t)
             except Exception:
                 pass
+        try:
+            detected = await self.page.evaluate(
+                r'''() => {
+                    const patterns = [
+                        'không thành công',
+                        'vi phạm chính sách',
+                        'unsuccessful',
+                        'violates our policy',
+                        'policy violation',
+                        'hoàn tiền cho lượt tạo',
+                        'người nổi tiếng',
+                        'failed to generate',
+                        'generation failed',
+                    ];
+                    const elements = Array.from(document.querySelectorAll(
+                        'flow-error-tile, flow-media-tile, flow-canvas-tile, flow-canvas-item, ' +
+                        '.error-tile, [data-tile-state="error"], [role="alert"], ' +
+                        '.canvas-tile, .message-row, [data-testid*="error" i]'
+                    ));
+                    const results = [];
+                    for (const el of elements) {
+                        const text = (el.innerText || el.textContent || '').trim();
+                        const lower = text.toLowerCase();
+                        if (patterns.some(p => lower.includes(p)) && text.length > 5 && text.length < 1000) {
+                            results.push(text);
+                        }
+                    }
+                    return results;
+                }'''
+            )
+            if isinstance(detected, list):
+                for item in detected:
+                    t = str(item or "").strip()
+                    if t and _is_valid_flow_error_text(t):
+                        err_texts.add(t)
+        except Exception:
+            pass
         return err_texts
 
     async def clear_ingredient_chips(self) -> None:
@@ -5149,9 +5187,21 @@ class GoogleFlowWorker:
 
         full_prompt = self._build_video_prompt(prompt, avoid_prompt)
         if reconcile_only:
+            active_errors = await self._get_existing_error_texts()
+            if active_errors:
+                first_error = next(iter(active_errors))
+                self._record_video_timing("error_seen")
+                raise FlowGenerationError(
+                    f"Google Flow báo lỗi khi tạo video: {first_error}"
+                )
+
             existing_result = await self._find_video_for_prompt(full_prompt)
             existing_state = str(existing_result.get("state") or "missing")
             existing_source = str(existing_result.get("source") or "").strip()
+            if existing_state == "failed":
+                raise FlowGenerationError(
+                    f"Google Flow báo lỗi khi tạo video: {existing_result.get('error', 'Thao tác không thành công')}"
+                )
             if existing_state == "completed" and existing_source:
                 self._record_video_timing("playable_url_seen")
                 return existing_source
