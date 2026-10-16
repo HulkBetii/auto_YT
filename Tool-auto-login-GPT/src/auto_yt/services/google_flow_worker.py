@@ -117,9 +117,16 @@ class FlowGenerationTimeout(RuntimeError):
 class FlowVideoPending(RuntimeError):
     """Raised after Flow accepts a video request that may still complete later."""
 
-    def __init__(self, message: str, *, reason_code: str = "flow_video_pending"):
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason_code: str = "flow_video_pending",
+        queued_since: str = "",
+    ):
         super().__init__(message)
         self.reason_code = reason_code
+        self.queued_since = queued_since
 
 
 class FlowVideoWaitExpired(FlowGenerationTimeout):
@@ -2052,7 +2059,7 @@ class GoogleFlowWorker:
         clean_prompt = re.sub(r"\s+", " ", clean_prompt).strip()
         return f"{clean_prompt}. Avoid: {combined_avoid}"
 
-    async def _find_video_for_prompt(self, *prompts: str) -> dict[str, str]:
+    async def _find_video_for_prompt(self, *prompts: str) -> dict[str, object]:
         """Find a completed or pending video tied to the latest matching user turn."""
         expected_prompts = [
             self._normalize_prompt_text(prompt).casefold()
@@ -2102,6 +2109,8 @@ class GoogleFlowWorker:
                     }
 
                     let queued = false;
+                    let error = '';
+                    let followedByNewUser = false;
                     const candidates = [];
                     const seen = new Set();
                     for (let index = promptIndex + 1; index < turns.length; index += 1) {
@@ -2111,7 +2120,10 @@ class GoogleFlowWorker:
                         ) || turn.querySelector(
                             '.user-bubble, [data-message-role="user"], [data-role="user"]'
                         );
-                        if (nextUser) break;
+                        if (nextUser) {
+                            followedByNewUser = true;
+                            break;
+                        }
                         const agent = turn.matches(
                             '.message-row.agent-row, .agent-bubble, ' +
                             '[data-message-role="assistant"], [data-role="assistant"]'
@@ -2120,6 +2132,9 @@ class GoogleFlowWorker:
                         );
                         if (!agent || !visible(agent)) continue;
                         const text = normalize(agent.textContent);
+                        if (/(không thành công|vi phạm chính sách|unsuccessful|violates our policy|policy violation|hoàn tiền cho lượt tạo|failed to generate|generation failed)/i.test(text)) {
+                            error = (agent.textContent || '').trim();
+                        }
                         if (/(currently in the queue|queued|waiting in the queue|high demand|processed as soon as possible|check back in a few minutes|hàng đợi|xếp hàng|nhu cầu cao|đang chờ xử lý)/i.test(text)) {
                             queued = true;
                         }
@@ -2196,7 +2211,13 @@ class GoogleFlowWorker:
                             });
                         }
                     }
-                    return {promptFound: true, queued, candidates};
+                    return {
+                        promptFound: true,
+                        queued,
+                        error,
+                        isLatestPrompt: !followedByNewUser,
+                        candidates,
+                    };
                 }''',
                 expected_prompts,
             )
@@ -2210,6 +2231,14 @@ class GoogleFlowWorker:
 
         if not isinstance(result, dict) or not result.get("promptFound"):
             return {"state": "missing", "source": ""}
+        error_text = str(result.get("error") or "").strip()
+        if error_text and _is_valid_flow_error_text(error_text):
+            return {
+                "state": "failed",
+                "source": "",
+                "error": error_text,
+                "is_latest_prompt": bool(result.get("isLatestPrompt")),
+            }
         candidates = [
             item for item in (result.get("candidates") or []) if isinstance(item, dict)
         ]
@@ -2261,7 +2290,33 @@ class GoogleFlowWorker:
         return {
             "state": "queued" if result.get("queued") else "pending",
             "source": "",
+            "is_latest_prompt": bool(result.get("isLatestPrompt")),
         }
+
+    async def _raise_latest_video_error(
+        self,
+        prompt: str,
+        result: dict[str, object] | None = None,
+        *,
+        include_existing_canvas_errors: bool = True,
+    ) -> dict[str, object]:
+        """Raise a terminal Flow error only when it belongs to this latest prompt."""
+        matched = result or await self._find_video_for_prompt(prompt)
+        if str(matched.get("state") or "") == "failed":
+            self._record_video_timing("error_seen")
+            raise FlowGenerationError(
+                "Google Flow báo lỗi khi tạo video: "
+                f"{matched.get('error') or 'Thao tác không thành công'}"
+            )
+        if include_existing_canvas_errors and matched.get("is_latest_prompt"):
+            active_errors = await self._get_existing_error_texts()
+            if active_errors:
+                self._record_video_timing("error_seen")
+                raise FlowGenerationError(
+                    "Google Flow báo lỗi khi tạo video: "
+                    f"{next(iter(active_errors))}"
+                )
+        return matched
 
     async def _find_completed_image_for_prompt(self, *prompts: str) -> str:
         """Reuse a late Agent result only when it follows the exact submitted prompt."""
@@ -4564,6 +4619,7 @@ class GoogleFlowWorker:
         initial_error_texts: set[str],
         submitted_at: float,
         timeout_seconds: float,
+        submitted_prompt: str = "",
     ) -> str:
         agent_timeout = (
             media_type == "image" and self._agent_interface_detected
@@ -4682,6 +4738,10 @@ class GoogleFlowWorker:
                     await self._save_debug_screenshot(f"{media_type}_start_failed")
                     self._log_generation_event(media_type, "start_failed", submitted_at)
                     if media_type == "video":
+                        await self._raise_latest_video_error(
+                            submitted_prompt,
+                            include_existing_canvas_errors=False,
+                        )
                         raise FlowVideoPending(
                             "Google Flow đã nhận yêu cầu video nhưng chưa hiển thị tiến trình; "
                             "sẽ đối soát lại thay vì gửi trùng.",
@@ -4707,6 +4767,10 @@ class GoogleFlowWorker:
                     await self._save_debug_screenshot(f"{media_type}_result_missing")
                     self._log_generation_event(media_type, "result_missing", submitted_at)
                     if media_type == "video":
+                        await self._raise_latest_video_error(
+                            submitted_prompt,
+                            include_existing_canvas_errors=False,
+                        )
                         raise FlowVideoPending(
                             "Google Flow đã nhận yêu cầu video nhưng kết quả chưa xuất hiện; "
                             "sẽ đối soát lại thay vì dùng ảnh.",
@@ -4730,6 +4794,10 @@ class GoogleFlowWorker:
                 await self._save_debug_screenshot(f"{media_type}_hard_timeout")
                 self._log_generation_event(media_type, "hard_timeout", submitted_at)
                 if media_type == "video":
+                    await self._raise_latest_video_error(
+                        submitted_prompt,
+                        include_existing_canvas_errors=False,
+                    )
                     raise FlowVideoPending(
                         "Google Flow vẫn có thể đang xử lý video sau thời hạn theo dõi; "
                         "sẽ đối soát lại thay vì gửi trùng hoặc dùng ảnh.",
@@ -5187,24 +5255,13 @@ class GoogleFlowWorker:
 
         full_prompt = self._build_video_prompt(prompt, avoid_prompt)
         if reconcile_only:
-            active_errors = await self._get_existing_error_texts()
-            if active_errors:
-                first_error = next(iter(active_errors))
-                self._record_video_timing("error_seen")
-                raise FlowGenerationError(
-                    f"Google Flow báo lỗi khi tạo video: {first_error}"
-                )
-
             existing_result = await self._find_video_for_prompt(full_prompt)
             existing_state = str(existing_result.get("state") or "missing")
             existing_source = str(existing_result.get("source") or "").strip()
-            if existing_state == "failed":
-                raise FlowGenerationError(
-                    f"Google Flow báo lỗi khi tạo video: {existing_result.get('error', 'Thao tác không thành công')}"
-                )
             if existing_state == "completed" and existing_source:
                 self._record_video_timing("playable_url_seen")
                 return existing_source
+            await self._raise_latest_video_error(full_prompt, existing_result)
             raise FlowVideoPending(
                 "Google Flow đã nhận yêu cầu video và chưa có file tải xuống; "
                 "sẽ tiếp tục đối soát mà không gửi lại prompt."
@@ -5292,6 +5349,7 @@ class GoogleFlowWorker:
             initial_error_texts=initial_error_texts,
             submitted_at=submitted_at,
             timeout_seconds=VIDEO_GENERATION_TIMEOUT_SECONDS,
+            submitted_prompt=full_prompt,
         )
         self._log_generation_event("video", "video_completed", submitted_at)
         return result

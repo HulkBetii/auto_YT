@@ -5646,6 +5646,9 @@ def _execute_flow_media_generation_job(job: dict) -> None:
         update,
         lambda: _raise_if_video_job_canceled(job["id"]),
         force_new_project=bool(payload.get("force_new_project", False)),
+        flow_video_pending_since=str(
+            (job.get("result") or {}).get("flow_video_pending_since") or ""
+        ),
     )
     _raise_if_video_job_canceled(job["id"])
     render_job, _ = _enqueue_video_render_job(
@@ -5944,12 +5947,18 @@ def _handle_production_job_error(job: dict, exc: Exception) -> None:
         isinstance(exc, FlowVideoPending)
         and str(job.get("job_type") or "") == "flow_media_generation"
     ):
+        current_job = db.get_system_job(job["id"]) or job
+        recovery_result = dict(current_job.get("result") or {})
+        if not recovery_result.get("flow_video_pending_since"):
+            recovery_result["flow_video_pending_since"] = str(
+                getattr(exc, "queued_since", "") or db.utc_now()
+            )
         db.schedule_system_job_recovery(
             job["id"],
             resume_from_step="flow_video_reconcile",
             delay_seconds=60.0,
             error=safe_error,
-            result_json=job.get("result") or {},
+            result_json=recovery_result,
         )
         if job.get("video_id"):
             db.update_video_production_state(

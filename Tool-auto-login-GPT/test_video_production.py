@@ -735,7 +735,12 @@ class VideoProductionServiceTests(unittest.TestCase):
             payload={"video_id": video_id, "snapshot": snapshot, "mode": "resume"},
             video_id=video_id,
         )
-        database.update_system_job(job["id"], status="running")
+        pending_since = "2026-10-15T20:00:00+00:00"
+        database.update_system_job(
+            job["id"],
+            status="running",
+            result_json={"flow_video_pending_since": pending_since},
+        )
         prepared_result = {
             "manifest_artifact": {"id": 1},
             "plan_hash": "plan-hash",
@@ -747,7 +752,7 @@ class VideoProductionServiceTests(unittest.TestCase):
                 video_production,
                 "prepare_google_flow_media",
                 return_value=prepared_result,
-            ),
+            ) as prepare_media,
             patch.object(main, "_kick_production_queue") as kick_render,
         ):
             main._execute_flow_media_generation_job(database.get_system_job(job["id"]))
@@ -759,6 +764,10 @@ class VideoProductionServiceTests(unittest.TestCase):
             if item["job_type"] == "video_render"
         ]
         self.assertEqual(len(render_jobs), 1)
+        self.assertEqual(
+            prepare_media.call_args_list[0].kwargs["flow_video_pending_since"],
+            pending_since,
+        )
         self.assertTrue(render_jobs[0]["payload"]["media_prepared"])
         self.assertEqual(
             render_jobs[0]["payload"]["source_media_job_id"],
@@ -1961,6 +1970,117 @@ class VideoProductionServiceTests(unittest.TestCase):
         self.assertEqual(expired["status"], "failed")
         self.assertEqual(expired["metadata"]["reason_code"], "flow_video_wait_expired")
 
+    def test_flow_video_job_deadline_applies_to_unstarted_later_scenes(self):
+        from PIL import Image
+        from auto_yt.services.google_flow_worker import FlowVideoWaitExpired
+
+        video_id = database.save_video(
+            "https://www.youtube.com/watch?v=flow-job-deadline",
+            "Flow job deadline",
+            "Transcript",
+            "Script",
+        )
+        start_frame = Path(self.temporary_directory.name) / "deadline-start.png"
+        end_frame = Path(self.temporary_directory.name) / "deadline-end.png"
+        Image.new("RGB", (1376, 768), color=(30, 40, 50)).save(start_frame)
+        Image.new("RGB", (1376, 768), color=(50, 40, 30)).save(end_frame)
+        worker = MagicMock()
+        worker.generate_scene_video = AsyncMock()
+        worker.get_last_video_timing.return_value = {}
+
+        with (
+            patch.object(video_production, "SCENES_DIR", Path(self.temporary_directory.name)),
+            patch.object(video_production, "_flow_mock_enabled", return_value=False),
+        ):
+            with self.assertRaises(FlowVideoWaitExpired):
+                asyncio.run(
+                    video_production._generate_scene_video_async(
+                        video_id=video_id,
+                        scene={"index": 1, "prompt": "later scene", "is_video": True},
+                        scene_count=3,
+                        start_frame_path=start_frame,
+                        end_frame_path=end_frame,
+                        profile={},
+                        settings={
+                            "intro_video_max_wait_seconds": 60,
+                            "_flow_video_pending_since": (
+                                dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=2)
+                            ).isoformat(),
+                        },
+                        progress=lambda message, stage: None,
+                        cancel_check=lambda: None,
+                        worker=worker,
+                    )
+                )
+
+        worker.generate_scene_video.assert_not_awaited()
+        expired = database.get_latest_video_artifact(video_id, "scene_video:1")
+        self.assertEqual(expired["status"], "failed")
+        self.assertEqual(expired["metadata"]["reason_code"], "flow_video_wait_expired")
+
+    def test_terminal_flow_video_failure_is_not_resubmitted(self):
+        from PIL import Image
+        from auto_yt.services.google_flow_worker import FlowGenerationError
+
+        video_id = database.save_video(
+            "https://www.youtube.com/watch?v=flow-terminal-cache",
+            "Flow terminal cache",
+            "Transcript",
+            "Script",
+        )
+        start_frame = Path(self.temporary_directory.name) / "terminal-start.png"
+        end_frame = Path(self.temporary_directory.name) / "terminal-end.png"
+        Image.new("RGB", (1376, 768), color=(30, 40, 50)).save(start_frame)
+        Image.new("RGB", (1376, 768), color=(50, 40, 30)).save(end_frame)
+        scene = {"index": 0, "prompt": "terminal scene", "is_video": True}
+        content_hash = video_production._scene_hash(
+            video_id,
+            scene,
+            {},
+            "",
+            (
+                f"{video_production._sha256_file(start_frame)}:"
+                f"{video_production._sha256_file(end_frame)}"
+            ),
+        )
+        database.upsert_video_artifact(
+            video_id=video_id,
+            artifact_type="scene_video:0",
+            path=str(Path(self.temporary_directory.name) / "terminal.mp4"),
+            content_hash=content_hash,
+            status="failed",
+            mime_type="video/mp4",
+            metadata={
+                "generation_attempt": 1,
+                "reason_code": "flow_generation_error",
+                "error": "Google Flow từ chối yêu cầu theo policy.",
+            },
+        )
+        worker = MagicMock()
+        worker.generate_scene_video = AsyncMock()
+
+        with (
+            patch.object(video_production, "SCENES_DIR", Path(self.temporary_directory.name)),
+            patch.object(video_production, "_flow_mock_enabled", return_value=False),
+        ):
+            with self.assertRaises(FlowGenerationError):
+                asyncio.run(
+                    video_production._generate_scene_video_async(
+                        video_id=video_id,
+                        scene=scene,
+                        scene_count=1,
+                        start_frame_path=start_frame,
+                        end_frame_path=end_frame,
+                        profile={},
+                        settings={},
+                        progress=lambda message, stage: None,
+                        cancel_check=lambda: None,
+                        worker=worker,
+                    )
+                )
+
+        worker.generate_scene_video.assert_not_awaited()
+
     def test_pending_flow_media_job_is_rescheduled_without_render_handoff(self):
         from auto_yt.services.google_flow_worker import FlowVideoPending
 
@@ -1979,14 +2099,36 @@ class VideoProductionServiceTests(unittest.TestCase):
         )
         database.update_system_job(job["id"], status="running")
 
+        pending_since = (
+            dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5)
+        ).isoformat()
         main._handle_production_job_error(
             database.get_system_job(job["id"]),
-            FlowVideoPending("Flow is still processing"),
+            FlowVideoPending(
+                "Flow is still processing",
+                queued_since=pending_since,
+            ),
         )
 
         waiting = database.get_system_job(job["id"])
         self.assertEqual(waiting["status"], "retry_wait")
         self.assertEqual(waiting["resume_from_step"], "flow_video_reconcile")
+        self.assertEqual(
+            waiting["result"]["flow_video_pending_since"],
+            pending_since,
+        )
+        main._handle_production_job_error(
+            waiting,
+            FlowVideoPending(
+                "Flow is still processing",
+                queued_since=dt.datetime.now(dt.timezone.utc).isoformat(),
+            ),
+        )
+        retried = database.get_system_job(job["id"])
+        self.assertEqual(
+            retried["result"]["flow_video_pending_since"],
+            pending_since,
+        )
         render_jobs = [
             item
             for item in database.list_system_jobs(video_id=video_id, limit=None)

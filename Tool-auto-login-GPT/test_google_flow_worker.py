@@ -12,6 +12,7 @@ from auto_yt.services.google_flow_worker import (
     FlowAgentSettingsError,
     FlowAgentStalledError,
     FlowFrameAttachmentError,
+    FlowGenerationError,
     FlowGenerationStartError,
     FlowInvalidOutputError,
     FlowModeError,
@@ -2687,6 +2688,11 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
                 "_find_video_for_prompt",
                 AsyncMock(return_value={"state": "missing", "source": ""}),
             ),
+            patch.object(
+                worker,
+                "_get_existing_error_texts",
+                AsyncMock(return_value={"Không thành công: vi phạm chính sách"}),
+            ),
             patch.object(worker, "_ensure_agent_session_ready", AsyncMock()) as ensure_session,
             patch.object(worker, "_submit_prompt_and_wait_for_ack", AsyncMock()) as submit,
         ):
@@ -2706,6 +2712,68 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         ensure_session.assert_not_awaited()
         submit.assert_not_awaited()
+
+    async def test_video_reconciliation_surfaces_policy_error_for_latest_prompt(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(worker, "_ensure_project_canvas", AsyncMock()),
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(
+                    return_value={
+                        "state": "queued",
+                        "source": "",
+                        "is_latest_prompt": True,
+                    }
+                ),
+            ),
+            patch.object(
+                worker,
+                "_get_existing_error_texts",
+                AsyncMock(return_value={"Không thành công: vi phạm chính sách"}),
+            ),
+            patch.object(worker, "_submit_prompt_and_wait_for_ack", AsyncMock()) as submit,
+        ):
+            start_frame = Path(temp_dir) / "start.png"
+            end_frame = Path(temp_dir) / "end.png"
+            start_frame.write_bytes(_image_bytes())
+            end_frame.write_bytes(_image_bytes())
+            with self.assertRaises(FlowGenerationError):
+                await worker.generate_scene_video(
+                    "A camera moves through the command room",
+                    "text",
+                    start_frame_path=start_frame,
+                    end_frame_path=end_frame,
+                    scene_index=0,
+                    reconcile_only=True,
+                )
+
+        submit.assert_not_awaited()
+
+    async def test_find_video_for_prompt_returns_prompt_scoped_failure(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        page.evaluate = AsyncMock(
+            return_value={
+                "promptFound": True,
+                "queued": False,
+                "error": "Không thành công: yêu cầu vi phạm chính sách",
+                "isLatestPrompt": True,
+                "candidates": [],
+            }
+        )
+        worker = GoogleFlowWorker(page)
+
+        result = await worker._find_video_for_prompt("A camera moves through the room")
+
+        self.assertEqual(result["state"], "failed")
+        self.assertIn("vi phạm chính sách", result["error"])
+        self.assertTrue(result["is_latest_prompt"])
 
     async def test_video_reconciliation_excludes_existing_urls_when_opening_detail(self):
         page = MagicMock()

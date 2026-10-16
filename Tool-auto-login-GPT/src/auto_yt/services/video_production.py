@@ -1538,6 +1538,7 @@ async def _generate_scene_video_async(
 ) -> Path:
     from auto_yt.services.google_flow_worker import (
         FlowFrameAttachmentError,
+        FlowGenerationError,
         FlowVideoPending,
         FlowVideoWaitExpired,
     )
@@ -1562,6 +1563,34 @@ async def _generate_scene_video_async(
         "flow_result_missing_error",
         "flow_agent_stalled_error",
     }
+    terminal_reason_codes = {
+        "flow_generation_error",
+        "flow_video_wait_expired",
+    }
+    try:
+        max_wait_seconds = max(
+            0.0,
+            float(
+                settings.get("intro_video_max_wait_seconds")
+                or FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
+            ),
+        )
+    except (TypeError, ValueError):
+        max_wait_seconds = FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    pending_expired = False
+    job_pending_since = str(settings.get("_flow_video_pending_since") or "")
+    if job_pending_since:
+        try:
+            job_pending_at = dt.datetime.fromisoformat(job_pending_since)
+            if job_pending_at.tzinfo is None:
+                job_pending_at = job_pending_at.replace(tzinfo=dt.timezone.utc)
+            pending_expired = (
+                max(0.0, (now_utc - job_pending_at).total_seconds())
+                >= max_wait_seconds
+            )
+        except (TypeError, ValueError):
+            pass
     is_reconciliation_checkpoint = bool(
         not force_new_project
         and existing
@@ -1575,7 +1604,6 @@ async def _generate_scene_video_async(
             )
         )
     )
-    pending_expired = False
     if is_reconciliation_checkpoint:
         queued_since = str(
             existing_metadata.get("queued_since") or existing.get("updated_at") or ""
@@ -1586,21 +1614,11 @@ async def _generate_scene_video_async(
                 queued_at = queued_at.replace(tzinfo=dt.timezone.utc)
             pending_age = max(
                 0.0,
-                (dt.datetime.now(dt.timezone.utc) - queued_at).total_seconds(),
+                (now_utc - queued_at).total_seconds(),
             )
         except (TypeError, ValueError):
             pending_age = 0.0
-        try:
-            max_wait_seconds = max(
-                0.0,
-                float(
-                    settings.get("intro_video_max_wait_seconds")
-                    or FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
-                ),
-            )
-        except (TypeError, ValueError):
-            max_wait_seconds = FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
-        pending_expired = pending_age >= max_wait_seconds
+        pending_expired = pending_expired or pending_age >= max_wait_seconds
 
     if (
         not force_new_project
@@ -1618,6 +1636,23 @@ async def _generate_scene_video_async(
             scene.get("index"),
             content_hash,
             existing.get("content_hash"),
+        )
+
+    terminal_reason = str(existing_metadata.get("reason_code") or "")
+    if (
+        not force_new_project
+        and existing
+        and existing.get("content_hash") == content_hash
+        and existing.get("status") == "failed"
+        and terminal_reason in terminal_reason_codes
+    ):
+        cached_error = str(existing_metadata.get("error") or "").strip()
+        if terminal_reason == "flow_video_wait_expired":
+            raise FlowVideoWaitExpired(
+                cached_error or "Google Flow đã hết thời hạn đối soát video."
+            )
+        raise FlowGenerationError(
+            cached_error or "Google Flow đã từ chối yêu cầu tạo video."
         )
 
     target = SCENES_DIR / f"{video_id}_{scene['index']}_video_{content_hash[:8]}.mp4"
@@ -1742,6 +1777,7 @@ async def _generate_scene_video_async(
             flow_timing = timing_snapshot if isinstance(timing_snapshot, dict) else {}
         safe_error = security_logging.redact_sensitive(exc)
         queued_since = str(existing_metadata.get("queued_since") or db.utc_now())
+        exc.queued_since = queued_since
         db.upsert_video_artifact(
             video_id=video_id,
             artifact_type=artifact_type,
@@ -3398,6 +3434,7 @@ def prepare_google_flow_media(
     progress,
     cancel_check,
     force_new_project: bool = False,
+    flow_video_pending_since: str = "",
 ) -> dict:
     prepared = prepare_visual_plan_inputs(video_id, snapshot, progress)
     if force_new_project:
@@ -3413,10 +3450,13 @@ def prepare_google_flow_media(
         force_new_project=force_new_project,
     )
     scenes = validated_plan["scenes"]
+    runtime_settings = dict(snapshot.get("image_generation_settings") or {})
+    if flow_video_pending_since:
+        runtime_settings["_flow_video_pending_since"] = flow_video_pending_since
     media_result = generate_scene_media(
         video_id=video_id,
         scenes=scenes,
-        settings=snapshot.get("image_generation_settings") or {},
+        settings=runtime_settings,
         progress=progress,
         cancel_check=cancel_check,
         force_new_project=force_new_project,
