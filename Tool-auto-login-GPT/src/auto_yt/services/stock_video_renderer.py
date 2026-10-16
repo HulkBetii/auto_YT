@@ -489,6 +489,13 @@ WAVE_COLORS_PALETTE: list[str] = [
     "#38BDF8@0.95",     # Sky Blue
 ]
 
+WAVE_BARS_COUNT: int = 15
+WAVE_BAR_WIDTH: int = 14
+WAVE_BAR_GAP: int = 18
+WAVE_BAR_PITCH: int = WAVE_BAR_WIDTH + WAVE_BAR_GAP  # 32
+WAVE_DEFAULT_WIDTH: int = WAVE_BARS_COUNT * WAVE_BAR_PITCH  # 480
+WAVE_DEFAULT_HEIGHT: int = 260
+
 
 def _boxes_intersect(b1: tuple[int, int, int, int], b2: tuple[int, int, int, int]) -> bool:
     """Return True if rectangle b1 intersects rectangle b2 (x1, y1, x2, y2)."""
@@ -504,8 +511,8 @@ def pick_random_waveform_coordinates(
     card_y: int,
     card_w: int,
     card_h: int,
-    wave_w: int = 520,
-    wave_h: int = 260,
+    wave_w: int = WAVE_DEFAULT_WIDTH,
+    wave_h: int = WAVE_DEFAULT_HEIGHT,
     canvas_w: int = TARGET_WIDTH,
     canvas_h: int = TARGET_HEIGHT,
     margin: int = 40,
@@ -564,8 +571,8 @@ def calculate_layout_coordinates(
     card_h: int = 150,
     icon_w: int = 100,
     icon_h: int = 100,
-    wave_w: int = 520,
-    wave_h: int = 260,
+    wave_w: int = WAVE_DEFAULT_WIDTH,
+    wave_h: int = WAVE_DEFAULT_HEIGHT,
     canvas_w: int = TARGET_WIDTH,
     canvas_h: int = TARGET_HEIGHT,
     margin: int = 40,
@@ -927,8 +934,8 @@ def produce_stock_video(
         thumb_h=thumb_total_h,
         card_w=title_total_w,
         card_h=title_total_h,
-        wave_w=520,
-        wave_h=260,
+        wave_w=WAVE_DEFAULT_WIDTH,
+        wave_h=WAVE_DEFAULT_HEIGHT,
         canvas_w=TARGET_WIDTH,
         canvas_h=TARGET_HEIGHT,
         margin=40,
@@ -947,14 +954,18 @@ def produce_stock_video(
     w_x, w_y = coords["wave"]
 
     chosen_wave_color = secrets.choice(WAVE_COLORS_PALETTE)
+    bar_start_offset = (WAVE_BAR_PITCH - WAVE_BAR_WIDTH) // 2
+    bar_end_offset = bar_start_offset + WAVE_BAR_WIDTH - 1
 
     filter_complex = (
         f"[0:v]settb=AVTB,setpts=N/({TARGET_FPS}*TB),fps={TARGET_FPS},"
         f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:force_original_aspect_ratio=increase,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT},setsar=1,format=yuv420p[bg];"
         f"[1:a]adelay=delays=3000:all=1,asplit=2[a_delayed_wave][a_out];"
-        f"[a_delayed_wave]showwaves=s=520x260:mode=cline:colors={chosen_wave_color}:scale=sqrt:r={TARGET_FPS},"
-        f"format=yuva420p,settb=AVTB,setpts=PTS-STARTPTS[wave];"
+        f"[a_delayed_wave]showwaves=s={WAVE_BARS_COUNT}x{WAVE_DEFAULT_HEIGHT}:mode=cline:colors={chosen_wave_color}:scale=sqrt:draw=full:r={TARGET_FPS},"
+        f"format=yuva420p,scale={WAVE_DEFAULT_WIDTH}:{WAVE_DEFAULT_HEIGHT}:flags=neighbor,format=rgba,"
+        f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(between(mod(X,{WAVE_BAR_PITCH}),{bar_start_offset},{bar_end_offset}),alpha(X,Y),0)',"
+        f"settb=AVTB,setpts=PTS-STARTPTS[wave];"
         f"[bg][2:v]overlay=0:0:enable='between(t,0,3)':eof_action=repeat[v_intro];"
         f"[v_intro][wave]overlay={w_x}:{w_y}:enable='gte(t,3)':eof_action=pass[v_wave];"
         f"[v_wave][3:v]overlay={t_x}:{t_y}:enable='gte(t,3)':eof_action=repeat[v_thumb];"

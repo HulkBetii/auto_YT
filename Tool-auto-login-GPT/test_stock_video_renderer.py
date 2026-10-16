@@ -310,7 +310,9 @@ class StockVideoRendererTests(unittest.TestCase):
             self.assertIn("format=yuv420p[bg]", cmd_str)
             self.assertIn("settb=AVTB,setpts=PTS-STARTPTS", cmd_str)
             self.assertIn("between(t,0,3)", cmd_str)
-            self.assertIn("s=520x260:mode=cline", cmd_str)
+            self.assertIn("s=15x260:mode=cline", cmd_str)
+            self.assertIn("scale=480:260:flags=neighbor", cmd_str)
+            self.assertIn("geq=", cmd_str)
             self.assertIn("enable='gte(t,3)'", cmd_str)
 
     def test_generate_title_text_overlay(self):
@@ -380,7 +382,9 @@ class StockVideoRendererTests(unittest.TestCase):
             self.assertTrue(len(render_cmds) >= 1)
             self.assertNotIn("subtitles=", render_cmds[0])
             self.assertIn("between(t,0,3)", render_cmds[0])
-            self.assertIn("s=520x260:mode=cline", render_cmds[0])
+            self.assertIn("s=15x260:mode=cline", render_cmds[0])
+            self.assertIn("scale=480:260:flags=neighbor", render_cmds[0])
+            self.assertIn("geq=", render_cmds[0])
             # Audio must be delayed by 3s
             self.assertIn("adelay=delays=3000:all=1", render_cmds[0])
             self.assertEqual(res["duration"], 63.0)  # 60s + 3s intro delay
@@ -398,7 +402,7 @@ class StockVideoRendererTests(unittest.TestCase):
                     thumb_h=326,
                     card_w=1150,
                     card_h=150,
-                    wave_w=520,
+                    wave_w=480,
                     wave_h=260,
                 )
                 t_x, t_y = coords["thumb"]
@@ -407,7 +411,7 @@ class StockVideoRendererTests(unittest.TestCase):
 
                 t_box = (t_x, t_y, t_x + 580, t_y + 326)
                 c_box = (c_x, c_y, c_x + 1150, c_y + 150)
-                w_box = (w_x, w_y, w_x + 520, w_y + 260)
+                w_box = (w_x, w_y, w_x + 480, w_y + 260)
 
                 self.assertFalse(
                     stock_video_renderer._boxes_intersect(w_box, t_box),
