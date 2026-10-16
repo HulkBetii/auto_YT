@@ -96,11 +96,11 @@ class StockVideoRendererTests(unittest.TestCase):
         img.save(raw_thumb)
 
         out_thumb = self.temp_path / "styled_thumb.png"
-        stock_video_renderer.generate_thumbnail_overlay(raw_thumb, out_thumb, target_w=560, target_h=315)
+        stock_video_renderer.generate_thumbnail_overlay(raw_thumb, out_thumb, target_w=580, target_h=326)
         self.assertTrue(out_thumb.exists())
         with Image.open(out_thumb) as t_im:
-            self.assertGreater(t_im.width, 560)
-            self.assertGreater(t_im.height, 315)
+            self.assertGreater(t_im.width, 580)
+            self.assertGreater(t_im.height, 326)
 
         out_title = self.temp_path / "styled_title.png"
         _, w, h = stock_video_renderer.generate_title_card_overlay(
@@ -318,15 +318,15 @@ class StockVideoRendererTests(unittest.TestCase):
         _, w, h, outline_col = stock_video_renderer.generate_title_text_overlay(
             "Xuất Ngũ Trở Về, Anh Lính Rụng Rời Khi Thấy Vợ Bầu Bị Nhốt Trong Lồng Tre",
             out_title,
-            max_width=1250,
+            max_width=1150,
             font_size=42,
         )
         self.assertTrue(out_title.exists())
-        self.assertEqual(w, 1250)
+        self.assertEqual(w, 1150)
         self.assertGreater(h, 80)
         self.assertIn(outline_col, stock_video_renderer.TITLE_OUTLINE_PALETTE)
         with Image.open(out_title) as im:
-            self.assertEqual(im.size, (1250, h))
+            self.assertEqual(im.size, (1150, h))
 
     def test_produce_stock_video_omits_subtitles(self):
         video_id = db.save_video(
@@ -394,9 +394,9 @@ class StockVideoRendererTests(unittest.TestCase):
             for _ in range(30):
                 coords = stock_video_renderer.calculate_layout_coordinates(
                     corner=corner,
-                    thumb_w=460,
-                    thumb_h=259,
-                    card_w=1250,
+                    thumb_w=580,
+                    thumb_h=326,
+                    card_w=1150,
                     card_h=150,
                     wave_w=520,
                     wave_h=260,
@@ -405,8 +405,8 @@ class StockVideoRendererTests(unittest.TestCase):
                 c_x, c_y = coords["card"]
                 w_x, w_y = coords["wave"]
 
-                t_box = (t_x, t_y, t_x + 460, t_y + 259)
-                c_box = (c_x, c_y, c_x + 1250, c_y + 150)
+                t_box = (t_x, t_y, t_x + 580, t_y + 326)
+                c_box = (c_x, c_y, c_x + 1150, c_y + 150)
                 w_box = (w_x, w_y, w_x + 520, w_y + 260)
 
                 self.assertFalse(

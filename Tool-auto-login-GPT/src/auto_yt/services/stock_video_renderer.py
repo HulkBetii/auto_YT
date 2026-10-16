@@ -269,8 +269,8 @@ def _get_system_font(size: int = 34) -> ImageFont.FreeTypeFont:
 def generate_thumbnail_overlay(
     thumbnail_path: Path,
     output_path: Path,
-    target_w: int = 560,
-    target_h: int = 315,
+    target_w: int = 580,
+    target_h: int = 326,
 ) -> Path:
     """Pre-render thumbnail with rounded corners, clean white border, and soft drop shadow."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -402,7 +402,7 @@ TITLE_OUTLINE_PALETTE: list[tuple[int, int, int]] = [
 def generate_title_text_overlay(
     title: str,
     output_path: Path,
-    max_width: int = 1250,
+    max_width: int = 1150,
     outline_color: tuple[int, int, int] | None = None,
     font_size: int = 42,
 ) -> tuple[Path, int, int, tuple[int, int, int]]:
@@ -558,9 +558,9 @@ def pick_random_waveform_coordinates(
 
 def calculate_layout_coordinates(
     corner: str = "bottom_left",
-    thumb_w: int = 460,
-    thumb_h: int = 259,
-    card_w: int = 1250,
+    thumb_w: int = 580,
+    thumb_h: int = 326,
+    card_w: int = 1150,
     card_h: int = 150,
     icon_w: int = 100,
     icon_h: int = 100,
@@ -906,14 +906,14 @@ def produce_stock_video(
 
     # 6b. PiP Thumbnail (rounded, bordered, drop shadow)
     thumb_styled_path = scratch_dir / "thumb_styled.png"
-    generate_thumbnail_overlay(thumb_path, thumb_styled_path, target_w=460, target_h=259)
+    generate_thumbnail_overlay(thumb_path, thumb_styled_path, target_w=580, target_h=326)
 
     # 6c. Title text overlay (white fill, random-colored outline, drop shadow, no box)
     title_styled_path = scratch_dir / "title_styled.png"
     _, title_total_w, title_total_h, chosen_outline = generate_title_text_overlay(
         title,
         title_styled_path,
-        max_width=1250,
+        max_width=1150,
         font_size=42,
     )
 
