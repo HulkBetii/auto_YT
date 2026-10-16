@@ -49,7 +49,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from auto_yt.services.youtube_service import get_video_transcript, get_video_title
 from auto_yt.services.chatgpt_service import process_prompt_via_chatgpt
-from auto_yt.services.chatgpt_runtime import ChatGPTAttentionRequiredError
+from auto_yt.services.chatgpt_runtime import (
+    ChatGPTAttentionRequiredError,
+    ChatGPTPreSendTransientError,
+)
 from auto_yt.services.chatgpt_worker import sanitize_generated_script
 from auto_yt.services import process_registry
 from auto_yt.services.system_cleaner import cleaner as system_cleaner
@@ -3757,6 +3760,7 @@ COMMENT_JOB_LABELS = {
     "comment_publish": "Đăng trả lời bình luận",
     "comment_video_import": "Khởi tạo Chat cho video cũ",
 }
+COMMENT_DRAFT_PRE_SEND_RETRY_DELAYS_SECONDS = (60, 120, 300)
 
 FLOW_MEDIA_JOB_TYPES = ("flow_media_generation",)
 FLOW_MEDIA_JOB_LABELS = {
@@ -4878,12 +4882,53 @@ def _comment_queue_worker() -> None:
                         finished_at="",
                     )
                     return
+                latest = db.get_system_job(job["id"])
+                if (
+                    isinstance(exc, ChatGPTPreSendTransientError)
+                    and job.get("job_type") == "comment_draft"
+                    and latest
+                    and latest.get("status") == "running"
+                ):
+                    recovery_count = max(
+                        0, int(latest.get("recovery_count") or 0)
+                    )
+                    if recovery_count < len(
+                        COMMENT_DRAFT_PRE_SEND_RETRY_DELAYS_SECONDS
+                    ):
+                        safe_error = security_logging.safe_user_error(
+                            "comment_queue_job_pre_send",
+                            exc,
+                            "ChatGPT tải chưa hoàn tất; tác vụ sẽ tự thử lại.",
+                        )
+                        db.schedule_system_job_recovery(
+                            job["id"],
+                            resume_from_step="tải lịch sử Chat Gốc",
+                            delay_seconds=(
+                                COMMENT_DRAFT_PRE_SEND_RETRY_DELAYS_SECONDS[
+                                    recovery_count
+                                ]
+                            ),
+                            error=safe_error,
+                        )
+                        for comment_id in (job.get("payload") or {}).get(
+                            "comment_ids", []
+                        ):
+                            comment = db.get_youtube_comments([comment_id])
+                            if comment and comment[0].get("status") not in {
+                                "replied",
+                                "reconcile_required",
+                            }:
+                                db.update_youtube_comment(
+                                    comment_id,
+                                    status="drafting",
+                                    error="",
+                                )
+                        continue
                 safe_error = security_logging.safe_user_error(
                     "comment_queue_job",
                     exc,
                     "Tác vụ bình luận thất bại.",
                 )
-                latest = db.get_system_job(job["id"])
                 if latest and latest.get("status") == "running":
                     if (
                         job.get("job_type") == "comment_sync"

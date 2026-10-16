@@ -753,6 +753,32 @@ class SystemJobTests(unittest.TestCase):
 
         self.assertEqual(claimed["id"], "flow-ready-second")
 
+    def test_comment_draft_retry_wait_does_not_block_a_later_queued_draft(self):
+        database.create_system_job(
+            job_id="draft-waiting-first",
+            job_type="comment_draft",
+            title="Draft waiting",
+            payload={"comment_ids": ["comment-1"]},
+        )
+        database.claim_next_system_job("comment_draft")
+        database.schedule_system_job_recovery(
+            "draft-waiting-first",
+            resume_from_step="tải lịch sử Chat Gốc",
+            delay_seconds=3600,
+            error="ChatGPT history unavailable",
+        )
+        database.create_system_job(
+            job_id="draft-ready-second",
+            job_type="comment_draft",
+            title="Draft ready",
+            payload={"comment_ids": ["comment-2"]},
+        )
+
+        self.assertTrue(database.has_claimable_system_jobs("comment_draft"))
+        claimed = database.claim_next_system_job("comment_draft")
+
+        self.assertEqual(claimed["id"], "draft-ready-second")
+
     def test_payload_and_result_are_round_tripped_as_objects(self):
         created = self.create_job("json")
         updated = database.update_system_job(

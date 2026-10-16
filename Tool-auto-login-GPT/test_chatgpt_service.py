@@ -9,7 +9,10 @@ from unittest.mock import Mock, patch
 from playwright.sync_api import sync_playwright
 
 from auto_yt.services import chatgpt_service, chatgpt_worker
-from auto_yt.services.chatgpt_runtime import ChatGPTAttentionRequiredError
+from auto_yt.services.chatgpt_runtime import (
+    ChatGPTAttentionRequiredError,
+    ChatGPTPreSendTransientError,
+)
 
 
 def make_dil_conversation_payload(
@@ -1194,6 +1197,175 @@ class ChatGptServiceTests(unittest.TestCase):
                 chatgpt_worker.wait_for_chatgpt_composer(page)
 
         page.reload.assert_not_called()
+
+    def test_history_wait_recovers_full_page_try_again_before_send(self):
+        page = Mock()
+        page.url = "https://chatgpt.com/c/conversation"
+        page.wait_for_function.side_effect = [TimeoutError(), None]
+
+        with (
+            patch.object(
+                chatgpt_worker,
+                "get_chatgpt_load_state",
+                return_value={
+                    "editor_present": False,
+                    "conversation_turn_count": 0,
+                    "full_page_retry": True,
+                    "login_required": False,
+                    "challenge_present": False,
+                },
+            ),
+            patch.object(
+                chatgpt_worker,
+                "click_chatgpt_full_page_retry",
+                return_value=True,
+            ) as click_retry,
+            patch.object(chatgpt_worker, "wait_for_chatgpt_composer"),
+            patch.object(
+                chatgpt_worker,
+                "capture_browser_diagnostics_sync",
+            ) as capture_diagnostics,
+        ):
+            chatgpt_worker.wait_for_conversation_history(
+                page,
+                composer_ready=True,
+                pre_send=True,
+            )
+
+        self.assertEqual(page.wait_for_function.call_count, 2)
+        click_retry.assert_called_once_with(page)
+        page.reload.assert_not_called()
+        capture_diagnostics.assert_not_called()
+
+    def test_history_wait_reloads_same_conversation_before_send(self):
+        page = Mock()
+        page.url = "https://chatgpt.com/c/conversation"
+        page.wait_for_function.side_effect = [TimeoutError(), None]
+
+        with (
+            patch.object(
+                chatgpt_worker,
+                "get_chatgpt_load_state",
+                return_value={
+                    "editor_present": True,
+                    "conversation_turn_count": 0,
+                    "full_page_retry": False,
+                    "login_required": False,
+                    "challenge_present": False,
+                },
+            ),
+            patch.object(chatgpt_worker, "wait_for_chatgpt_composer"),
+            patch.object(
+                chatgpt_worker,
+                "capture_browser_diagnostics_sync",
+            ) as capture_diagnostics,
+        ):
+            chatgpt_worker.wait_for_conversation_history(
+                page,
+                composer_ready=True,
+                pre_send=True,
+            )
+
+        page.reload.assert_called_once_with(
+            wait_until="domcontentloaded",
+            timeout=chatgpt_worker.CHATGPT_NAVIGATION_TIMEOUT_MS,
+        )
+        page.goto.assert_not_called()
+        capture_diagnostics.assert_not_called()
+
+    def test_history_wait_exhaustion_is_typed_and_captures_diagnostics(self):
+        page = Mock()
+        page.url = "https://chatgpt.com/c/conversation"
+        page.wait_for_function.side_effect = TimeoutError()
+
+        with (
+            patch.object(
+                chatgpt_worker,
+                "get_chatgpt_load_state",
+                return_value={
+                    "editor_present": True,
+                    "conversation_turn_count": 0,
+                    "full_page_retry": False,
+                    "login_required": False,
+                    "challenge_present": False,
+                },
+            ),
+            patch.object(
+                chatgpt_worker,
+                "capture_browser_diagnostics_sync",
+            ) as capture_diagnostics,
+        ):
+            with self.assertRaisesRegex(
+                ChatGPTPreSendTransientError,
+                "No prompt was sent",
+            ):
+                chatgpt_worker.wait_for_conversation_history(
+                    page,
+                    composer_ready=True,
+                    pre_send=True,
+                    attempts=1,
+                )
+
+        page.reload.assert_not_called()
+        capture_diagnostics.assert_called_once()
+        self.assertEqual(
+            capture_diagnostics.call_args.kwargs["action_name"],
+            "conversation_history_pre_send",
+        )
+
+    def test_history_wait_does_not_recover_a_different_conversation(self):
+        page = Mock()
+        page.url = "https://chatgpt.com/c/expected"
+
+        def redirect_while_waiting(*_args, **_kwargs):
+            page.url = "https://chatgpt.com/c/unexpected"
+            raise TimeoutError()
+
+        page.wait_for_function.side_effect = redirect_while_waiting
+
+        with (
+            patch.object(chatgpt_worker, "get_chatgpt_load_state") as get_state,
+            patch.object(
+                chatgpt_worker,
+                "capture_browser_diagnostics_sync",
+            ) as capture_diagnostics,
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "did not stay on the video's conversation page",
+            ):
+                chatgpt_worker.wait_for_conversation_history(
+                    page,
+                    composer_ready=True,
+                    pre_send=True,
+                )
+
+        page.reload.assert_not_called()
+        get_state.assert_not_called()
+        capture_diagnostics.assert_not_called()
+
+    def test_send_prompt_does_not_touch_composer_when_history_is_unavailable(self):
+        page = Mock()
+        page.url = "https://chatgpt.com/c/conversation"
+        prompt_textarea = Mock()
+
+        with (
+            patch.object(
+                chatgpt_worker,
+                "wait_for_chatgpt_composer",
+                return_value=prompt_textarea,
+            ),
+            patch.object(
+                chatgpt_worker,
+                "wait_for_conversation_history",
+                side_effect=ChatGPTPreSendTransientError("history unavailable"),
+            ),
+        ):
+            with self.assertRaises(ChatGPTPreSendTransientError):
+                chatgpt_worker.send_prompt(page, "Test prompt")
+
+        prompt_textarea.click.assert_not_called()
+        page.keyboard.insert_text.assert_not_called()
 
     def test_narrative_sanitizer_removes_isolated_editorial_lines(self):
         first_paragraph = (

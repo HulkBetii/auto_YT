@@ -44,6 +44,7 @@ from auto_yt.services.metadata_validation import (
 from auto_yt.services import chatgpt_browser_service
 from auto_yt.services.chatgpt_runtime import (
     ChatGPTAttentionRequiredError,
+    ChatGPTPreSendTransientError,
     encode_attention_error,
 )
 from auto_yt.services.browser_diagnostics import (
@@ -78,6 +79,8 @@ ASSISTANT_RESPONSE_RELOAD_WAIT_SECONDS = 60
 PENDING_RESPONSE_WAIT_SECONDS = 90
 CHATGPT_COMPOSER_RECOVERY_ATTEMPTS = 3
 CHATGPT_COMPOSER_WAIT_PER_ATTEMPT_MS = 20_000
+CHATGPT_HISTORY_RECOVERY_ATTEMPTS = 3
+CHATGPT_HISTORY_WAIT_PER_ATTEMPT_MS = 20_000
 CHATGPT_PAGE_RECOVERY_SETTLE_MS = 1_500
 CHATGPT_NAVIGATION_TIMEOUT_MS = 60_000
 CHATGPT_CONVERSATION_PAYLOAD_WAIT_MS = 15_000
@@ -3910,43 +3913,137 @@ def get_reusable_outline_response(page: Page) -> str:
 def wait_for_conversation_history(
     page: Page,
     composer_ready: bool = False,
+    pre_send: bool = False,
+    attempts: int = CHATGPT_HISTORY_RECOVERY_ATTEMPTS,
 ) -> None:
-    if not composer_ready:
-        wait_for_chatgpt_composer(page)
-    page.wait_for_function(
-        """() => {
-            const turns = [...document.querySelectorAll(
-                '[data-testid^="conversation-turn-"]'
-            )];
-            const roles = turns.map((turn) =>
-                turn.getAttribute('data-turn')
-                || turn.querySelector('[data-message-author-role], [data-conversation-role]')
-                    ?.getAttribute('data-message-author-role')
-                || turn.querySelector('[data-message-author-role], [data-conversation-role]')
-                    ?.getAttribute('data-conversation-role')
-                || ''
-            );
-            if (roles.includes('user') && roles.includes('assistant')) {
-                return true;
-            }
-            const fallbackRoles = [...document.querySelectorAll(
-                '[data-message-author-role]'
-            )].map((message) =>
-                message.getAttribute('data-message-author-role') || ''
-            );
-            if (fallbackRoles.includes('user') && fallbackRoles.includes('assistant')) {
-                return true;
-            }
-            const modernUser = document.querySelector(
-                '[data-user-message-bubble="true"], [data-content-search-unit-key*="user"], [data-conversation-role="user"]'
-            );
-            const modernAssistant = document.querySelector(
-                '[data-markdown-text-style="assistant-message"], [data-content-search-unit-key*="assistant"], [data-conversation-role="assistant"]'
-            );
-            return Boolean(modernUser && modernAssistant);
-        }""",
-        timeout=60000,
+    """Wait for a saved conversation and recover transient pre-send load failures.
+
+    Recovery never navigates away from the expected conversation and never
+    inserts or submits prompt text. Callers may opt into the typed pre-send
+    error only when this check occurs before their send boundary.
+    """
+    expected_url = str(page.url or "")
+    retry_clicked = False
+    last_error: Exception | None = None
+    last_state: dict = {}
+    max_attempts = max(1, int(attempts or 1))
+
+    for attempt in range(max_attempts):
+        try:
+            if not composer_ready or attempt > 0:
+                wait_for_chatgpt_composer(page, attempts=1)
+            ensure_expected_conversation_page(page.url, expected_url)
+            page.wait_for_function(
+                """() => {
+                    const turns = [...document.querySelectorAll(
+                        '[data-testid^="conversation-turn-"]'
+                    )];
+                    const roles = turns.map((turn) =>
+                        turn.getAttribute('data-turn')
+                        || turn.querySelector('[data-message-author-role], [data-conversation-role]')
+                            ?.getAttribute('data-message-author-role')
+                        || turn.querySelector('[data-message-author-role], [data-conversation-role]')
+                            ?.getAttribute('data-conversation-role')
+                        || ''
+                    );
+                    if (roles.includes('user') && roles.includes('assistant')) {
+                        return true;
+                    }
+                    const fallbackRoles = [...document.querySelectorAll(
+                        '[data-message-author-role]'
+                    )].map((message) =>
+                        message.getAttribute('data-message-author-role') || ''
+                    );
+                    if (fallbackRoles.includes('user') && fallbackRoles.includes('assistant')) {
+                        return true;
+                    }
+                    const modernUser = document.querySelector(
+                        '[data-user-message-bubble="true"], [data-content-search-unit-key*="user"], [data-conversation-role="user"]'
+                    );
+                    const modernAssistant = document.querySelector(
+                        '[data-markdown-text-style="assistant-message"], [data-content-search-unit-key*="assistant"], [data-conversation-role="assistant"]'
+                    );
+                    return Boolean(modernUser && modernAssistant);
+                }""",
+                timeout=CHATGPT_HISTORY_WAIT_PER_ATTEMPT_MS,
+            )
+            return
+        except ChatGPTAttentionRequiredError:
+            raise
+        except Exception as exc:
+            last_error = exc
+            # A redirect to a different chat is not a transient loading failure.
+            # Fail closed instead of reloading or retrying the wrong conversation.
+            ensure_expected_conversation_page(page.url, expected_url)
+            last_state = get_chatgpt_load_state(page)
+            raise_if_chatgpt_attention_required(last_state)
+            if attempt >= max_attempts - 1:
+                break
+
+            recovered = False
+            if last_state.get("full_page_retry") and not retry_clicked:
+                retry_clicked = True
+                recovered = click_chatgpt_full_page_retry(page)
+                if recovered:
+                    print(
+                        ">>> ChatGPT history was unavailable; clicked the full-page "
+                        "Try again control before sending any prompt.",
+                        file=sys.stderr,
+                    )
+            if not recovered:
+                try:
+                    page.reload(
+                        wait_until="domcontentloaded",
+                        timeout=CHATGPT_NAVIGATION_TIMEOUT_MS,
+                    )
+                    print(
+                        ">>> ChatGPT history was unavailable; reloaded the same "
+                        "conversation before sending any prompt.",
+                        file=sys.stderr,
+                    )
+                except Exception as reload_error:
+                    last_error = reload_error
+
+            try:
+                page.wait_for_timeout(CHATGPT_PAGE_RECOVERY_SETTLE_MS)
+            except Exception:
+                time.sleep(CHATGPT_PAGE_RECOVERY_SETTLE_MS / 1000)
+
+    try:
+        capture_browser_diagnostics_sync(
+            page=page,
+            service="chatgpt",
+            error=last_error,
+            action_name=(
+                "conversation_history_pre_send"
+                if pre_send
+                else "conversation_history_recovery"
+            ),
+        )
+    except Exception:
+        print(
+            ">>> Could not capture redacted ChatGPT history diagnostics.",
+            file=sys.stderr,
+        )
+
+    state_summary = {
+        "editor_present": bool(last_state.get("editor_present")),
+        "conversation_turn_count": int(
+            last_state.get("conversation_turn_count") or 0
+        ),
+        "full_page_retry": bool(last_state.get("full_page_retry")),
+    }
+    message = (
+        "ChatGPT conversation history did not become ready after bounded "
+        f"same-conversation recovery. State: {state_summary}."
     )
+    if pre_send:
+        raise ChatGPTPreSendTransientError(
+            f"{message} No prompt was sent."
+        ) from last_error
+    raise RuntimeError(
+        f"{message} No new prompt was sent during recovery."
+    ) from last_error
 
 def send_prompt(
     page: Page,
@@ -3962,7 +4059,11 @@ def send_prompt(
     prompt_textarea = wait_for_chatgpt_composer(page)
 
     if is_chatgpt_conversation_url(page.url):
-        wait_for_conversation_history(page)
+        wait_for_conversation_history(
+            page,
+            composer_ready=True,
+            pre_send=True,
+        )
 
     # Wait for any previous generation to finish (stop-button disappears)
     try:
@@ -6070,7 +6171,6 @@ def generate_comment_replies(
         )
         check_chatgpt_page_attention(page)
         ensure_expected_conversation_page(page.url, conversation_url)
-        wait_for_conversation_history(page)
         response_text = send_prompt(
             page,
             build_comment_reply_prompt(
