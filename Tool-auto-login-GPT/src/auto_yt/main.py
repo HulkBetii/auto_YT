@@ -659,6 +659,7 @@ class VideoRequest(BaseModel):
     cast_voice_overrides: Optional[dict] = Field(default=None)
     publish_mode: Optional[Literal["public", "schedule", "private"]] = None
     publish_immediately: Optional[bool] = None
+    confirm_duplicate: bool = False
 
 class VideoResponse(BaseModel):
     success: bool
@@ -2034,6 +2035,73 @@ def _video_candidates_by_youtube_id() -> dict[str, dict]:
             continue
         candidates.setdefault(youtube_video_id, video)
     return candidates
+
+
+def _find_duplicate_video_source(url: str, prompt_version: str) -> dict | None:
+    """Find prior non-error use of a source video within one prompt version."""
+    try:
+        youtube_video_id = youtube_comments.extract_youtube_video_id(url)
+    except ValueError:
+        return None
+
+    existing_video = None
+    for video in db.list_video_identity_candidates():
+        if video.get("video_status") != db.VIDEO_STATUS_ACTIVE:
+            continue
+        if video.get("source_type") != db.VIDEO_SOURCE_GENERATED:
+            continue
+        if str(video.get("prompt_version") or "") != prompt_version:
+            continue
+        try:
+            candidate_id = youtube_comments.extract_youtube_video_id(
+                video.get("url", "")
+            )
+        except ValueError:
+            continue
+        if candidate_id == youtube_video_id:
+            existing_video = {
+                "id": video["id"],
+                "title": video.get("title", ""),
+                "created_at": video.get("created_at", ""),
+            }
+            break
+
+    active_job = None
+    for job in reversed(db.list_active_system_jobs("video_generation")):
+        if str(job.get("prompt_version") or "") != prompt_version:
+            continue
+        if job.get("video_id") is not None:
+            linked_video = db.get_video(job["video_id"])
+            if (
+                linked_video
+                and linked_video.get("video_status") == db.VIDEO_STATUS_ERROR
+            ):
+                continue
+        payload = job.get("payload") or {}
+        try:
+            candidate_id = youtube_comments.extract_youtube_video_id(
+                payload.get("url", "")
+            )
+        except ValueError:
+            continue
+        if candidate_id == youtube_video_id:
+            active_job = {
+                "id": job["id"],
+                "status": job.get("status", ""),
+            }
+            break
+
+    if existing_video is None and active_job is None:
+        return None
+    return {
+        "message": (
+            "Bạn đã tạo video với video gốc này trong bộ prompt đã chọn."
+        ),
+        "youtube_video_id": youtube_video_id,
+        "prompt_version": prompt_version,
+        "existing_video": existing_video,
+        "active_job": active_job,
+    }
 
 
 def _comment_import_inventory_item(
@@ -6735,33 +6803,20 @@ def process_video(request: VideoRequest):
         normalized_url = validate_youtube_url(request.url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    duplicate_warning = _find_duplicate_video_source(
+        normalized_url,
+        resolved_prompt_version,
+    )
+    if duplicate_warning and not request.confirm_duplicate:
+        return {
+            "status": "duplicate_confirmation_required",
+            "duplicate_warning": duplicate_warning,
+        }
+
     video_jobs = db.list_system_jobs(
         limit=500,
         job_type="video_generation",
     )
-    for existing_job in video_jobs:
-        existing_payload = existing_job.get("payload") or {}
-        if (
-            existing_job["status"] in {"queued", "running", "retry_wait", "paused"}
-            and str(existing_payload.get("url") or "").strip() == normalized_url
-            and existing_job.get("prompt_version", "") == resolved_prompt_version
-            and existing_job.get("voice_id", "") == selected_voice["id"]
-            and existing_payload.get("cast_voice_overrides") == request.cast_voice_overrides
-            and chatgpt_projects.normalize_prompt_pipeline(
-                existing_payload.get("pipeline")
-            ) == pipeline
-        ):
-            _sync_legacy_job(existing_job)
-            _kick_video_queue()
-            return {
-                "job_id": existing_job["id"],
-                "status": existing_job["status"],
-                "queue_position": db.get_system_job_queue_position(
-                    existing_job["id"]
-                ),
-                "duplicate": True,
-            }
-
     active_video_jobs = sum(
         job.get("status") in {"queued", "running", "retry_wait", "paused"}
         for job in video_jobs

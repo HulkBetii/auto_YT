@@ -238,6 +238,7 @@ function App() {
   const [currentVideoDefaultChannelTitle, setCurrentVideoDefaultChannelTitle] = useState('')
   const [publicationDialog, setPublicationDialog] = useState(null)
   const [sceneResetDialog, setSceneResetDialog] = useState(null)
+  const [duplicateWarningDialog, setDuplicateWarningDialog] = useState(null)
   const [currentVideoHasCheckpoint, setCurrentVideoHasCheckpoint] = useState(false)
   const [isPublishingNow, setIsPublishingNow] = useState(false)
   const [isPublishingSchedule, setIsPublishingSchedule] = useState(false)
@@ -730,13 +731,36 @@ function App() {
     }
   }
 
+  const enqueueVideo = async (payload) => {
+    const response = await fetch('http://127.0.0.1:8080/api/process-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.detail || 'Không thể thêm video vào hàng đợi.')
+    }
+    return data
+  }
+
+  const completeVideoSubmission = (data) => {
+    if (!data.job_id) {
+      throw new Error('Backend không trả về mã job.')
+    }
+    setUrl('')
+    setPublishImmediately(false)
+    setProgressMsg(
+      data.status === 'running'
+        ? 'Video đã bắt đầu xử lý.'
+        : `Đã thêm vào hàng đợi${data.queue_position ? ` ở vị trí #${data.queue_position}` : ''}.`
+    )
+    setQueueRefreshKey(value => value + 1)
+  }
+
   const handleRun = async () => {
     if (!url.trim() || isFetching) return
     const submittedUrl = url.trim()
-    setIsFetching(true)
-    setErrorMsg('')
-    setProgressMsg('Đang thêm video vào hàng đợi...')
-    
     const selectedVersionObj = promptVersions.find(v => v.key === selectedPromptVersion);
     const isDialogue = (selectedVersionObj?.contentMode || 'dialogue') === 'dialogue';
     const primaryVoiceId = isDialogue ? (selectedMcVoiceId || selectedVoiceId || '') : (selectedVoiceId || '');
@@ -745,37 +769,65 @@ function App() {
       guest_1: selectedGuest1VoiceId || 'auto',
       guest_2: selectedGuest2VoiceId || 'auto'
     } : null;
+    const payload = {
+      url: submittedUrl,
+      prompt_version: selectedPromptVersion,
+      voice_id: primaryVoiceId || null,
+      cast_voice_overrides: castOverrides,
+      publish_mode: publishImmediately ? 'public' : null,
+      publish_immediately: publishImmediately
+    }
 
+    setIsFetching(true)
+    setErrorMsg('')
+    setProgressMsg('Đang thêm video vào hàng đợi...')
     try {
-      const response = await fetch('http://127.0.0.1:8080/api/process-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: submittedUrl,
-          prompt_version: selectedPromptVersion,
-          voice_id: primaryVoiceId || null,
-          cast_voice_overrides: castOverrides,
-          publish_mode: publishImmediately ? 'public' : null,
-          publish_immediately: publishImmediately
+      const data = await enqueueVideo(payload)
+      if (
+        data.status === 'duplicate_confirmation_required' &&
+        data.duplicate_warning
+      ) {
+        setProgressMsg('')
+        setDuplicateWarningDialog({
+          warning: data.duplicate_warning,
+          payload,
+          promptName: selectedVersionObj?.name || selectedPromptVersion,
+          isSubmitting: false,
+          error: ''
         })
-      })
-      const data = await response.json()
-      if (!response.ok || !data.job_id) {
-        throw new Error(data.detail || 'Backend không trả về mã job.')
+        return
       }
-      setUrl('')
-      setPublishImmediately(false)
-      setProgressMsg(
-        data.duplicate
-          ? 'Video này đã có trong hàng đợi; hệ thống không tạo job trùng.'
-          : data.status === 'running'
-          ? 'Video đã bắt đầu xử lý.'
-          : `Đã thêm vào hàng đợi${data.queue_position ? ` ở vị trí #${data.queue_position}` : ''}.`
-      )
-      setQueueRefreshKey(value => value + 1)
+      completeVideoSubmission(data)
     } catch (error) {
       setProgressMsg('')
       setErrorMsg(error.message || 'Không thể kết nối tới backend Python.')
+    } finally {
+      setIsFetching(false)
+    }
+  }
+
+  const handleConfirmDuplicate = async () => {
+    if (!duplicateWarningDialog || duplicateWarningDialog.isSubmitting) return
+    const payload = {
+      ...duplicateWarningDialog.payload,
+      confirm_duplicate: true
+    }
+    setIsFetching(true)
+    setDuplicateWarningDialog(dialog => ({
+      ...dialog,
+      isSubmitting: true,
+      error: ''
+    }))
+    try {
+      const data = await enqueueVideo(payload)
+      completeVideoSubmission(data)
+      setDuplicateWarningDialog(null)
+    } catch (error) {
+      setDuplicateWarningDialog(dialog => dialog ? ({
+        ...dialog,
+        isSubmitting: false,
+        error: error.message || 'Không thể thêm video vào hàng đợi.'
+      }) : dialog)
     } finally {
       setIsFetching(false)
     }
@@ -4112,6 +4164,95 @@ function App() {
                 disabled={publicationDialog.isSaving || !publicationDialog.videoId || !publicationDialog.publishedUrl.trim()}
                 style={{ width: 'auto', padding: '10px 18px' }}
               >{publicationDialog.isSaving ? 'Đang kiểm tra...' : 'Lưu link & chuyển Đã đăng'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+      {duplicateWarningDialog && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px', background: 'rgba(0, 0, 0, 0.78)'
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duplicate-warning-dialog-title"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleConfirmDuplicate()
+            }}
+            style={{
+              width: 'min(560px, 100%)', padding: '24px', borderRadius: '14px',
+              border: '1px solid rgba(241, 196, 15, 0.65)', background: '#181612',
+              boxShadow: '0 24px 80px rgba(0, 0, 0, 0.65)'
+            }}
+          >
+            <h3
+              id="duplicate-warning-dialog-title"
+              style={{ margin: '0 0 12px', color: '#f1c40f' }}
+            >
+              ⚠️ Video gốc đã được dùng
+            </h3>
+            <p style={{ margin: '0 0 12px', color: '#eee', lineHeight: 1.5 }}>
+              Bạn đã tạo video với video gốc này trong bộ prompt <strong>{duplicateWarningDialog.promptName}</strong>.
+            </p>
+            <div style={{
+              margin: '0 0 14px', padding: '12px', borderRadius: '8px',
+              background: 'rgba(241, 196, 15, 0.08)',
+              border: '1px solid rgba(241, 196, 15, 0.2)',
+              color: '#ccc', fontSize: '0.88em', lineHeight: 1.55
+            }}>
+              <div>Video ID: <strong>{duplicateWarningDialog.warning.youtube_video_id}</strong></div>
+              {duplicateWarningDialog.warning.existing_video && (
+                <div>
+                  Bản đã lưu #{duplicateWarningDialog.warning.existing_video.id}
+                  {duplicateWarningDialog.warning.existing_video.title
+                    ? ` — ${duplicateWarningDialog.warning.existing_video.title}`
+                    : ''}
+                  {duplicateWarningDialog.warning.existing_video.created_at
+                    ? ` — ${new Date(duplicateWarningDialog.warning.existing_video.created_at).toLocaleString('vi-VN')}`
+                    : ''}
+                </div>
+              )}
+              {duplicateWarningDialog.warning.active_job && (
+                <div>
+                  Job #{duplicateWarningDialog.warning.active_job.id} đang ở trạng thái {duplicateWarningDialog.warning.active_job.status}.
+                </div>
+              )}
+            </div>
+            <p style={{ margin: 0, color: '#aaa', lineHeight: 1.45 }}>
+              Bạn vẫn có thể tạo thêm một job mới hoặc hủy để kiểm tra lại.
+            </p>
+            {duplicateWarningDialog.error && (
+              <p role="alert" style={{ margin: '12px 0 0', color: '#ff6b6b', lineHeight: 1.4 }}>
+                {duplicateWarningDialog.error}
+              </p>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                autoFocus
+                disabled={duplicateWarningDialog.isSubmitting}
+                onClick={() => {
+                  setDuplicateWarningDialog(null)
+                  setProgressMsg('')
+                }}
+              >
+                Hủy tạo
+              </button>
+              <button
+                type="submit"
+                className="btn-run"
+                disabled={duplicateWarningDialog.isSubmitting}
+                style={{ width: 'auto', padding: '10px 18px' }}
+              >
+                {duplicateWarningDialog.isSubmitting ? 'Đang thêm...' : 'Vẫn tạo'}
+              </button>
             </div>
           </form>
         </div>

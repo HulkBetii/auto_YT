@@ -134,7 +134,7 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
 
         self.get_voice.assert_called_once_with(prompt_voice_id)
 
-    def test_duplicate_active_request_reuses_the_existing_queue_job(self):
+    def test_duplicate_active_request_requires_confirmation_then_creates_new_job(self):
         request = main.VideoRequest(
             url="https://www.youtube.com/watch?v=same-video",
             prompt_version="version-key",
@@ -143,13 +143,68 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
         with patch.object(main, "_kick_video_queue"):
             first = main.process_video(request)
             second = main.process_video(request)
+            confirmed = main.process_video(
+                request.model_copy(update={"confirm_duplicate": True})
+            )
 
-        self.assertEqual(first["job_id"], second["job_id"])
-        self.assertTrue(second["duplicate"])
+        self.assertEqual(second["status"], "duplicate_confirmation_required")
+        self.assertEqual(
+            second["duplicate_warning"]["active_job"]["id"],
+            first["job_id"],
+        )
+        self.assertNotEqual(first["job_id"], confirmed["job_id"])
         self.assertEqual(
             main.db.get_system_job(first["job_id"])["status"],
             "queued",
         )
+
+    def test_duplicate_history_matches_url_variants_only_within_prompt_version(self):
+        video_id = main.db.save_video(
+            url="https://youtu.be/same-source?t=15",
+            title="Existing video",
+            transcript="Transcript",
+            generated_script="Generated script",
+            prompt_version="version-key",
+        )
+        request = main.VideoRequest(
+            url="https://www.youtube.com/shorts/same-source",
+            prompt_version="version-key",
+            voice_id=main.AUDIO_VOICE_ID,
+        )
+
+        with patch.object(main, "_kick_video_queue"):
+            duplicate = main.process_video(request)
+            different_prompt = main.process_video(
+                request.model_copy(update={"prompt_version": "other-version"})
+            )
+
+        self.assertEqual(duplicate["status"], "duplicate_confirmation_required")
+        self.assertEqual(
+            duplicate["duplicate_warning"]["existing_video"]["id"],
+            video_id,
+        )
+        self.assertIn("job_id", different_prompt)
+
+    def test_error_video_history_does_not_trigger_duplicate_warning(self):
+        video_id = main.db.save_video(
+            url="https://www.youtube.com/watch?v=retry-source",
+            title="Failed video",
+            transcript="Transcript",
+            generated_script="Generated script",
+            prompt_version="version-key",
+        )
+        main.db.set_video_status(video_id, main.db.VIDEO_STATUS_ERROR)
+
+        with patch.object(main, "_kick_video_queue"):
+            response = main.process_video(
+                main.VideoRequest(
+                    url="https://youtu.be/retry-source",
+                    prompt_version="version-key",
+                    voice_id=main.AUDIO_VOICE_ID,
+                )
+            )
+
+        self.assertIn("job_id", response)
 
     def test_new_video_job_keeps_a_pipeline_snapshot(self):
         pipeline = {

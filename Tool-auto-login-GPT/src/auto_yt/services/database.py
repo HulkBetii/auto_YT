@@ -2248,7 +2248,7 @@ def list_video_identity_candidates() -> list[dict]:
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         '''
-        SELECT id, url, title, chat_url, prompt_version, video_status,
+        SELECT id, url, title, chat_url, prompt_version, video_status, created_at,
                COALESCE(source_type, ?) AS source_type
         FROM videos
         ORDER BY id DESC
