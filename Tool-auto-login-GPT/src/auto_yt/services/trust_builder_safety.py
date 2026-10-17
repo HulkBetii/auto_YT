@@ -262,7 +262,16 @@ def sync_safety_blacklist_from_remote(remote_url: str | None = None) -> dict[str
     config = db.get_safety_config()
     url = remote_url or config.get("remote_sync_url", "")
     if not url:
-        return {"success": False, "message": "Chưa cấu hình URL đồng bộ từ xa."}
+        ensure_default_safety_rules_seeded()
+        return {
+            "success": True,
+            "local_only": True,
+            "total_synced": 0,
+            "message": (
+                "Safety Shield đang dùng danh mục local; "
+                "chưa cấu hình nguồn đồng bộ từ xa."
+            ),
+        }
 
     try:
         url = validate_remote_sync_url(url)

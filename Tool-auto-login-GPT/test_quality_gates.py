@@ -158,6 +158,35 @@ def test_script_gate_does_not_flag_legitimate_conversational_requirement():
     }
 
 
+@pytest.mark.parametrize("status", ["pending", "blocked"])
+def test_unapproved_audio_review_is_not_reported_as_tts_failure(status):
+    review = {
+        "video_id": 42,
+        "status": status,
+        "script_hash": "script-hash",
+        "report": {
+            "decision": "review" if status == "pending" else "block",
+            "can_approve": False,
+            "can_manual_approve": status == "pending",
+        },
+    }
+
+    with (
+        patch.object(
+            main,
+            "_automatically_approve_audio_review",
+            return_value=review,
+        ),
+        patch.object(main, "_ensure_audio_task") as ensure_audio_task,
+    ):
+        result_review, task, error = main._auto_review_and_create_audio(42)
+
+    assert result_review == review
+    assert task is None
+    assert error == ""
+    ensure_audio_task.assert_not_called()
+
+
 
 
 def test_script_gate_blocks_duplicate_sections_and_is_idempotent():

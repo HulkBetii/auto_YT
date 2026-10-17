@@ -2619,6 +2619,7 @@ def delete_video_with_dependencies(video_id: int) -> dict | None:
     conn = sqlite3.connect(str(DB_PATH), timeout=30, isolation_level=None)
     conn.row_factory = sqlite3.Row
     try:
+        conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("BEGIN IMMEDIATE")
         video = conn.execute(
             "SELECT * FROM videos WHERE id = ?",
@@ -2632,7 +2633,10 @@ def delete_video_with_dependencies(video_id: int) -> dict | None:
             '''
             SELECT id FROM system_jobs
             WHERE video_id = ?
-              AND status IN ('queued', 'running', 'retry_wait', 'paused')
+              AND status IN (
+                  'queued', 'running', 'processing', 'in_progress',
+                  'retry_wait', 'paused'
+              )
             LIMIT 1
             ''',
             (video_id,),
@@ -2657,6 +2661,24 @@ def delete_video_with_dependencies(video_id: int) -> dict | None:
                 "Hãy đợi job kết thúc trước khi xóa."
             )
 
+        active_publish_workflow = conn.execute(
+            '''
+            SELECT id FROM youtube_publish_workflows
+            WHERE video_id = ?
+              AND status IN (
+                  'queued', 'running', 'retry_wait', 'waiting', 'processing',
+                  'ready_to_schedule', 'browser_upload', 'uploading'
+              )
+            LIMIT 1
+            ''',
+            (video_id,),
+        ).fetchone()
+        if active_publish_workflow is not None:
+            raise ValueError(
+                "Video đang có workflow xuất bản chạy hoặc chờ xử lý. "
+                "Hãy đợi workflow kết thúc trước khi xóa."
+            )
+
         system_jobs = conn.execute(
             "SELECT * FROM system_jobs WHERE video_id = ? ORDER BY created_at",
             (video_id,),
@@ -2673,7 +2695,19 @@ def delete_video_with_dependencies(video_id: int) -> dict | None:
             "SELECT * FROM video_publications WHERE video_id = ? ORDER BY id",
             (video_id,),
         ).fetchall()
+        video_artifacts = conn.execute(
+            "SELECT * FROM video_artifacts WHERE video_id = ? ORDER BY id",
+            (video_id,),
+        ).fetchall()
+        publish_workflows = conn.execute(
+            "SELECT * FROM youtube_publish_workflows WHERE video_id = ? ORDER BY created_at",
+            (video_id,),
+        ).fetchall()
 
+        conn.execute(
+            "DELETE FROM youtube_publish_workflows WHERE video_id = ?",
+            (video_id,),
+        )
         conn.execute(
             "DELETE FROM youtube_comments WHERE publication_id IN "
             "(SELECT id FROM video_publications WHERE video_id = ?)",
@@ -2700,6 +2734,8 @@ def delete_video_with_dependencies(video_id: int) -> dict | None:
         "audio_task": dict(audio_task) if audio_task else None,
         "audio_review": dict(audio_review) if audio_review else None,
         "video_publications": [dict(row) for row in publications],
+        "video_artifacts": [_decode_video_artifact(row) for row in video_artifacts],
+        "youtube_publish_workflows": [dict(row) for row in publish_workflows],
     }
 
 
@@ -6181,6 +6217,15 @@ def delete_video_artifact(artifact_id: int) -> bool:
     return cursor.rowcount > 0
 
 
+def list_video_artifact_paths() -> list[str]:
+    conn = sqlite3.connect(str(DB_PATH))
+    rows = conn.execute(
+        "SELECT DISTINCT path FROM video_artifacts WHERE TRIM(path) != ''"
+    ).fetchall()
+    conn.close()
+    return [str(row[0]) for row in rows if row[0]]
+
+
 def get_video_ids_with_ready_final_mp4(video_ids: list[int] | set[int]) -> set[int]:
     if not video_ids:
         return set()
@@ -7926,7 +7971,7 @@ def get_safety_config() -> dict:
     conn.close()
     config = {
         "shield_enabled": True,
-        "remote_sync_url": "https://raw.githubusercontent.com/Auto-YT/safety-shield/main/vietnam_blacklist.json",
+        "remote_sync_url": "",
         "last_synced_at": "",
         "auto_sync_interval_hours": 24,
     }
@@ -7944,6 +7989,9 @@ def get_safety_config() -> dict:
                 config["auto_sync_interval_hours"] = int(v)
             except ValueError:
                 pass
+    config["sync_mode"] = (
+        "remote" if str(config.get("remote_sync_url") or "").strip() else "local_only"
+    )
     return config
 
 

@@ -39,6 +39,23 @@ def audio_review(status="pending"):
     }
 
 
+def metadata_review(status="approved"):
+    return {
+        "video_id": 72,
+        "script_hash": "script-hash",
+        "metadata_hash": "metadata-hash",
+        "status": status,
+        "reviewed_at": "2026-08-04T00:00:00+00:00",
+        "updated_at": "2026-08-04T00:00:00+00:00",
+        "report": {
+            "decision": "pass",
+            "can_approve": True,
+            "errors": [],
+            "warnings": [],
+        },
+    }
+
+
 class VideoProcessingRecoveryTests(unittest.TestCase):
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
@@ -85,23 +102,26 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
         )
 
     def test_completed_late_outline_is_reused_from_the_same_chat(self):
+        first_part = " ".join(f"chi tiết {index}" for index in range(8))
+        second_part = " ".join(f"diễn biến {index}" for index in range(8))
         turns = [
             ("user", "Tạo dàn ý"),
             ("assistant", ""),
-            ("assistant", "[PHAN]\nPhần một\n\n[PHAN]\nPhần hai"),
+            ("assistant", f"PHAN 1:\n{first_part}\n\nPHAN 2:\n{second_part}"),
         ]
 
         response = select_reusable_outline_response(turns)
 
-        self.assertIn("Phần một", response)
+        self.assertIn(first_part, response)
         self.assertEqual(len(split_outline_parts(response)), 2)
 
     def test_core_completion_depends_on_sections_not_a_length_threshold(self):
         transcript = "x" * 10000
+        complete_section = " ".join(f"nội dung {index}" for index in range(8))
         state = {
-            "intro": "Intro",
-            "body_parts": ["Body"],
-            "outro": "Outro",
+            "intro": complete_section,
+            "body_parts": [complete_section],
+            "outro": complete_section,
             "expected_body_parts": 1,
         }
 
@@ -222,6 +242,7 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
             "video_render": False,
             "youtube_upload": False,
             "youtube_schedule": False,
+            "visual_research": False,
         }
         with (
             patch.object(
@@ -685,6 +706,11 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
             patch.object(main.db, "update_video_generation", return_value=True),
             patch.object(
                 main,
+                "_automatically_approve_metadata_review",
+                return_value=metadata_review(),
+            ),
+            patch.object(
+                main,
                 "_auto_review_and_create_audio",
                 return_value=(audio_review("approved"), audio_task, ""),
             ) as auto_audio,
@@ -706,6 +732,52 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
             requested_voice_name="Giọng kiểm thử",
         )
 
+    def test_complete_video_waiting_for_manual_audio_review_is_not_an_error(self):
+        worker_result = {
+            "script": (
+                "### [INTRO]\nIntro hoàn chỉnh.\n\n"
+                "### [BODY]\nNội dung hoàn chỉnh.\n\n"
+                "### [OUTRO]\nOutro hoàn chỉnh.\n"
+            ),
+            "chat_url": "https://chatgpt.com/c/test",
+            "warning": "",
+            "complete_for_audio": True,
+        }
+
+        with (
+            patch.object(main, "_try_start_chatgpt_operation", return_value=True),
+            patch.object(main, "_finish_chatgpt_operation"),
+            patch.object(main.threading, "Thread", ImmediateThread),
+            patch.object(main, "get_video_transcript", return_value="Transcript"),
+            patch.object(main, "get_video_title", return_value="Title"),
+            patch.object(main, "process_prompt_via_chatgpt", return_value=worker_result),
+            patch.object(main.db, "save_video", return_value=77),
+            patch.object(main.db, "update_video_generation", return_value=True),
+            patch.object(
+                main,
+                "_automatically_approve_metadata_review",
+                return_value=metadata_review(),
+            ),
+            patch.object(
+                main,
+                "_auto_review_and_create_audio",
+                return_value=(audio_review("pending"), None, ""),
+            ),
+        ):
+            response = main.process_video(
+                main.VideoRequest(
+                    url="https://www.youtube.com/watch?v=manual-audio-review",
+                    prompt_version="version-key",
+                )
+            )
+
+        job = main._jobs[response["job_id"]]
+        self.assertEqual(job["status"], "done")
+        self.assertFalse(job["error"])
+        self.assertEqual(job["result"]["audio_review"]["status"], "pending")
+        self.assertIsNone(job["result"]["audio_task"])
+        self.assertIn("chờ duyệt thủ công", job["progress"])
+
     def test_pipeline_can_finish_a_video_without_automatic_audio(self):
         pipeline = {
             "title": False,
@@ -722,6 +794,7 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
             "video_render": False,
             "youtube_upload": False,
             "youtube_schedule": False,
+            "visual_research": False,
         }
         worker_result = {
             "script": (
@@ -749,6 +822,16 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
             patch.object(main, "process_prompt_via_chatgpt", return_value=worker_result),
             patch.object(main.db, "save_video", return_value=76),
             patch.object(main.db, "update_video_generation", return_value=True),
+            patch.object(
+                main,
+                "_automatically_approve_metadata_review",
+                return_value=metadata_review(),
+            ),
+            patch.object(
+                main,
+                "_automatically_approve_audio_review",
+                return_value=audio_review("approved"),
+            ) as approve_review,
             patch.object(main, "_auto_review_and_create_audio") as auto_audio,
             patch.object(main, "_prepare_audio_review") as prepare_review,
         ):
@@ -761,11 +844,12 @@ class VideoProcessingRecoveryTests(unittest.TestCase):
 
         job = main._jobs[response["job_id"]]
         self.assertEqual(job["status"], "done")
-        self.assertIsNone(job["result"]["audio_review"])
+        self.assertEqual(job["result"]["audio_review"]["status"], "approved")
         self.assertEqual(job["result"]["pipeline"], pipeline)
         self.assertIn("không tự tạo audio", job["progress"])
         auto_audio.assert_not_called()
         prepare_review.assert_not_called()
+        approve_review.assert_called_once_with(76)
 
 
 if __name__ == "__main__":

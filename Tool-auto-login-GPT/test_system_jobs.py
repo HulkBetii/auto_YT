@@ -903,6 +903,13 @@ class SystemJobTests(unittest.TestCase):
             status="blocked",
             report={"errors": []},
         )
+        artifact = database.upsert_video_artifact(
+            video_id=video_id,
+            artifact_type="final_mp4",
+            path=str(Path(self.temp_directory.name) / "delete-all.mp4"),
+            content_hash="delete-all-hash",
+            status="ready",
+        )
 
         deleted = database.delete_video_with_dependencies(video_id)
 
@@ -912,6 +919,14 @@ class SystemJobTests(unittest.TestCase):
         self.assertIsNone(database.get_system_job("linked-finished"))
         self.assertIsNone(database.get_audio_task(video_id))
         self.assertIsNone(database.get_audio_review(video_id))
+        self.assertIsNone(database.get_video_artifact(artifact["id"]))
+        import sqlite3
+
+        connection = sqlite3.connect(str(database.DB_PATH))
+        try:
+            self.assertEqual(connection.execute("PRAGMA foreign_key_check").fetchall(), [])
+        finally:
+            connection.close()
 
     def test_deleting_video_is_blocked_while_linked_work_is_active(self):
         video_id = database.save_video(
@@ -1006,12 +1021,16 @@ class SystemJobTests(unittest.TestCase):
         thumbnail_dir = media_root / "thumbnails"
         audio_dir = media_root / "audio"
         checkpoint_dir = media_root / "checkpoints"
+        artifact_dir = media_root / "video_artifacts"
         thumbnail_dir.mkdir(parents=True)
         audio_dir.mkdir(parents=True)
+        artifact_dir.mkdir(parents=True)
         thumbnail_path = thumbnail_dir / "thumb_delete.png"
         audio_path = audio_dir / "video_delete.mp3"
+        artifact_path = artifact_dir / "render_delete.mp4"
         thumbnail_path.write_bytes(b"thumbnail")
         audio_path.write_bytes(b"audio")
+        artifact_path.write_bytes(b"render")
         script = (
             "### [BODY]\nscript\n\n"
             "### [THUMBNAIL CÓ CHỮ]\n"
@@ -1030,11 +1049,19 @@ class SystemJobTests(unittest.TestCase):
             status="error",
             video_id=video_id,
         )
+        database.upsert_video_artifact(
+            video_id=video_id,
+            artifact_type="final_mp4",
+            path=str(artifact_path),
+            content_hash="render-delete-hash",
+            status="ready",
+        )
         main._jobs["linked-runtime"] = {"status": "error"}
 
         with (
             patch.object(main, "THUMBNAILS_DIR", thumbnail_dir),
             patch.object(main, "AUDIO_DIR", audio_dir),
+            patch.object(main, "VIDEO_ARTIFACTS_DIR", artifact_dir),
             patch.object(generation_checkpoint, "CHECKPOINT_DIR", checkpoint_dir),
         ):
             generation_checkpoint.save_checkpoint(
@@ -1045,11 +1072,73 @@ class SystemJobTests(unittest.TestCase):
 
         self.assertTrue(response["success"])
         self.assertEqual(response["deleted_job_ids"], ["linked-runtime"])
-        self.assertEqual(response["deleted_media_count"], 2)
+        self.assertEqual(response["deleted_media_count"], 3)
         self.assertNotIn("linked-runtime", main._jobs)
         self.assertFalse(thumbnail_path.exists())
         self.assertFalse(audio_path.exists())
+        self.assertFalse(artifact_path.exists())
         self.assertFalse((checkpoint_dir / f"video_{video_id}.json").exists())
+
+    def test_video_delete_keeps_artifact_outside_managed_root(self):
+        artifact_root = Path(self.temp_directory.name) / "video_artifacts"
+        outside_path = Path(self.temp_directory.name) / "outside.mp4"
+        artifact_root.mkdir(parents=True)
+        outside_path.write_bytes(b"outside")
+        video_id = database.save_video(
+            "https://youtube.com/watch?v=outside-artifact",
+            "Outside artifact",
+            "transcript",
+            "script",
+        )
+        database.upsert_video_artifact(
+            video_id=video_id,
+            artifact_type="final_mp4",
+            path=str(outside_path),
+            content_hash="outside-artifact-hash",
+            status="ready",
+        )
+
+        with patch.object(main, "VIDEO_ARTIFACTS_DIR", artifact_root):
+            response = main.delete_video(video_id)
+
+        self.assertTrue(outside_path.exists())
+        self.assertEqual(response["deleted_media_count"], 0)
+        self.assertTrue(any("ngoài thư mục" in item for item in response["warnings"]))
+
+    def test_video_delete_keeps_artifact_path_referenced_by_another_video(self):
+        artifact_root = Path(self.temp_directory.name) / "video_artifacts"
+        artifact_root.mkdir(parents=True)
+        shared_path = artifact_root / "shared.mp4"
+        shared_path.write_bytes(b"shared")
+        deleted_video_id = database.save_video(
+            "https://youtube.com/watch?v=delete-shared-artifact",
+            "Delete shared artifact",
+            "transcript",
+            "script",
+        )
+        kept_video_id = database.save_video(
+            "https://youtube.com/watch?v=keep-shared-artifact",
+            "Keep shared artifact",
+            "transcript",
+            "script",
+        )
+        for video_id, content_hash in (
+            (deleted_video_id, "deleted-shared-hash"),
+            (kept_video_id, "kept-shared-hash"),
+        ):
+            database.upsert_video_artifact(
+                video_id=video_id,
+                artifact_type="final_mp4",
+                path=str(shared_path),
+                content_hash=content_hash,
+                status="ready",
+            )
+
+        with patch.object(main, "VIDEO_ARTIFACTS_DIR", artifact_root):
+            response = main.delete_video(deleted_video_id)
+
+        self.assertTrue(shared_path.exists())
+        self.assertEqual(response["deleted_media_count"], 0)
 
     def test_video_delete_keeps_a_local_file_referenced_by_another_video(self):
         thumbnail_dir = Path(self.temp_directory.name) / "thumbnails"

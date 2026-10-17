@@ -262,6 +262,8 @@ async def _check_periodic_safety_sync() -> None:
     config = db.get_safety_config()
     if not config.get("shield_enabled", True):
         return
+    if not str(config.get("remote_sync_url") or "").strip():
+        return
     last_synced_str = str(config.get("last_synced_at") or "")
     interval_hours = int(config.get("auto_sync_interval_hours") or 24)
     last_synced = _parse_utc(last_synced_str)

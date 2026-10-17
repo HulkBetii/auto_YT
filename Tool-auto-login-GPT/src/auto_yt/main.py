@@ -32,7 +32,15 @@ _AUTOMATIC_LOGIN_COOLDOWN_SECONDS = 300.0  # 5 minutes after a failed login
 import time
 import uuid
 import datetime
-from auto_yt.paths import AUDIO_DIR, DATA_DIR, CHROME_USER_DATA_DIR, gpt_profile_dir, PROMPTS_PATH, THUMBNAILS_DIR
+from auto_yt.paths import (
+    AUDIO_DIR,
+    CHROME_USER_DATA_DIR,
+    DATA_DIR,
+    PROMPTS_PATH,
+    THUMBNAILS_DIR,
+    VIDEO_ARTIFACTS_DIR,
+    gpt_profile_dir,
+)
 from auto_yt.default_prompts import DEFAULT_PROMPTS_DATA
 import shutil
 import sys
@@ -2775,11 +2783,7 @@ def _auto_review_and_create_audio(
     """Run the quality gate and idempotent TTS submission as one system step."""
     review = _automatically_approve_audio_review(video_id)
     if review.get("status") != "approved":
-        return (
-            review,
-            None,
-            "Kịch bản không đạt kiểm tra tự động; chưa gửi sang Genmax.",
-        )
+        return review, None, ""
     try:
         task = _ensure_audio_task(
             video_id,
@@ -5656,6 +5660,10 @@ def _execute_video_job(job: dict) -> None:
             job_status = "review_blocked"
             job_error = "Kịch bản không đạt kiểm tra tự động trước khi tạo audio."
             job_progress = "Kịch bản không đạt kiểm tra tự động; chưa tạo audio"
+        elif audio_review and audio_review.get("status") == "pending":
+            job_status = "done"
+            job_error = ""
+            job_progress = "Kịch bản đã hoàn thành; audio đang chờ duyệt thủ công"
         else:
             job_status = "done"
             job_error = ""
@@ -8189,9 +8197,13 @@ def continue_video_generation(video_id: int):
                                 "⛔ Kịch bản không đạt kiểm tra tự động; chưa tạo audio."
                                 if audio_review and audio_review.get("status") == "blocked"
                                 else (
-                                    f"❌ Kịch bản đã duyệt nhưng lỗi audio: {audio_error}"
-                                    if audio_error
-                                    else f"🎙️ Kịch bản đã tự động duyệt; {_get_tts_provider_display_name(video.get('tts_provider_id') or (audio_task.get('tts_provider_id') if audio_task else None))} đang tạo audio."
+                                    "📝 Kịch bản đã hoàn thành; audio đang chờ duyệt thủ công."
+                                    if audio_review and audio_review.get("status") == "pending"
+                                    else (
+                                        f"❌ Kịch bản đã duyệt nhưng lỗi audio: {audio_error}"
+                                        if audio_error
+                                        else f"🎙️ Kịch bản đã tự động duyệt; {_get_tts_provider_display_name(video.get('tts_provider_id') or (audio_task.get('tts_provider_id') if audio_task else None))} đang tạo audio."
+                                    )
                                 )
                             )
                         )
@@ -8692,6 +8704,48 @@ def _delete_unreferenced_managed_media(*payloads) -> tuple[int, list[str]]:
             continue
         except OSError as exc:
             warnings.append(f"Không thể xóa tệp {filename}: {exc}")
+    return deleted_count, warnings
+
+
+def _delete_unreferenced_video_artifacts(
+    artifacts: list[dict],
+) -> tuple[int, list[str]]:
+    artifact_root = VIDEO_ARTIFACTS_DIR.resolve()
+    remaining_paths: set[Path] = set()
+    for raw_path in db.list_video_artifact_paths():
+        try:
+            remaining_paths.add(Path(raw_path).resolve())
+        except (OSError, RuntimeError):
+            continue
+
+    deleted_count = 0
+    warnings: list[str] = []
+    handled_paths: set[Path] = set()
+    for artifact in artifacts:
+        raw_path = str(artifact.get("path") or "").strip()
+        if not raw_path:
+            continue
+        try:
+            candidate = Path(raw_path).resolve()
+            candidate.relative_to(artifact_root)
+        except (OSError, RuntimeError, ValueError):
+            warnings.append(
+                f"Bỏ qua artifact ngoài thư mục quản lý: {Path(raw_path).name}"
+            )
+            continue
+        if candidate in handled_paths or candidate in remaining_paths:
+            continue
+        handled_paths.add(candidate)
+        try:
+            if not candidate.is_file():
+                continue
+            candidate.unlink()
+            deleted_count += 1
+        except OSError as exc:
+            warnings.append(
+                f"Không thể xóa artifact {candidate.name}: "
+                f"{security_logging.redact_sensitive(exc)}"
+            )
     return deleted_count, warnings
 
 
@@ -11134,6 +11188,11 @@ def delete_video(video_id: int):
         checkpoint,
     )
     warnings.extend(media_warnings)
+    deleted_artifact_count, artifact_warnings = _delete_unreferenced_video_artifacts(
+        deleted.get("video_artifacts") or []
+    )
+    deleted_media_count += deleted_artifact_count
+    warnings.extend(artifact_warnings)
     _kick_video_queue()
     return {
         "success": True,

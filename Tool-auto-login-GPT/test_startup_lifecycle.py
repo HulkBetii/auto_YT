@@ -60,6 +60,13 @@ class StartupLifecycleTests(unittest.TestCase):
             script,
         )
 
+    def test_browser_readiness_probes_real_loopback_cdp_endpoint(self):
+        script = STARTUP_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertGreaterEqual(script.count("/json/version"), 2)
+        self.assertGreaterEqual(script.count("webSocketDebuggerUrl"), 2)
+        self.assertGreaterEqual(script.count("^http://127\\.0\\.0\\.1:"), 2)
+
     def test_visible_window_waits_for_restore_before_moving(self):
         for service_script in BROWSER_SERVICE_SCRIPTS:
             script = service_script.read_text(encoding="utf-8")

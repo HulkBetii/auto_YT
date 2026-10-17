@@ -339,11 +339,15 @@ function Test-ChatGPTBrowserReady {
             return $false
         }
         $cdpUrl = [string]$data.cdp_url
-        if ($cdpUrl -match ":(\d+)") {
-            $port = [int]$Matches[1]
-            return (Test-PortInUse $port)
+        if ($cdpUrl -notmatch "^http://127\.0\.0\.1:\d+/?$") {
+            return $false
         }
-        return $true
+        $version = Invoke-RestMethod `
+            -Uri "$($cdpUrl.TrimEnd('/'))/json/version" `
+            -TimeoutSec 2
+        return -not [string]::IsNullOrWhiteSpace(
+            [string]$version.webSocketDebuggerUrl
+        )
     } catch {
         return $false
     }
@@ -360,11 +364,15 @@ function Test-GoogleFlowBrowserReady {
             return $false
         }
         $cdpUrl = [string]$data.cdp_url
-        if ($cdpUrl -match ":(\d+)") {
-            $port = [int]$Matches[1]
-            return (Test-PortInUse $port)
+        if ($cdpUrl -notmatch "^http://127\.0\.0\.1:\d+/?$") {
+            return $false
         }
-        return $true
+        $version = Invoke-RestMethod `
+            -Uri "$($cdpUrl.TrimEnd('/'))/json/version" `
+            -TimeoutSec 2
+        return -not [string]::IsNullOrWhiteSpace(
+            [string]$version.webSocketDebuggerUrl
+        )
     } catch {
         return $false
     }
