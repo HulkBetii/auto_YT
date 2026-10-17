@@ -249,6 +249,19 @@ def _resolve_thumbnail_path(script: str, variant: str, thumbnails_dir: Path) -> 
     return None
 
 
+def resolve_thumbnail_path_for_qc(
+    generated_script: str,
+    snapshot: dict,
+    thumbnails_dir: Path,
+) -> Path | None:
+    """Resolve the exact local thumbnail variant that publishing will use."""
+    image_settings = snapshot.get("image_generation_settings")
+    if not isinstance(image_settings, dict):
+        image_settings = {}
+    variant = str(image_settings.get("thumbnail_variant") or "with_text")
+    return _resolve_thumbnail_path(generated_script, variant, thumbnails_dir)
+
+
 def _artifact_snapshot(artifact: dict | None) -> dict:
     if not isinstance(artifact, dict) or not artifact.get("id"):
         return {}
