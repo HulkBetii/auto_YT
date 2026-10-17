@@ -66,6 +66,24 @@ def test_script_gate_auto_fixes_high_confidence_source_reference():
     }
 
 
+def test_script_gate_auto_fixes_narration_and_embedded_script_references():
+    body = (
+        "Theo nội dung được thuật lại trong kịch bản, một thông điệp gửi tới đối phương nêu rõ yêu cầu. "
+        "Một lời kể khác được nhắc đến trong kịch bản cho rằng chỉ huy từng liên lạc với gia đình."
+    )
+
+    result = ScriptQualityGate().run(_script(body))
+
+    assert result["decision"] == "pass"
+    assert result["can_approve"]
+    assert "Theo nội dung được thuật lại, một thông điệp" in result["cleaned_script"]
+    assert "Một lời kể khác cho rằng chỉ huy" in result["cleaned_script"]
+    assert "trong kịch bản" not in result["cleaned_script"]
+    assert "narration_self_reference_rewritten" in {
+        item["code"] for item in result["fixes"]
+    }
+
+
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
@@ -138,6 +156,8 @@ def test_script_gate_does_not_flag_legitimate_conversational_requirement():
     assert "narration_self_reference" not in {
         item["code"] for item in result["review_required"]
     }
+
+
 
 
 def test_script_gate_blocks_duplicate_sections_and_is_idempotent():

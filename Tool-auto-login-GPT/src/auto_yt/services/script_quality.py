@@ -129,10 +129,24 @@ SELF_REFERENCE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+HIGH_CONFIDENCE_NARRATION_REFERENCE_PATTERN = re.compile(
+    r"\b(?P<prefix>Theo\s+(?:nội\s+dung|lời\s+kể|lời\s+thuật|ghi\s+chép|thông\s+tin|chi\s+tiết|tài\s+liệu)\s+"
+    r"(?:được\s+)?(?:thuật\s+lại|kể\s+lại|ghi\s+lại|nhắc\s+đến|nhắc\s+tới))\s+"
+    r"(?:ở|trong)\s+(?:nội\s+dung\s+)?(?:bản\s+)?kịch\s*bản"
+    r"(?:\s+(?:này|gốc|trên|dưới))?\b",
+    re.IGNORECASE,
+)
+HIGH_CONFIDENCE_EMBEDDED_SCRIPT_REFERENCE_PATTERN = re.compile(
+    r"\b(?P<lead>(?:Một\s+)?(?:lời\s+kể|chi\s+tiết|thông\s+tin|tài\s+liệu|nguồn\s+tin|ghi\s+chép)\s+khác)\s+"
+    r"(?:được\s+)?(?:nhắc\s+đến|nhắc\s+tới|đề\s+cập|ghi\s+nhận|nêu|mô\s+tả|thuật\s+lại|kể\s+lại|ghi\s+lại)\s+"
+    r"(?:ở|trong)\s+(?:nội\s+dung\s+)?(?:bản\s+)?kịch\s*bản"
+    r"(?:\s+(?:này|gốc|trên|dưới))?(?P<punct>,\s*|\s+)",
+    re.IGNORECASE,
+)
 HIGH_CONFIDENCE_SOURCE_REFERENCE_PATTERN = re.compile(
     r"\b(?P<source>Theo\s+(?:một\s+số\s+)?(?:thông\s+tin|số\s+liệu|dữ\s+liệu|"
-    r"tài\s+liệu|ghi\s+chép|chi\s+tiết)(?:(?![,.;:!?]).){0,120}?)\s+"
-    r"(?:được\s+)?(?:đề\s+cập|ghi\s+nhận|trình\s+bày|nêu|mô\s+tả)\s+"
+    r"tài\s+liệu|ghi\s+chép|chi\s+tiết|nội\s+dung|lời\s+kể|nguồn\s+tin)(?:(?![,.;:!?]).){0,120}?)\s+"
+    r"(?:được\s+)?(?:đề\s+cập|ghi\s+nhận|trình\s+bày|nêu|mô\s+tả|thuật\s+lại|kể\s+lại|nhắc\s+đến|nhắc\s+tới)\s+"
     r"(?:ở|trong)\s+(?:nội\s+dung\s+)?(?:bản\s+)?kịch\s*bản"
     r"(?:\s+(?:này|gốc|trên|dưới))?\b",
     re.IGNORECASE,
@@ -306,6 +320,18 @@ def _auto_fix_self_references(value: str) -> tuple[str, int]:
 
     cleaned = str(value or "")
     total = 0
+
+    cleaned, count = HIGH_CONFIDENCE_NARRATION_REFERENCE_PATTERN.subn(
+        lambda match: match.group("prefix").rstrip(),
+        cleaned,
+    )
+    total += count
+
+    cleaned, count = HIGH_CONFIDENCE_EMBEDDED_SCRIPT_REFERENCE_PATTERN.subn(
+        lambda match: f"{match.group('lead')}{match.group('punct') or ' '}",
+        cleaned,
+    )
+    total += count
 
     cleaned, count = HIGH_CONFIDENCE_SOURCE_REFERENCE_PATTERN.subn(
         lambda match: match.group("source").rstrip(),
