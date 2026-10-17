@@ -174,15 +174,32 @@ THUMBNAIL_REGENERATE_PROMPT = (
 )
 DEFAULT_VISUAL_RESEARCH_PROMPT = (
     "Dựa trên kịch bản và bối cảnh chi tiết ở trên, hãy xác định từ 1 đến 2 đối tượng hình ảnh quan trọng nhất "
-    "(nhân vật, khí tài, trang phục hoặc địa danh) cần có hình ảnh tư liệu chuẩn xác để làm thumbnail.\n\n"
-    "Yêu cầu bắt buộc: Chỉ trả về JSON thuần theo cấu trúc sau, không viết thêm bất kỳ lời giải thích nào:\n"
+    "(vị tướng chỉ huy, nhân vật then chốt, loại khí tài đặc trưng hoặc địa danh) cần có hình ảnh tư liệu chuẩn xác để làm thumbnail.\n\n"
+    "Quy tắc tạo từ khóa: Chỉ xuất TÊN RIÊNG ĐÍCH DANH của thực thể cốt lõi (ví dụ: 'Võ Nguyên Giáp', 'Henri Navarre', 'T-34'). "
+    "TUYỆT ĐỐI KHÔNG kèm các từ nối dài như 'ảnh tư liệu lịch sử', 'chân dung', 'chiến dịch' để tìm kiếm hình ảnh chính xác nhất.\n\n"
+    "Yêu cầu bắt buộc: Chỉ trả về JSON thuần sau, tuyệt đối không kèm lời dẫn hay giải thích:\n"
     "{\n"
     '  "queries": [\n'
-    '    "Từ khóa tìm ảnh tư liệu 1 (kèm bối cảnh/thời gian cụ thể)",\n'
-    '    "Từ khóa tìm ảnh tư liệu 2"\n'
+    '    "Tên thực thể 1",\n'
+    '    "Tên thực thể 2"\n'
     "  ]\n"
     "}"
 )
+
+
+def adapt_thumbnail_prompt_for_references(prompt_text: str, has_references: bool) -> str:
+    """Dynamically adjust thumbnail prompt phrasing based on whether references were attached."""
+    if not prompt_text:
+        return prompt_text
+    if not has_references:
+        cleaned = re.sub(
+            r"(?:và\s+)?CÁC\s+HÌNH\s+ẢNH\s+TƯ\s+LIỆU\s+LỊCH\s+SỬ\s+VỪA\s+ĐƯỢC\s+ĐÍNH\s+KÈM[,\s]*",
+            "",
+            prompt_text,
+            flags=re.IGNORECASE,
+        )
+        return cleaned
+    return prompt_text
 
 CHATGPT_COMPOSER_SELECTOR = (
     '#prompt-textarea:not([data-testid="chatgpt-writing-block"] #prompt-textarea)'
@@ -1031,7 +1048,8 @@ def send_thumbnail_prompt(
     page: Page,
     prompt_text: str,
     download_image,
-    reference_image_base64: str | None = None
+    reference_image_base64: str | None = None,
+    reference_files: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     existing_identities = get_existing_thumbnail_identities(page)
     previous_user_turn = get_latest_conversation_turn(page, "user")
@@ -1039,7 +1057,8 @@ def send_thumbnail_prompt(
         page,
         prompt_text,
         allow_empty_response=True,
-        reference_image_base64=reference_image_base64
+        reference_image_base64=reference_image_base64,
+        reference_files=reference_files,
     )
     request_turn = wait_for_new_user_turn(page, previous_user_turn)
     if is_valid_chapter_response(response_text) or (
@@ -4051,6 +4070,7 @@ def send_prompt(
     allow_empty_response: bool = False,
     reference_image_base64: str | None = None,
     on_prompt_submitted: Callable[[], None] | None = None,
+    reference_files: list[str] | None = None,
 ) -> str:
     validate_prompt_text(prompt_text)
 
@@ -4107,8 +4127,22 @@ def send_prompt(
     ensure_prompt_editor_integrity(prompt_textarea, prompt_text)
 
 
-    # Attach images if provided
-    if reference_image_base64:
+    # Attach images if provided (prefer native input[type="file"], fallback to clipboard paste)
+    attached_via_file_input = False
+    if reference_files:
+        valid_files = [str(Path(f).resolve()) for f in reference_files if Path(f).is_file()]
+        if valid_files:
+            try:
+                file_input = page.locator('input[type="file"]').first
+                if file_input.count() > 0:
+                    file_input.set_input_files(valid_files)
+                    attached_via_file_input = True
+                    page.wait_for_timeout(2500)
+                    logger.info("Attached %d reference images via input[type='file']", len(valid_files))
+            except Exception as f_err:
+                logger.warning("Failed to attach reference files via input[type='file']: %s", f_err)
+
+    if not attached_via_file_input and reference_image_base64:
         js = """
         (textarea, dataStr) => {
             let base64Array = [];
@@ -5182,12 +5216,15 @@ def _run_monologue_pre_audio_pipeline(
             if image1_urls:
                 thumb1 = get_assistant_response_after_latest_user(page, expected_user_text=prompt8)
         if not image1_urls:
+            ref_files = state.get("visual_references") or []
             thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_text_image_base64")
+            effective_prompt8 = adapt_thumbnail_prompt_for_references(prompt8, bool(ref_files or thumb_ref_b64))
             thumb1, image1_urls = send_thumbnail_prompt(
                 page,
-                prompt8,
+                effective_prompt8,
                 _download_image_local,
-                thumb_ref_b64
+                thumb_ref_b64,
+                reference_files=ref_files,
             )
             if not image1_urls:
                 print(">>> THUMBNAIL CÓ CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
@@ -5215,12 +5252,15 @@ def _run_monologue_pre_audio_pipeline(
             if image2_urls:
                 thumb2 = get_assistant_response_after_latest_user(page, expected_user_text=prompt9)
         if not image2_urls:
+            ref_files = state.get("visual_references") or []
             thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_notext_image_base64")
+            effective_prompt9 = adapt_thumbnail_prompt_for_references(prompt9, bool(ref_files or thumb_ref_b64))
             thumb2, image2_urls = send_thumbnail_prompt(
                 page,
-                prompt9,
+                effective_prompt9,
                 _download_image_local,
-                thumb_ref_b64
+                thumb_ref_b64,
+                reference_files=ref_files,
             )
             if not image2_urls:
                 print(">>> THUMBNAIL KHÔNG CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
@@ -5716,12 +5756,15 @@ def _run_dialogue_pre_audio_pipeline(
             if image1_urls:
                 thumb1 = get_assistant_response_after_latest_user(page, expected_user_text=prompt8)
         if not image1_urls:
+            ref_files = state.get("visual_references") or []
             thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_text_image_base64")
+            effective_prompt8 = adapt_thumbnail_prompt_for_references(prompt8, bool(ref_files or thumb_ref_b64))
             thumb1, image1_urls = send_thumbnail_prompt(
                 page,
-                prompt8,
+                effective_prompt8,
                 _download_image_local,
-                thumb_ref_b64
+                thumb_ref_b64,
+                reference_files=ref_files,
             )
             if not image1_urls:
                 print(">>> THUMBNAIL CÓ CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
@@ -5749,12 +5792,15 @@ def _run_dialogue_pre_audio_pipeline(
             if image2_urls:
                 thumb2 = get_assistant_response_after_latest_user(page, expected_user_text=prompt9)
         if not image2_urls:
+            ref_files = state.get("visual_references") or []
             thumb_ref_b64 = state.get("visual_references_base64") or prompts.get("thumb_notext_image_base64")
+            effective_prompt9 = adapt_thumbnail_prompt_for_references(prompt9, bool(ref_files or thumb_ref_b64))
             thumb2, image2_urls = send_thumbnail_prompt(
                 page,
-                prompt9,
+                effective_prompt9,
                 _download_image_local,
-                thumb_ref_b64
+                thumb_ref_b64,
+                reference_files=ref_files,
             )
             if not image2_urls:
                 print(">>> THUMBNAIL KHÔNG CHỮ LỖI, THỬ LẠI MỘT LẦN...", file=sys.stderr)
