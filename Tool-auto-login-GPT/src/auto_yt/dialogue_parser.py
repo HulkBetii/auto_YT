@@ -325,6 +325,15 @@ def resolve_turn_voice(
     normalized_role = normalize_role_tag(role)
     cast = cast_settings or {}
 
+    direct_entry = cast.get(normalized_role) or cast.get(str(role or "").strip())
+    direct_voice = _extract_voice_id_from_entry(direct_entry)
+    if (
+        direct_voice
+        and direct_voice.casefold() not in {"auto", "none", "distinct"}
+        and normalized_role not in {"MC", "KHACH_1", "KHACH_2", "KHACH_3"}
+    ):
+        return direct_voice
+
     if normalized_role == "MC":
         val = cast.get("mc") or cast.get("MC") or cast.get("host") or cast.get("HOST")
         mc_voice = _extract_voice_id_from_entry(val)
@@ -518,4 +527,3 @@ def build_speaker_streams(
             "total_characters": total_chars,
         }
     return streams
-

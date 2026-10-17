@@ -21,6 +21,8 @@ MAX_PROVIDER_OPTIONS = 20
 MAX_VOICE_ID_LENGTH = 128
 MAX_PROVIDER_VOICE_ID_LENGTH = 256
 VOICE_STATUSES = {"active", "archived", "unavailable"}
+CASTING_GENDERS = {"any", "male", "female"}
+CASTING_AGE_GROUPS = {"any", "young", "adult", "senior"}
 SYSTEM_VOICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 PROVIDER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,63}$")
 SECRET_CONFIG_KEYS = {"api_key", "token", "secret", "password", "credential"}
@@ -39,6 +41,40 @@ OMNIVOICE_DEFAULT_VOICE_CONFIG = {
     "num_step": 32,
     "denoise": False,
 }
+
+
+def normalize_casting_profile(value: object) -> dict:
+    profile = value if isinstance(value, dict) else {}
+    gender = str(profile.get("gender") or "any").strip().casefold()
+    age_group = str(profile.get("age_group") or "any").strip().casefold()
+    if gender not in CASTING_GENDERS:
+        raise ValueError("Giới tính casting phải là any, male hoặc female.")
+    if age_group not in CASTING_AGE_GROUPS:
+        raise ValueError("Nhóm tuổi casting phải là any, young, adult hoặc senior.")
+
+    def normalize_tags(key: str, default: list[str]) -> list[str]:
+        raw_values = profile.get(key, default)
+        if not isinstance(raw_values, list):
+            raise ValueError(f"Thuộc tính casting '{key}' phải là danh sách.")
+        values: list[str] = []
+        for raw_value in raw_values:
+            cleaned = str(raw_value or "").strip().casefold()
+            if not cleaned or len(cleaned) > 40 or not re.fullmatch(r"[a-z0-9_-]+", cleaned):
+                raise ValueError(f"Giá trị casting '{key}' không hợp lệ.")
+            if cleaned not in values:
+                values.append(cleaned)
+        if len(values) > 20:
+            raise ValueError(f"Thuộc tính casting '{key}' có quá nhiều giá trị.")
+        return values
+
+    return {
+        "gender": gender,
+        "age_group": age_group,
+        "languages": normalize_tags("languages", ["vi"]),
+        "roles": normalize_tags("roles", ["guest"]),
+        "styles": normalize_tags("styles", []),
+        "auto_cast": bool(profile.get("auto_cast", False)),
+    }
 
 
 def _normalize_voice_id(value: object) -> str:
@@ -122,6 +158,7 @@ def _default_config() -> dict:
                 "status": "active",
                 "revision": 1,
                 "config": {},
+                "casting_profile": normalize_casting_profile({}),
             }
         ],
     }
@@ -148,6 +185,7 @@ def _legacy_to_v2(data: dict) -> dict:
                 "status": "active",
                 "revision": 1,
                 "config": {},
+                "casting_profile": normalize_casting_profile({}),
             }
             for raw_voice in legacy_voices
             if isinstance(raw_voice, dict)
@@ -259,6 +297,9 @@ def validate_voice_config(data: dict) -> dict:
                 "status": status,
                 "revision": revision,
                 "config": _validate_public_config(raw_voice.get("config") or {}, "giọng"),
+                "casting_profile": normalize_casting_profile(
+                    raw_voice.get("casting_profile")
+                ),
             }
         )
 
@@ -358,4 +399,7 @@ def build_voice_snapshot(voice: dict) -> dict:
         ).strip(),
         "voice_revision": int(voice.get("revision") or 1),
         "config": effective_config,
+        "casting_profile": normalize_casting_profile(
+            voice.get("casting_profile")
+        ),
     }
