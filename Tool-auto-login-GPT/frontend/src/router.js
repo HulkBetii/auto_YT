@@ -40,7 +40,7 @@ export const ROUTE_REGISTRY = {
     id: 'competitors',
     canonicalPath: '/competitors',
     aliases: ['/competitors', '/competitor-radar', '/radar-doi-thu'],
-    title: 'Radar đối thủ'
+    title: 'Competitor Radar'
   },
   trustbuilder: {
     id: 'trustbuilder',

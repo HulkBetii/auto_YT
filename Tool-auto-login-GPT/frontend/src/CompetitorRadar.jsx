@@ -149,8 +149,8 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
     <div className="radar-page">
       <header className="radar-heading">
         <div>
-          <h1>Radar đối thủ tự động</h1>
-          <p>Quét qua proxy kênh đích, auto-cast khách, Auto QC rồi mới đăng hoặc lên lịch.</p>
+          <h1>Competitor Radar</h1>
+          <p>Theo dõi video mới, tự động tạo nội dung và kiểm tra chất lượng trước khi phát hành.</p>
         </div>
         <div className="radar-heading-actions">
           <button onClick={() => load().catch(err => setError(err.message))}>↻ Làm mới</button>

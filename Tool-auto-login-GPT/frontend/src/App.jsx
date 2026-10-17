@@ -23,6 +23,31 @@ import { isSameVideoId, normalizeVideoId } from './videoId.js'
 const SECONDS_PER_MINUTE = 60
 const SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE
 
+function RadarNavIcon() {
+  return (
+    <svg
+      className="nav-icon radar-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34" />
+      <path d="M4 6h.01" />
+      <path d="M2.29 9.62A10 10 0 1 0 21.31 8.35" />
+      <path d="M16.24 7.76A6 6 0 1 0 8.23 16.67" />
+      <path d="M12 18h.01" />
+      <path d="M17.99 11.66A6 6 0 0 1 15.77 16.67" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="m13.41 10.59 5.66-5.66" />
+    </svg>
+  )
+}
+
 function formatAudioDuration(durationSeconds) {
   const totalSeconds = Math.floor(durationSeconds)
   const hours = Math.floor(totalSeconds / SECONDS_PER_HOUR)
@@ -1931,7 +1956,10 @@ function App() {
           <li className={`nav-item ${activeView === 'jobs' ? 'active' : ''}`} data-view="jobs" onClick={() => setActiveView('jobs')}>Trung tâm Job</li>
           <li className={`nav-item ${activeView === 'comments' ? 'active' : ''}`} data-view="comments" onClick={() => setActiveView('comments')}>Bình luận YouTube</li>
           <li className={`nav-item ${activeView === 'channels' ? 'active' : ''}`} data-view="channels" onClick={() => setActiveView('channels')}>Channel Hub</li>
-          <li className={`nav-item ${activeView === 'competitors' ? 'active' : ''}`} data-view="competitors" onClick={() => setActiveView('competitors')}>Radar đối thủ</li>
+          <li className={`nav-item ${activeView === 'competitors' ? 'active' : ''}`} data-view="competitors" onClick={() => setActiveView('competitors')}>
+            <RadarNavIcon />
+            <span>Competitor Radar</span>
+          </li>
           <li className={`nav-item ${activeView === 'trustbuilder' ? 'active' : ''}`} data-view="trustbuilder" onClick={() => setActiveView('trustbuilder')}>Trust Builder</li>
           <li className={`nav-item ${activeView === 'crossposter' ? 'active' : ''}`} data-view="crossposter" onClick={() => setActiveView('crossposter')}>Cross-Poster</li>
           <li className={`nav-item ${activeView === 'fetcher' ? 'active' : ''}`} data-view="fetcher" onClick={() => setActiveView('fetcher')}>Video Fetcher</li>

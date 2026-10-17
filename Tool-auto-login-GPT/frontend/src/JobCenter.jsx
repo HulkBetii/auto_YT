@@ -577,7 +577,7 @@ function JobCenter({ onOpenVideo, refreshKey }) {
           <option value="video_render">Dựng video MP4</option>
           <option value="video_qc">Kiểm tra chất lượng video</option>
           <option value="youtube_publish">Upload / đặt lịch YouTube</option>
-          <option value="competitor_scan">Quét Radar đối thủ</option>
+          <option value="competitor_scan">Quét đối thủ</option>
           <option value="youtube_download">Tải YouTube</option>
           <option value="chatgpt">Tác vụ ChatGPT</option>
           <option value="comment_sync">Đồng bộ bình luận</option>

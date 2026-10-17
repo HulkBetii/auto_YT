@@ -5,13 +5,20 @@ import test from 'node:test'
 
 test('wires Competitor Radar navigation and automatic rule management', async () => {
   const appSource = await readFile(new URL('./App.jsx', import.meta.url), 'utf8')
+  const appStyles = await readFile(new URL('./App.css', import.meta.url), 'utf8')
   const radarSource = await readFile(new URL('./CompetitorRadar.jsx', import.meta.url), 'utf8')
   const jobCenterSource = await readFile(new URL('./JobCenter.jsx', import.meta.url), 'utf8')
+  const routerSource = await readFile(new URL('./router.js', import.meta.url), 'utf8')
 
   assert.match(appSource, /import CompetitorRadar from ['"]\.\/CompetitorRadar['"]/)
   assert.match(appSource, /activeView === ['"]competitors['"]/)
-  assert.match(appSource, />Radar đối thủ<\/li>/)
+  assert.match(appSource, /function RadarNavIcon/)
+  assert.match(appSource, /className="nav-icon radar-nav-icon"/)
+  assert.match(appSource, /<span>Competitor Radar<\/span>/)
   assert.match(appSource, /<CompetitorRadar[\s\S]*?\/>/)
+  assert.match(appStyles, /\.nav-item\.active \.radar-nav-icon/)
+  assert.match(routerSource, /title: ['"]Competitor Radar['"]/)
+  assert.match(radarSource, /<h1>Competitor Radar<\/h1>/)
   assert.match(radarSource, /request\(['"]\/competitors\/rules['"]/)
   assert.match(radarSource, /\/scan`/)
   assert.match(radarSource, /\/status`/)
