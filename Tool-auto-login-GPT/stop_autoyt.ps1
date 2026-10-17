@@ -7,6 +7,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "lifecycle_admin.ps1")
+
+if (-not (Test-AutoYTAdministrator)) {
+    $forwardArguments = @()
+    if ($PSBoundParameters.ContainsKey("TimeoutSeconds")) {
+        $forwardArguments += @("-TimeoutSeconds", [string]$TimeoutSeconds)
+    }
+    exit (Invoke-AutoYTElevatedScript -ScriptPath $PSCommandPath -Arguments $forwardArguments)
+}
+
 $projectRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd("\")
 $dataRoot = Join-Path $projectRoot "data"
 $chromeUserDataRoot = Join-Path $dataRoot "chrome_user_data"

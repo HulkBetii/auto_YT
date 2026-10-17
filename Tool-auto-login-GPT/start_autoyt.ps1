@@ -9,6 +9,19 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
+. (Join-Path $PSScriptRoot "lifecycle_admin.ps1")
+
+if (-not (Test-AutoYTAdministrator)) {
+    $forwardArguments = @()
+    if ($NoBrowser) {
+        $forwardArguments += "-NoBrowser"
+    }
+    if ($PSBoundParameters.ContainsKey("ReadyTimeoutSeconds")) {
+        $forwardArguments += @("-ReadyTimeoutSeconds", [string]$ReadyTimeoutSeconds)
+    }
+    exit (Invoke-AutoYTElevatedScript -ScriptPath $PSCommandPath -Arguments $forwardArguments)
+}
+
 $projectRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd("\")
 $frontendRoot = Join-Path $projectRoot "frontend"
 $dataRoot = Join-Path $projectRoot "data"

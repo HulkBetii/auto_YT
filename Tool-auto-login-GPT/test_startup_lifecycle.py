@@ -3,6 +3,10 @@ from pathlib import Path
 
 
 STARTUP_SCRIPT = Path(__file__).with_name("start_autoyt.ps1")
+STOP_SCRIPT = Path(__file__).with_name("stop_autoyt.ps1")
+RESTART_SCRIPT = Path(__file__).with_name("restart_autoyt.ps1")
+ADMIN_HELPER = Path(__file__).with_name("lifecycle_admin.ps1")
+RESTART_WRAPPER = Path(__file__).with_name("run_autoyt_restart.bat")
 MAIN_MODULE = Path(__file__).parent / "src" / "auto_yt" / "main.py"
 OMNIVOICE_CLIENT = (
     Path(__file__).parent / "src" / "auto_yt" / "services" / "omnivoice_client.py"
@@ -18,6 +22,39 @@ BROWSER_SERVICE_SCRIPTS = (
 
 
 class StartupLifecycleTests(unittest.TestCase):
+    def test_lifecycle_entrypoints_elevate_before_runtime_work(self):
+        expected_runtime_markers = {
+            STARTUP_SCRIPT: "$projectRoot =",
+            STOP_SCRIPT: "$projectRoot =",
+            RESTART_SCRIPT: "$powershellPath =",
+        }
+
+        for script_path, runtime_marker in expected_runtime_markers.items():
+            script = script_path.read_text(encoding="utf-8")
+            elevation_position = script.index("Invoke-AutoYTElevatedScript")
+            self.assertIn("Test-AutoYTAdministrator", script)
+            self.assertLess(elevation_position, script.index(runtime_marker))
+
+    def test_elevation_waits_and_propagates_the_administrator_exit_code(self):
+        helper = ADMIN_HELPER.read_text(encoding="utf-8")
+
+        self.assertIn("-Verb RunAs", helper)
+        self.assertIn("-Wait", helper)
+        self.assertIn("-PassThru", helper)
+        self.assertIn("return [int]$process.ExitCode", helper)
+
+    def test_restart_uses_one_elevated_powershell_flow(self):
+        restart_script = RESTART_SCRIPT.read_text(encoding="utf-8")
+        wrapper = RESTART_WRAPPER.read_text(encoding="utf-8")
+
+        self.assertIn("restart_autoyt.ps1", wrapper)
+        self.assertNotIn("call \"%~dp0run_autoyt_stop.bat\"", wrapper)
+        self.assertNotIn("call \"%~dp0run_autoyt.bat\"", wrapper)
+        self.assertIn('$env:AUTOYT_REQUIRE_GPM_IDLE = "1"', restart_script)
+        self.assertIn('$env:AUTOYT_REQUIRE_IDLE = "1"', restart_script)
+        self.assertIn("stop_autoyt.ps1", restart_script)
+        self.assertIn("start_autoyt.ps1", restart_script)
+
     def test_only_canonical_wrapper_starts_omnivoice_worker(self):
         startup_script = STARTUP_SCRIPT.read_text(encoding="utf-8")
         main_source = MAIN_MODULE.read_text(encoding="utf-8")
