@@ -42,6 +42,7 @@ const PIPELINE_LABELS = {
   thumbnail_without_text: 'Ảnh không chữ',
   audio: 'Audio',
   video_render: 'Dựng MP4',
+  video_qc: 'Kiểm tra chất lượng',
   youtube_upload: 'Upload Private',
   youtube_schedule: 'Đặt lịch'
 }
@@ -574,7 +575,9 @@ function JobCenter({ onOpenVideo, refreshKey }) {
           <option value="visual_scene_plan">Lập kế hoạch cảnh</option>
           <option value="flow_media_generation">Tạo media Google Flow</option>
           <option value="video_render">Dựng video MP4</option>
+          <option value="video_qc">Kiểm tra chất lượng video</option>
           <option value="youtube_publish">Upload / đặt lịch YouTube</option>
+          <option value="competitor_scan">Quét Radar đối thủ</option>
           <option value="youtube_download">Tải YouTube</option>
           <option value="chatgpt">Tác vụ ChatGPT</option>
           <option value="comment_sync">Đồng bộ bình luận</option>

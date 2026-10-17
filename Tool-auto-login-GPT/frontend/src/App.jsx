@@ -15,6 +15,7 @@ import YouTubeComments from './YouTubeComments'
 import TTSSettings from './TTSSettings'
 import CrossPoster from './CrossPoster'
 import TrustBuilder from './TrustBuilder'
+import CompetitorRadar from './CompetitorRadar'
 import { openVideoStudioInGpm, openVideoWatchInGpm } from './gpmOpener'
 import UserGuideModal from './UserGuideModal'
 import { isSameVideoId, normalizeVideoId } from './videoId.js'
@@ -1930,6 +1931,7 @@ function App() {
           <li className={`nav-item ${activeView === 'jobs' ? 'active' : ''}`} data-view="jobs" onClick={() => setActiveView('jobs')}>Trung tâm Job</li>
           <li className={`nav-item ${activeView === 'comments' ? 'active' : ''}`} data-view="comments" onClick={() => setActiveView('comments')}>Bình luận YouTube</li>
           <li className={`nav-item ${activeView === 'channels' ? 'active' : ''}`} data-view="channels" onClick={() => setActiveView('channels')}>Channel Hub</li>
+          <li className={`nav-item ${activeView === 'competitors' ? 'active' : ''}`} data-view="competitors" onClick={() => setActiveView('competitors')}>Radar đối thủ</li>
           <li className={`nav-item ${activeView === 'trustbuilder' ? 'active' : ''}`} data-view="trustbuilder" onClick={() => setActiveView('trustbuilder')}>Trust Builder</li>
           <li className={`nav-item ${activeView === 'crossposter' ? 'active' : ''}`} data-view="crossposter" onClick={() => setActiveView('crossposter')}>Cross-Poster</li>
           <li className={`nav-item ${activeView === 'fetcher' ? 'active' : ''}`} data-view="fetcher" onClick={() => setActiveView('fetcher')}>Video Fetcher</li>
@@ -2006,6 +2008,8 @@ function App() {
             <TTSSettings />
           ) : activeView === 'channels' ? (
             <ChannelManager />
+          ) : activeView === 'competitors' ? (
+            <CompetitorRadar onOpenJobCenter={() => setActiveView('jobs')} />
           ) : activeView === 'trustbuilder' ? (
             <TrustBuilder />
           ) : activeView === 'crossposter' ? (
