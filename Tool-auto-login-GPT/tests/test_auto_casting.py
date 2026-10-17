@@ -12,19 +12,26 @@ def _voice(
     roles: list[str] | None = None,
     styles: list[str] | None = None,
     auto_cast: bool = True,
+    usage_modes: list[str] | None = None,
+    voice_pools: list[str] | None = None,
 ) -> dict:
+    profile = {
+        "gender": gender,
+        "age_group": age_group,
+        "languages": ["vi"],
+        "roles": roles or ["guest"],
+        "styles": styles or [],
+        "auto_cast": auto_cast,
+    }
+    if usage_modes is not None:
+        profile["usage_modes"] = usage_modes
+    if voice_pools is not None:
+        profile["voice_pools"] = voice_pools
     return {
         "id": voice_id,
         "name": voice_id,
         "status": "active",
-        "casting_profile": {
-            "gender": gender,
-            "age_group": age_group,
-            "languages": ["vi"],
-            "roles": roles or ["guest"],
-            "styles": styles or [],
-            "auto_cast": auto_cast,
-        },
+        "casting_profile": profile,
     }
 
 
@@ -114,6 +121,83 @@ class TestAutomaticCasting(unittest.TestCase):
                 guest_manifest,
                 [self.voices[0], opted_out],
                 mc_voice_id="mc-fixed",
+            )
+
+    def test_explicit_usage_modes_override_legacy_auto_cast_flag(self):
+        normalized = normalize_casting_profile(
+            {
+                "auto_cast": True,
+                "usage_modes": ["single_narrator"],
+                "voice_pools": ["kenh-suc-khoe"],
+            }
+        )
+        self.assertEqual(normalized["usage_modes"], ["single_narrator"])
+        self.assertEqual(normalized["voice_pools"], ["kenh-suc-khoe"])
+        self.assertFalse(normalized["auto_cast"])
+
+    def test_radar_cast_uses_only_multi_guest_voices_in_selected_pool(self):
+        voices = [
+            _voice(
+                "mc-fixed",
+                roles=["mc"],
+                auto_cast=False,
+                usage_modes=["multi_host"],
+            ),
+            _voice(
+                "single-only",
+                gender="female",
+                age_group="young",
+                usage_modes=["single_narrator"],
+                voice_pools=["kenh-suc-khoe"],
+            ),
+            _voice(
+                "wrong-pool",
+                gender="female",
+                age_group="young",
+                usage_modes=["multi_guest"],
+                voice_pools=["kenh-tai-chinh"],
+            ),
+            _voice(
+                "allowed-guest",
+                gender="female",
+                age_group="young",
+                usage_modes=["multi_guest"],
+                voice_pools=["kenh-suc-khoe"],
+            ),
+        ]
+        assignments = auto_casting.assign_cast(
+            self.manifest[:2],
+            voices,
+            mc_voice_id="mc-fixed",
+            guest_voice_pool="kenh-suc-khoe",
+            enforce_usage_policy=True,
+        )
+        self.assertEqual(assignments[1]["voice_id"], "allowed-guest")
+        self.assertEqual(assignments[1]["voice_pool"], "kenh-suc-khoe")
+
+    def test_stored_cast_from_another_pool_is_rejected(self):
+        voices = [
+            _voice(
+                "mc-fixed",
+                roles=["mc"],
+                auto_cast=False,
+                usage_modes=["multi_host"],
+            ),
+            _voice(
+                "guest-finance",
+                usage_modes=["multi_guest"],
+                voice_pools=["kenh-tai-chinh"],
+            ),
+        ]
+        with self.assertRaises(auto_casting.AutoCastingAttentionRequired):
+            auto_casting.validate_cast_policy(
+                [
+                    {"role_key": "MC", "voice_id": "mc-fixed"},
+                    {"role_key": "GUEST", "voice_id": "guest-finance"},
+                ],
+                voices,
+                mc_voice_id="mc-fixed",
+                guest_voice_pool="kenh-suc-khoe",
             )
 
 

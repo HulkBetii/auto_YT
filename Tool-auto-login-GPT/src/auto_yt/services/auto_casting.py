@@ -9,6 +9,7 @@ import unicodedata
 from typing import Any, Iterable
 
 from auto_yt.dialogue_parser import parse_dialogue_turns
+from auto_yt.services import voice_config
 from auto_yt.services.voice_config import normalize_casting_profile
 
 
@@ -118,9 +119,18 @@ def profile_signature(manifest_entry: dict) -> str:
     ).hexdigest()
 
 
-def _score_voice(manifest: dict, voice: dict) -> float | None:
+def _score_voice(
+    manifest: dict,
+    voice: dict,
+    *,
+    guest_voice_pool: str = "",
+) -> float | None:
     profile = normalize_casting_profile(voice.get("casting_profile"))
-    if not profile["auto_cast"] or str(voice.get("status") or "active") != "active":
+    if not voice_config.voice_allows_usage(
+        voice,
+        "multi_guest",
+        voice_pool=guest_voice_pool,
+    ):
         return None
     desired_gender = str(manifest.get("gender") or "any")
     desired_age = str(manifest.get("age_group") or "any")
@@ -158,11 +168,21 @@ def assign_cast(
     *,
     mc_voice_id: str,
     registry: dict[str, dict] | None = None,
+    guest_voice_pool: str = "",
+    enforce_usage_policy: bool = False,
 ) -> list[dict]:
     voice_by_id = {str(voice.get("id") or ""): voice for voice in voices}
     mc_id = str(mc_voice_id or "").strip()
     if not mc_id or mc_id not in voice_by_id or voice_by_id[mc_id].get("status") != "active":
         raise AutoCastingAttentionRequired("Giọng MC cố định không còn hoạt động.")
+    normalized_pool = voice_config.normalize_voice_pool_id(guest_voice_pool)
+    if enforce_usage_policy:
+        if not normalized_pool:
+            raise AutoCastingAttentionRequired("Radar chưa được gán nhóm giọng khách.")
+        if not voice_config.voice_allows_usage(voice_by_id[mc_id], "multi_host"):
+            raise AutoCastingAttentionRequired(
+                "Giọng MC cố định chưa được cấp quyền 'MC đa giọng'."
+            )
     assignments: list[dict] = []
     used = {mc_id}
     registry = registry or {}
@@ -177,12 +197,18 @@ def assign_cast(
                     "voice_id": mc_id,
                     "match_score": 100.0,
                     "source": "fixed_mc",
+                    "usage_mode": "multi_host",
+                    "voice_pool": "",
                 }
             )
             continue
         stable_voice_id = str((registry.get(key) or {}).get("voice_id") or "")
         stable_score = (
-            _score_voice(speaker, voice_by_id[stable_voice_id])
+            _score_voice(
+                speaker,
+                voice_by_id[stable_voice_id],
+                guest_voice_pool=normalized_pool,
+            )
             if stable_voice_id in voice_by_id and stable_voice_id not in used
             else None
         )
@@ -195,7 +221,11 @@ def assign_cast(
             for voice_id, voice in voice_by_id.items():
                 if voice_id in used:
                     continue
-                voice_score = _score_voice(speaker, voice)
+                voice_score = _score_voice(
+                    speaker,
+                    voice,
+                    guest_voice_pool=normalized_pool,
+                )
                 if voice_score is not None:
                     candidates.append((voice_score, voice_id))
             if not candidates:
@@ -213,6 +243,55 @@ def assign_cast(
                 "voice_id": selected_id,
                 "match_score": round(float(score), 2),
                 "source": source,
+                "usage_mode": "multi_guest",
+                "voice_pool": normalized_pool,
             }
         )
     return assignments
+
+
+def validate_cast_policy(
+    assignments: list[dict],
+    voices: list[dict],
+    *,
+    mc_voice_id: str,
+    guest_voice_pool: str,
+) -> None:
+    """Fail closed when a stored Radar cast no longer satisfies its policy."""
+    voice_by_id = {str(voice.get("id") or ""): voice for voice in voices}
+    mc_id = str(mc_voice_id or "").strip()
+    pool_id = voice_config.normalize_voice_pool_id(guest_voice_pool)
+    if not pool_id:
+        raise AutoCastingAttentionRequired("Radar chưa được gán nhóm giọng khách.")
+    mc_voice = voice_by_id.get(mc_id)
+    if not mc_voice or not voice_config.voice_allows_usage(mc_voice, "multi_host"):
+        raise AutoCastingAttentionRequired(
+            "Giọng MC cố định không hoạt động hoặc chưa được cấp quyền 'MC đa giọng'."
+        )
+
+    used: set[str] = set()
+    mc_count = 0
+    guest_count = 0
+    for assignment in assignments:
+        role_key = str(assignment.get("role_key") or assignment.get("speaker_key") or "")
+        voice_id = str(assignment.get("voice_id") or "")
+        if not voice_id or voice_id in used:
+            raise AutoCastingAttentionRequired("Casting Radar có giọng trống hoặc bị trùng.")
+        used.add(voice_id)
+        if role_key.upper() == "MC":
+            mc_count += 1
+            if voice_id != mc_id:
+                raise AutoCastingAttentionRequired("Casting Radar không dùng đúng giọng MC cố định.")
+            continue
+        guest_count += 1
+        voice = voice_by_id.get(voice_id)
+        if not voice or not voice_config.voice_allows_usage(
+            voice,
+            "multi_guest",
+            voice_pool=pool_id,
+        ):
+            raise AutoCastingAttentionRequired(
+                f"Giọng của {role_key or 'khách'} không còn được phép trong nhóm '{pool_id}'."
+            )
+    if mc_count != 1 or guest_count < 1:
+        raise AutoCastingAttentionRequired("Casting Radar thiếu MC hoặc giọng khách.")

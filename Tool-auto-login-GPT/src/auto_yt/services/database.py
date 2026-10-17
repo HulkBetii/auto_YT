@@ -1438,6 +1438,7 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'paused',
             publication_mode TEXT NOT NULL DEFAULT 'inherit',
             window_mode TEXT NOT NULL DEFAULT 'learned',
+            guest_voice_pool TEXT NOT NULL DEFAULT '',
             manual_windows_json TEXT NOT NULL DEFAULT '[]',
             baseline_complete INTEGER NOT NULL DEFAULT 0,
             baseline_video_count INTEGER NOT NULL DEFAULT 0,
@@ -1453,6 +1454,13 @@ def init_db():
             UNIQUE(prompt_version, competitor_channel_id)
         )
     """)
+    try:
+        c.execute(
+            "ALTER TABLE competitor_watch_rules "
+            "ADD COLUMN guest_voice_pool TEXT NOT NULL DEFAULT ''"
+        )
+    except sqlite3.OperationalError:
+        pass
     c.execute(
         'CREATE INDEX IF NOT EXISTS idx_competitor_rules_due '
         'ON competitor_watch_rules(status, next_scan_at)'
@@ -8111,6 +8119,7 @@ def create_competitor_watch_rule(
     status: str = "paused",
     publication_mode: str = "inherit",
     window_mode: str = "learned",
+    guest_voice_pool: str = "",
     manual_windows: list[dict] | None = None,
 ) -> dict:
     now = utc_now()
@@ -8120,9 +8129,9 @@ def create_competitor_watch_rule(
         """
         INSERT INTO competitor_watch_rules (
             competitor_channel_id, prompt_version, target_youtube_channel_id,
-            status, publication_mode, window_mode, manual_windows_json,
-            next_scan_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            status, publication_mode, window_mode, guest_voice_pool,
+            manual_windows_json, next_scan_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             competitor_channel_id,
@@ -8131,6 +8140,7 @@ def create_competitor_watch_rule(
             status,
             publication_mode,
             window_mode,
+            guest_voice_pool,
             json.dumps(manual_windows or [], ensure_ascii=False),
             now if status == "enabled" else "",
             now,
@@ -8206,6 +8216,7 @@ def update_competitor_watch_rule(rule_id: int, **changes) -> dict | None:
         "status",
         "publication_mode",
         "window_mode",
+        "guest_voice_pool",
         "baseline_complete",
         "baseline_video_count",
         "last_scan_at",

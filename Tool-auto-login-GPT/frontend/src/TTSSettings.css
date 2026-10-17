@@ -51,6 +51,7 @@
 .tts-status.success { color: #42e2c2; }
 .tts-status.error, .tts-error-inline { color: #ff6f6f; }
 .tts-casting-profile { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-basis: 100%; margin-top: 4px; }
+.tts-casting-label { color: #d6c8f4; font-size: .78rem; font-weight: 700; }
 .tts-casting-profile > label { display: inline-flex; align-items: center; gap: 6px; color: #a9bfd5; font-size: .78rem; }
 .tts-casting-profile > label.tts-toggle { margin-left: 0; }
 .tts-casting-profile select { min-width: 92px; padding: 5px 7px; }

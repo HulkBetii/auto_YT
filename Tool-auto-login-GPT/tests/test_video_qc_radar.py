@@ -32,7 +32,13 @@ class TestRadarVideoQualityChecks(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def _run(self, *, script: str, cast_assignments: list[dict]) -> dict:
+    def _run(
+        self,
+        *,
+        script: str,
+        cast_assignments: list[dict],
+        voice_policy: dict | None = None,
+    ) -> dict:
         video = {
             "id": 77,
             "generated_script": script,
@@ -82,6 +88,7 @@ class TestRadarVideoQualityChecks(unittest.TestCase):
                 caption_artifact={"path": str(self.caption_path)},
                 audio_dir=self.audio_dir,
                 thumbnails_dir=self.thumbnail_dir,
+                voice_policy=voice_policy,
             )
 
     def test_full_qc_passes_approved_metadata_review_decision(self):
@@ -103,6 +110,38 @@ class TestRadarVideoQualityChecks(unittest.TestCase):
             ],
         )
         self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["failed_stage"], "casting")
+
+    def test_dialogue_voice_outside_selected_pool_fails_at_casting(self):
+        report = self._run(
+            script="[MC]: Xin chào.\n[KHACH_1]: Chào anh.",
+            cast_assignments=[
+                {"role_key": "MC", "voice_id": "mc-fixed"},
+                {"role_key": "KHACH_1", "voice_id": "guest-one"},
+            ],
+            voice_policy={
+                "guest_voice_pool": "kenh-suc-khoe",
+                "mc_voice_id": "mc-fixed",
+                "allowed_host_voice_ids": ["mc-fixed"],
+                "allowed_guest_voice_ids": ["guest-two"],
+                "allowed_single_voice_ids": [],
+            },
+        )
+        self.assertEqual(report["failed_stage"], "casting")
+        self.assertIn("sai quyền/pool", report["checks"]["casting"]["detail"])
+
+    def test_mono_voice_without_single_permission_fails_at_casting(self):
+        report = self._run(
+            script="Nội dung đơn thoại hợp lệ.",
+            cast_assignments=[],
+            voice_policy={
+                "guest_voice_pool": "kenh-suc-khoe",
+                "mc_voice_id": "mc-fixed",
+                "allowed_host_voice_ids": ["mc-fixed"],
+                "allowed_guest_voice_ids": [],
+                "allowed_single_voice_ids": ["guest-one"],
+            },
+        )
         self.assertEqual(report["failed_stage"], "casting")
 
 

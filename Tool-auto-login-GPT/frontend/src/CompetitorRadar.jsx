@@ -37,11 +37,17 @@ function statusLabel(status) {
   })[status] || status || '—'
 }
 
+function usageModes(voice) {
+  return voice.casting_profile?.usage_modes ||
+    (voice.casting_profile?.auto_cast ? ['multi_guest'] : ['single_narrator'])
+}
+
 export default function CompetitorRadar({ onOpenJobCenter }) {
   const [rules, setRules] = useState([])
   const [history, setHistory] = useState([])
   const [prompts, setPrompts] = useState({ active_version: '', versions: {} })
   const [channels, setChannels] = useState([])
+  const [voices, setVoices] = useState([])
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -49,23 +55,30 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
   const [form, setForm] = useState({
     competitor: '', prompt_version: '', target_youtube_channel_id: '',
     publication_mode: 'inherit', window_mode: 'learned', start: '08:00', end: '22:00',
+    guest_voice_pool: '',
     enabled: true,
   })
 
   const load = useCallback(async () => {
-    const [ruleData, historyData, promptData, channelData] = await Promise.all([
+    const [ruleData, historyData, promptData, channelData, voiceData] = await Promise.all([
       request('/competitors/rules'),
       request('/competitors/history?limit=100'),
       request('/prompts'),
       request('/youtube-comments/channels'),
+      request('/tts/voices?status=active'),
     ])
     setRules(ruleData.rules || [])
     setHistory(historyData.dispatches || [])
     setPrompts(promptData || { active_version: '', versions: {} })
     setChannels(channelData.channels || channelData.items || channelData || [])
+    setVoices(voiceData.items || [])
+    const availablePools = [...new Set((voiceData.items || []).flatMap(voice =>
+      usageModes(voice).includes('multi_guest') ? (voice.casting_profile?.voice_pools || []) : []
+    ))].sort()
     setForm(current => ({
       ...current,
       prompt_version: current.prompt_version || promptData.active_version || Object.keys(promptData.versions || {})[0] || '',
+      guest_voice_pool: current.guest_voice_pool || availablePools[0] || '',
     }))
   }, [])
 
@@ -76,6 +89,19 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
   }, [load])
 
   const promptOptions = useMemo(() => Object.entries(prompts.versions || {}), [prompts])
+  const guestPoolOptions = useMemo(() => {
+    const pools = new Map()
+    voices.forEach(voice => {
+      if (!usageModes(voice).includes('multi_guest')) return
+      const voicePools = voice.casting_profile?.voice_pools || []
+      voicePools.forEach(pool => {
+        const current = pools.get(pool) || { id: pool, voices: [] }
+        current.voices.push(voice)
+        pools.set(pool, current)
+      })
+    })
+    return [...pools.values()].sort((left, right) => left.id.localeCompare(right.id))
+  }, [voices])
 
   const run = async (key, action, message) => {
     setBusy(key)
@@ -102,6 +128,7 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
       target_youtube_channel_id: form.target_youtube_channel_id ? Number(form.target_youtube_channel_id) : null,
       publication_mode: form.publication_mode,
       window_mode: form.window_mode,
+      guest_voice_pool: form.guest_voice_pool,
       manual_windows: form.window_mode === 'manual'
         ? [{ days: [0, 1, 2, 3, 4, 5, 6], start: form.start, end: form.end }]
         : [],
@@ -122,6 +149,12 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
   const scanNow = rule => run(`scan-${rule.id}`, () =>
     request(`/competitors/rules/${rule.id}/scan`, { method: 'POST' }),
   'Đã xếp lượt quét ngay vào Job Center.')
+
+  const changeGuestPool = (rule, guestVoicePool) => run(`pool-${rule.id}`, () =>
+    request(`/competitors/rules/${rule.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guest_voice_pool: guestVoicePool }),
+    }), 'Đã cập nhật nhóm giọng khách cho rule.')
 
   const deleteRule = rule => {
     if (!confirm(`Xóa rule theo dõi ${rule.competitor_title || rule.competitor_youtube_channel_id}?`)) return
@@ -186,6 +219,12 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
               <option value="inherit">Theo bộ prompt</option><option value="schedule">Lên lịch</option><option value="public">Đăng ngay Public</option>
             </select>
           </label>
+          <label>Nhóm giọng khách
+            <select required value={form.guest_voice_pool} onChange={event => setForm({ ...form, guest_voice_pool: event.target.value })}>
+              <option value="">Chọn nhóm giọng an toàn</option>
+              {guestPoolOptions.map(pool => <option key={pool.id} value={pool.id}>{pool.id} · {pool.voices.length} giọng</option>)}
+            </select>
+          </label>
           <label>Khung quét
             <select value={form.window_mode} onChange={event => setForm({ ...form, window_mode: event.target.value })}>
               <option value="learned">Tự học giờ đăng</option><option value="manual">Khung giờ thủ công</option>
@@ -197,8 +236,8 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
           </>}
         </div>
         <div className="radar-create-footer">
-          <small>Nhịp tự động: 2 phút trong cửa sổ ±60 phút, 20 phút ngoài cửa sổ, 5 phút khi chưa đủ 5 mẫu.</small>
-          <button className="primary" disabled={busy === 'create'}>{busy === 'create' ? 'Đang resolve qua GPM…' : 'Tạo rule tự động'}</button>
+          <small>{guestPoolOptions.length ? 'Radar chỉ auto-cast các giọng khách trong nhóm đã chọn.' : 'Chưa có nhóm giọng khách. Hãy cấp quyền và nhóm trong mục TTS.'}</small>
+          <button className="primary" disabled={busy === 'create' || !form.guest_voice_pool}>{busy === 'create' ? 'Đang resolve qua GPM…' : 'Tạo rule tự động'}</button>
         </div>
       </form>
 
@@ -215,9 +254,19 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
               <div><dt>Phát hành</dt><dd>{rule.publication_mode}</dd></div>
               <div><dt>Lần quét tới</dt><dd>{formatDate(rule.next_scan_at)}</dd></div>
               <div><dt>Nhịp quét</dt><dd>{rule.window_mode === 'manual' ? 'Thủ công' : 'Tự học'}</dd></div>
+              <div><dt>Nhóm giọng khách</dt><dd>{rule.guest_voice_pool || 'Chưa cấu hình'}</dd></div>
             </dl>
             {rule.last_error && <p className="radar-inline-error">{rule.last_error}</p>}
             <div className="radar-actions">
+              <select
+                aria-label={`Nhóm giọng khách cho ${rule.competitor_title || rule.id}`}
+                value={rule.guest_voice_pool || ''}
+                disabled={busy === `pool-${rule.id}`}
+                onChange={event => changeGuestPool(rule, event.target.value)}
+              >
+                <option value="">Chọn nhóm giọng</option>
+                {guestPoolOptions.map(pool => <option key={pool.id} value={pool.id}>{pool.id} · {pool.voices.length} giọng</option>)}
+              </select>
               <button disabled={busy === `scan-${rule.id}`} onClick={() => scanNow(rule)}>Quét ngay</button>
               <button disabled={busy === `status-${rule.id}`} onClick={() => changeStatus(rule, rule.status === 'enabled' ? 'pause' : 'resume')}>{rule.status === 'enabled' ? 'Tạm dừng' : 'Bật lại'}</button>
               <button className="danger" disabled={busy === `delete-${rule.id}`} onClick={() => deleteRule(rule)}>Xóa</button>

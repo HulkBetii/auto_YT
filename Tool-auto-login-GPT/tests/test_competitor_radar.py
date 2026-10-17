@@ -46,6 +46,7 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
             target_youtube_channel_id=self.target_channel_id,
             status="enabled",
             publication_mode="schedule",
+            guest_voice_pool="kenh-suc-khoe",
         )
 
     def test_migration_creates_all_radar_casting_and_qc_tables(self):
@@ -55,6 +56,10 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
                 for row in conn.execute(
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 ).fetchall()
+            }
+            rule_columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(competitor_watch_rules)").fetchall()
             }
         self.assertTrue(
             {
@@ -67,6 +72,15 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
                 "video_quality_reviews",
             }.issubset(tables)
         )
+        self.assertIn("guest_voice_pool", rule_columns)
+
+    def test_rule_persists_guest_voice_pool(self):
+        rule = self._rule("prompt-with-pool")
+        self.assertEqual(rule["guest_voice_pool"], "kenh-suc-khoe")
+        updated = db.update_competitor_watch_rule(
+            rule["id"], guest_voice_pool="kenh-tai-chinh"
+        )
+        self.assertEqual(updated["guest_voice_pool"], "kenh-tai-chinh")
 
     def test_shared_competitor_dispatches_once_for_each_prompt(self):
         first_rule = self._rule("prompt-alpha")

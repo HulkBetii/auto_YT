@@ -23,6 +23,7 @@ MAX_PROVIDER_VOICE_ID_LENGTH = 256
 VOICE_STATUSES = {"active", "archived", "unavailable"}
 CASTING_GENDERS = {"any", "male", "female"}
 CASTING_AGE_GROUPS = {"any", "young", "adult", "senior"}
+CASTING_USAGE_MODES = {"single_narrator", "multi_host", "multi_guest"}
 SYSTEM_VOICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 PROVIDER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,63}$")
 SECRET_CONFIG_KEYS = {"api_key", "token", "secret", "password", "credential"}
@@ -67,14 +68,70 @@ def normalize_casting_profile(value: object) -> dict:
             raise ValueError(f"Thuộc tính casting '{key}' có quá nhiều giá trị.")
         return values
 
+    roles = normalize_tags("roles", ["guest"])
+    raw_usage_modes = profile.get("usage_modes")
+    if raw_usage_modes is None:
+        # Preserve legacy intent without allowing opted-out voices into guest
+        # casting. Existing voices must be explicitly promoted to multi-host or
+        # assigned to a guest pool before Radar can use them in those roles.
+        usage_modes = (
+            ["multi_guest"]
+            if bool(profile.get("auto_cast", False))
+            else ["single_narrator"]
+        )
+        if "mc" in roles or "any" in roles:
+            usage_modes.append("multi_host")
+    else:
+        usage_modes = normalize_tags("usage_modes", [])
+        invalid_modes = set(usage_modes) - CASTING_USAGE_MODES
+        if invalid_modes:
+            raise ValueError("Phạm vi sử dụng voice không hợp lệ.")
+
+    voice_pools = [
+        normalize_voice_pool_id(pool_id)
+        for pool_id in normalize_tags("voice_pools", [])
+    ]
     return {
         "gender": gender,
         "age_group": age_group,
         "languages": normalize_tags("languages", ["vi"]),
-        "roles": normalize_tags("roles", ["guest"]),
+        "roles": roles,
         "styles": normalize_tags("styles", []),
-        "auto_cast": bool(profile.get("auto_cast", False)),
+        "usage_modes": usage_modes,
+        "voice_pools": voice_pools,
+        # Retain the old response field for older clients. The permission is
+        # now derived from usage_modes so both representations cannot diverge.
+        "auto_cast": "multi_guest" in usage_modes,
     }
+
+
+def normalize_voice_pool_id(value: object) -> str:
+    pool_id = str(value or "").strip().casefold()
+    if not pool_id:
+        return ""
+    if len(pool_id) > 40 or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", pool_id):
+        raise ValueError(
+            "Mã nhóm giọng chỉ gồm chữ thường không dấu, số, '_' hoặc '-'."
+        )
+    return pool_id
+
+
+def voice_allows_usage(
+    voice: dict,
+    usage_mode: str,
+    *,
+    voice_pool: str = "",
+    require_active: bool = True,
+) -> bool:
+    if usage_mode not in CASTING_USAGE_MODES:
+        raise ValueError("Phạm vi sử dụng voice không hợp lệ.")
+    if require_active and str(voice.get("status") or "active") != "active":
+        return False
+    profile = normalize_casting_profile(voice.get("casting_profile"))
+    if usage_mode not in profile["usage_modes"]:
+        return False
+    normalized_pool = normalize_voice_pool_id(voice_pool)
+    return not normalized_pool or normalized_pool in profile["voice_pools"]
 
 
 def _normalize_voice_id(value: object) -> str:

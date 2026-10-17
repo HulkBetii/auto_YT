@@ -184,9 +184,19 @@ export default function TTSSettings() {
   const patchCasting = (voice, changes) => {
     const profile = {
       gender: 'any', age_group: 'any', languages: ['vi'], roles: ['guest'],
-      styles: [], auto_cast: false, ...(voice.casting_profile || {}), ...changes,
+      styles: [], usage_modes: ['single_narrator'], voice_pools: [],
+      ...(voice.casting_profile || {}), ...changes,
     }
-    return patchVoice(voice, { casting_profile: profile }, 'Đã cập nhật metadata auto-cast.')
+    return patchVoice(voice, { casting_profile: profile }, 'Đã cập nhật chính sách sử dụng giọng.')
+  }
+
+  const toggleUsageMode = (voice, usageMode, enabled) => {
+    const current = voice.casting_profile?.usage_modes ||
+      (voice.casting_profile?.auto_cast ? ['multi_guest'] : ['single_narrator'])
+    const next = enabled
+      ? [...new Set([...current, usageMode])]
+      : current.filter(value => value !== usageMode)
+    return patchCasting(voice, { usage_modes: next })
   }
 
   const editCastingTags = (voice, key, label) => {
@@ -480,9 +490,18 @@ export default function TTSSettings() {
                   {voice.provider_id === 'omnivoice' && ` · ${voice.config?.target_words_per_minute || 145} từ/phút`}
                 </small>
                 <div className="tts-casting-profile">
-                  <label className="tts-toggle">
-                    <input type="checkbox" checked={Boolean(voice.casting_profile?.auto_cast)} onChange={event => patchCasting(voice, { auto_cast: event.target.checked })} /> Auto-cast khách
-                  </label>
+                  <span className="tts-casting-label">Được dùng cho</span>
+                  {[
+                    ['single_narrator', 'Đơn giọng'],
+                    ['multi_host', 'MC đa giọng'],
+                    ['multi_guest', 'Khách đa giọng'],
+                  ].map(([mode, label]) => <label className="tts-toggle" key={mode}>
+                    <input
+                      type="checkbox"
+                      checked={(voice.casting_profile?.usage_modes || []).includes(mode)}
+                      onChange={event => toggleUsageMode(voice, mode, event.target.checked)}
+                    /> {label}
+                  </label>)}
                   <label>Giới tính
                     <select value={voice.casting_profile?.gender || 'any'} onChange={event => patchCasting(voice, { gender: event.target.value })}>
                       <option value="any">Linh hoạt</option><option value="male">Nam</option><option value="female">Nữ</option>
@@ -496,6 +515,7 @@ export default function TTSSettings() {
                   <button className="tts-button" onClick={() => editCastingTags(voice, 'languages', 'Ngôn ngữ')}>🌐 {(voice.casting_profile?.languages || ['vi']).join(', ')}</button>
                   <button className="tts-button" onClick={() => editCastingTags(voice, 'roles', 'Vai trò')}>🎭 {(voice.casting_profile?.roles || ['guest']).join(', ')}</button>
                   <button className="tts-button" onClick={() => editCastingTags(voice, 'styles', 'Phong cách')}>✨ {(voice.casting_profile?.styles || []).join(', ') || 'Thêm phong cách'}</button>
+                  <button className="tts-button" onClick={() => editCastingTags(voice, 'voice_pools', 'Nhóm giọng (mã không dấu)')}>🗂 {(voice.casting_profile?.voice_pools || []).join(', ') || 'Chưa có nhóm'}</button>
                 </div>
               </div>
               <div className="tts-actions">

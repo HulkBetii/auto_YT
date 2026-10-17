@@ -126,6 +126,7 @@ def run_video_quality_checks(
     caption_artifact: dict | None,
     audio_dir: Path,
     thumbnails_dir: Path,
+    voice_policy: dict | None = None,
 ) -> dict:
     """Run QC without any source-topic or editorial relevance decision."""
     checks: dict[str, dict] = {}
@@ -136,22 +137,53 @@ def run_video_quality_checks(
         "Kịch bản và quality gate audio hợp lệ" if script_ok else "Kịch bản chưa đạt quality gate",
     )
 
+    policy = voice_policy if isinstance(voice_policy, dict) else {}
     if is_dialogue_script(script):
         voice_ids = [str(item.get("voice_id") or "") for item in cast_assignments]
-        has_mc = any(str(item.get("role_key") or "").upper() == "MC" for item in cast_assignments)
+        mc_assignments = [
+            item
+            for item in cast_assignments
+            if str(item.get("role_key") or "").upper() == "MC"
+        ]
+        has_mc = bool(mc_assignments)
+        policy_ok = True
+        if policy:
+            expected_mc = str(policy.get("mc_voice_id") or "")
+            allowed_hosts = set(policy.get("allowed_host_voice_ids") or [])
+            allowed_guests = set(policy.get("allowed_guest_voice_ids") or [])
+            policy_ok = (
+                len(mc_assignments) == 1
+                and str(mc_assignments[0].get("voice_id") or "") == expected_mc
+                and expected_mc in allowed_hosts
+                and all(
+                    str(item.get("voice_id") or "") in allowed_guests
+                    for item in cast_assignments
+                    if str(item.get("role_key") or "").upper() != "MC"
+                )
+            )
         casting_ok = (
             bool(cast_assignments)
             and has_mc
             and len(voice_ids) == len(set(voice_ids))
             and all(voice_id in active_voice_ids for voice_id in voice_ids)
+            and policy_ok
         )
     else:
-        casting_ok = True
         voice_ids = [str(video.get("voice_id") or "")]
+        casting_ok = not policy or voice_ids[0] in set(
+            policy.get("allowed_single_voice_ids") or []
+        )
     checks["casting"] = _result(
         casting_ok,
-        "Cast khác biệt và còn hoạt động" if casting_ok else "Cast thiếu, trùng hoặc có voice không hoạt động",
+        (
+            "Cast đúng quyền, đúng pool và còn hoạt động"
+            if casting_ok and policy
+            else "Cast khác biệt và còn hoạt động"
+            if casting_ok
+            else "Cast thiếu, trùng, sai quyền/pool hoặc có voice không hoạt động"
+        ),
         voice_ids=voice_ids,
+        voice_pool=str(policy.get("guest_voice_pool") or ""),
     )
 
     audio_path = _local_audio_path(audio_task, audio_dir)

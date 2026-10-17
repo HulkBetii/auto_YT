@@ -708,6 +708,7 @@ class CompetitorWatchRuleCreate(BaseModel):
     target_youtube_channel_id: Optional[int] = Field(default=None, ge=1)
     publication_mode: Literal["inherit", "schedule", "public"] = "inherit"
     window_mode: Literal["learned", "manual"] = "learned"
+    guest_voice_pool: str = Field(default="", max_length=40)
     manual_windows: List[dict] = Field(default_factory=list, max_length=14)
     enabled: bool = True
 
@@ -715,6 +716,7 @@ class CompetitorWatchRuleCreate(BaseModel):
 class CompetitorWatchRuleUpdate(BaseModel):
     publication_mode: Optional[Literal["inherit", "schedule", "public"]] = None
     window_mode: Optional[Literal["learned", "manual"]] = None
+    guest_voice_pool: Optional[str] = Field(default=None, max_length=40)
     manual_windows: Optional[List[dict]] = Field(default=None, max_length=14)
 
 
@@ -3588,8 +3590,16 @@ def _resolve_radar_auto_cast(
             "cast_settings"
         ) or {}
     video_id = int(video["id"])
+    voice_policy = automation.get("voice_policy") or {}
+    guest_voice_pool = str(voice_policy.get("guest_voice_pool") or "").strip()
     existing = db.list_video_cast_assignments(video_id)
     if existing:
+        auto_casting.validate_cast_policy(
+            existing,
+            available_voices,
+            mc_voice_id=mc_voice_id,
+            guest_voice_pool=guest_voice_pool,
+        )
         return {
             str(item.get("role_key") or item.get("speaker_key") or ""): {
                 "voice_id": item["voice_id"]
@@ -3617,6 +3627,8 @@ def _resolve_radar_auto_cast(
         available_voices,
         mc_voice_id=mc_voice_id,
         registry=registry,
+        guest_voice_pool=guest_voice_pool,
+        enforce_usage_policy=True,
     )
     cast: dict[str, dict] = {}
     generic_speaker_pattern = re.compile(r"^(?:MC|KHACH_?\d*|GUEST_?\d*)$")
@@ -3721,13 +3733,21 @@ def _ensure_audio_task(
             "Không tìm thấy kịch bản để đọc (thiếu INTRO/BODY/OUTRO)."
         )
 
+    prod_snapshot = {}
+    try:
+        prod_snapshot = json.loads(video.get("production_snapshot_json") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        pass
     is_dialogue = is_dialogue_script(raw_script)
+    automation = prod_snapshot.get("automation") if isinstance(prod_snapshot, dict) else {}
+    if isinstance(automation, dict) and automation.get("source") == "competitor_radar":
+        required_usage = "multi_host" if is_dialogue else "single_narrator"
+        if not voice_config.voice_allows_usage(selected_voice, required_usage):
+            usage_label = "MC đa giọng" if is_dialogue else "Đơn giọng"
+            raise auto_casting.AutoCastingAttentionRequired(
+                f"Giọng '{selected_voice.get('name') or voice_id}' chưa được cấp quyền '{usage_label}'."
+            )
     if is_dialogue:
-        prod_snapshot = {}
-        try:
-            prod_snapshot = json.loads(video.get("production_snapshot_json") or "{}")
-        except Exception:
-            pass
         available_voices = voice_config.load_voice_config().get("voices", [])
         cast_overrides = _resolve_radar_auto_cast(
             video=video,
@@ -6222,6 +6242,34 @@ def _execute_video_qc_job(job: dict) -> None:
         raise RuntimeError("Không tìm thấy video hoặc artifact MP4 để chạy QC.")
     db.update_system_job(job["id"], progress="Đang chạy Auto QC kỹ thuật và completeness")
     voices = voice_config.load_voice_config().get("voices", [])
+    automation = snapshot.get("automation") if isinstance(snapshot, dict) else {}
+    qc_voice_policy: dict = {}
+    if isinstance(automation, dict) and automation.get("source") == "competitor_radar":
+        configured_policy = automation.get("voice_policy") or {}
+        guest_voice_pool = str(configured_policy.get("guest_voice_pool") or "")
+        qc_voice_policy = {
+            "guest_voice_pool": guest_voice_pool,
+            "mc_voice_id": str(video.get("voice_id") or ""),
+            "allowed_single_voice_ids": [
+                str(voice.get("id") or "")
+                for voice in voices
+                if voice_config.voice_allows_usage(voice, "single_narrator")
+            ],
+            "allowed_host_voice_ids": [
+                str(voice.get("id") or "")
+                for voice in voices
+                if voice_config.voice_allows_usage(voice, "multi_host")
+            ],
+            "allowed_guest_voice_ids": [
+                str(voice.get("id") or "")
+                for voice in voices
+                if voice_config.voice_allows_usage(
+                    voice,
+                    "multi_guest",
+                    voice_pool=guest_voice_pool,
+                )
+            ],
+        }
     report = video_qc.run_video_quality_checks(
         video=video,
         artifact=artifact,
@@ -6238,6 +6286,7 @@ def _execute_video_qc_job(job: dict) -> None:
         caption_artifact=db.get_latest_video_artifact(video_id, "captions", status="ready"),
         audio_dir=AUDIO_DIR,
         thumbnails_dir=THUMBNAILS_DIR,
+        voice_policy=qc_voice_policy,
     )
     if report["status"] == "passed":
         db.create_video_quality_review(
@@ -7054,6 +7103,7 @@ def _competitor_rule_preflight(
     prompt_version: str,
     target_channel: dict,
     publication_mode: str,
+    guest_voice_pool: str = "",
 ) -> dict:
     with _prompts_config_lock:
         prompt_data = _read_prompts_config()
@@ -7078,9 +7128,16 @@ def _competitor_rule_preflight(
         or ""
     ).strip()
     try:
+        normalized_guest_pool = voice_config.normalize_voice_pool_id(guest_voice_pool)
+    except ValueError:
+        normalized_guest_pool = ""
+    if not normalized_guest_pool:
+        missing.append("cast.guest_voice_pool")
+
+    try:
         mc_voice = voice_config.get_voice(mc_voice_id)
-        if str(mc_voice.get("status") or "active") != "active":
-            missing.append("cast.mc.active_voice")
+        if not voice_config.voice_allows_usage(mc_voice, "multi_host"):
+            missing.append("cast.mc.multi_host")
     except ValueError:
         missing.append("cast.mc.voice")
     active_guest_voices = []
@@ -7089,7 +7146,11 @@ def _competitor_rule_preflight(
         if (
             voice.get("status") == "active"
             and voice.get("id") != mc_voice_id
-            and profile.get("auto_cast")
+            and voice_config.voice_allows_usage(
+                voice,
+                "multi_guest",
+                voice_pool=normalized_guest_pool,
+            )
             and ("guest" in profile.get("roles", []) or "any" in profile.get("roles", []))
         ):
             active_guest_voices.append(voice)
@@ -7220,6 +7281,7 @@ def _execute_competitor_scan_job(job: dict) -> None:
         str(rule.get("prompt_version") or ""),
         target_channel,
         str(rule.get("publication_mode") or "inherit"),
+        str(rule.get("guest_voice_pool") or ""),
     )
     raw_proxy = str(target_channel.get("gpm_proxy_info") or "").strip()
     if not parse_proxy_url(raw_proxy):
@@ -7275,6 +7337,12 @@ def _execute_competitor_scan_job(job: dict) -> None:
             "competitor_dispatch_id": int(dispatch["id"]),
             "competitor_source_video_id": int(source_row["id"]),
             "requires_video_qc": True,
+            "voice_policy": {
+                "guest_voice_pool": str(rule.get("guest_voice_pool") or ""),
+                "single_usage": "single_narrator",
+                "host_usage": "multi_host",
+                "guest_usage": "multi_guest",
+            },
         }
         try:
             result = _enqueue_video_request(
@@ -7421,6 +7489,10 @@ def list_competitor_rules():
 @app.post("/api/competitors/rules")
 async def create_competitor_rule(request: CompetitorWatchRuleCreate):
     manual_windows = _validate_manual_windows(request.manual_windows)
+    try:
+        guest_voice_pool = voice_config.normalize_voice_pool_id(request.guest_voice_pool)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if request.window_mode == "manual" and not manual_windows:
         raise HTTPException(status_code=400, detail="Chế độ thủ công cần ít nhất một khung giờ.")
     target_channel = _resolve_rule_target_channel(
@@ -7429,7 +7501,10 @@ async def create_competitor_rule(request: CompetitorWatchRuleCreate):
     _require_radar_channel_isolation(target_channel)
     if request.enabled:
         _competitor_rule_preflight(
-            request.prompt_version, target_channel, request.publication_mode
+            request.prompt_version,
+            target_channel,
+            request.publication_mode,
+            guest_voice_pool,
         )
     try:
         resolved = await competitor_radar.resolve_competitor_channel(
@@ -7447,6 +7522,7 @@ async def create_competitor_rule(request: CompetitorWatchRuleCreate):
             status="enabled" if request.enabled else "paused",
             publication_mode=request.publication_mode,
             window_mode=request.window_mode,
+            guest_voice_pool=guest_voice_pool,
             manual_windows=manual_windows,
         )
     except Exception as exc:
@@ -7467,18 +7543,29 @@ def update_competitor_rule(rule_id: int, request: CompetitorWatchRuleUpdate):
     if not rule:
         raise HTTPException(status_code=404, detail="Không tìm thấy rule Radar.")
     changes = request.model_dump(exclude_unset=True)
+    if "guest_voice_pool" in changes:
+        try:
+            changes["guest_voice_pool"] = voice_config.normalize_voice_pool_id(
+                changes["guest_voice_pool"]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if "manual_windows" in changes:
         changes["manual_windows"] = _validate_manual_windows(changes["manual_windows"] or [])
     effective_window_mode = changes.get("window_mode", rule.get("window_mode"))
     effective_windows = changes.get("manual_windows", rule.get("manual_windows") or [])
     if effective_window_mode == "manual" and not effective_windows:
         raise HTTPException(status_code=400, detail="Chế độ thủ công cần ít nhất một khung giờ.")
-    if rule.get("status") == "enabled" and "publication_mode" in changes:
+    if rule.get("status") == "enabled" and {
+        "publication_mode",
+        "guest_voice_pool",
+    }.intersection(changes):
         target_channel = db.get_youtube_channel(int(rule["target_youtube_channel_id"]))
         _competitor_rule_preflight(
             str(rule["prompt_version"]),
             target_channel or {},
-            str(changes["publication_mode"]),
+            str(changes.get("publication_mode", rule.get("publication_mode") or "inherit")),
+            str(changes.get("guest_voice_pool", rule.get("guest_voice_pool") or "")),
         )
     return db.update_competitor_watch_rule(rule_id, **changes)
 
@@ -7492,7 +7579,10 @@ def update_competitor_rule_status(rule_id: int, request: CompetitorRuleStatusUpd
         return db.update_competitor_watch_rule(rule_id, status="paused", next_scan_at="")
     target_channel = db.get_youtube_channel(int(rule["target_youtube_channel_id"]))
     _competitor_rule_preflight(
-        str(rule["prompt_version"]), target_channel or {}, str(rule["publication_mode"])
+        str(rule["prompt_version"]),
+        target_channel or {},
+        str(rule["publication_mode"]),
+        str(rule.get("guest_voice_pool") or ""),
     )
     resumed = db.update_competitor_watch_rule(
         rule_id, status="enabled", next_scan_at=db.utc_now(), last_error=""
@@ -7512,6 +7602,7 @@ def scan_competitor_rule_now(rule_id: int):
         str(rule["prompt_version"]),
         target_channel or {},
         str(rule["publication_mode"]),
+        str(rule.get("guest_voice_pool") or ""),
     )
     return _enqueue_competitor_scan(rule_id, automatic=False)
 
@@ -12736,6 +12827,10 @@ def _build_prompt_production_snapshot(version_id: str, version: dict) -> dict:
     )
     return {
         "prompt_version": version_id,
+        "default_voice_id": str(version.get("default_voice_id") or "").strip(),
+        "cast_settings": json.loads(
+            json.dumps(version.get("cast_settings") or {}, ensure_ascii=False)
+        ),
         "image_generation_settings": image_settings,
         "publishing_settings": chatgpt_projects.normalize_publishing_settings(
             version.get("publishing_settings")

@@ -27,16 +27,22 @@ test('wires Competitor Radar navigation and automatic rule management', async ()
   assert.match(radarSource, /\/qc`/)
   assert.match(radarSource, /publication_mode/)
   assert.match(radarSource, /manual_windows/)
+  assert.match(radarSource, /guest_voice_pool/)
+  assert.match(radarSource, /Nhóm giọng khách/)
   assert.match(jobCenterSource, /value="competitor_scan"/)
   assert.match(jobCenterSource, /value="video_qc"/)
 })
 
 
-test('TTS catalog exposes profile-based auto-cast metadata', async () => {
+test('TTS catalog exposes usage permissions and safe guest pools', async () => {
   const source = await readFile(new URL('./TTSSettings.jsx', import.meta.url), 'utf8')
 
   assert.match(source, /casting_profile/)
-  assert.match(source, /auto_cast/)
+  assert.match(source, /usage_modes/)
+  assert.match(source, /single_narrator/)
+  assert.match(source, /multi_host/)
+  assert.match(source, /multi_guest/)
+  assert.match(source, /voice_pools/)
   assert.match(source, /gender/)
   assert.match(source, /age_group/)
   assert.match(source, /languages/)
