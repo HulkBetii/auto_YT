@@ -1163,9 +1163,10 @@ class VideoProductionServiceTests(unittest.TestCase):
         self.assertEqual(session_entries, [(42, False)])
         self.assertIs(generate_images.await_args.kwargs["worker"], shared_worker)
         self.assertIs(generate_video.await_args.kwargs["worker"], shared_worker)
-        self.assertEqual(result, [video_path, image_paths[1]])
+        self.assertEqual(result["media_paths"], [video_path, image_paths[1]])
+        self.assertEqual(result["intro_video_summary"]["generated_count"], 1)
 
-    def test_scene_media_stops_immediately_when_veo_fails(self):
+    def test_scene_media_falls_back_when_veo_is_unsupported(self):
         from auto_yt.services.google_flow_worker import FlowModeError
 
         shared_worker = MagicMock()
@@ -1189,22 +1190,26 @@ class VideoProductionServiceTests(unittest.TestCase):
             ) as generate_video,
             patch.object(video_production, "cleanup_duplicate_scene_artifacts"),
         ):
-            with self.assertRaises(FlowModeError):
-                video_production.generate_scene_media(
-                    video_id=42,
-                    scenes=[{"index": 0, "prompt": "scene", "is_video": True}],
-                    settings={"enable_intro_video": True},
-                    progress=lambda message, stage: None,
-                    cancel_check=lambda: None,
-                )
+            result = video_production.generate_scene_media(
+                video_id=42,
+                scenes=[{"index": 0, "prompt": "scene", "is_video": True}],
+                settings={"enable_intro_video": True},
+                progress=lambda message, stage: None,
+                cancel_check=lambda: None,
+            )
 
         generate_video.assert_awaited_once()
+        self.assertEqual(result["media_paths"], image_paths)
+        self.assertEqual(result["intro_video_summary"]["fallback_count"], 1)
 
     def test_scene_media_propagates_pending_video_without_image_fallback(self):
         from auto_yt.services.google_flow_worker import FlowVideoPending
 
         shared_worker = MagicMock()
-        image_paths = [Path(self.temporary_directory.name) / "scene-0.png"]
+        image_paths = [
+            Path(self.temporary_directory.name) / f"scene-{index}.png"
+            for index in range(3)
+        ]
 
         @asynccontextmanager
         async def fake_session(video_id, *, force_new_project=False):
@@ -1220,22 +1225,100 @@ class VideoProductionServiceTests(unittest.TestCase):
             patch.object(
                 video_production,
                 "_generate_scene_video_async",
-                AsyncMock(side_effect=FlowVideoPending("Flow is still processing")),
+                AsyncMock(
+                    side_effect=[
+                        FlowVideoPending(
+                            "Flow is still processing scene 0",
+                            queued_since="2026-10-18T01:00:00+00:00",
+                            next_retry_at="2026-10-18T01:01:00+00:00",
+                        ),
+                        FlowVideoPending(
+                            "Flow is still processing scene 1",
+                            queued_since="2026-10-18T01:00:05+00:00",
+                            next_retry_at="2026-10-18T01:01:05+00:00",
+                        ),
+                    ]
+                ),
             ) as generate_video,
             patch.object(video_production, "cleanup_duplicate_scene_artifacts"),
         ):
-            with self.assertRaises(FlowVideoPending):
+            with self.assertRaises(FlowVideoPending) as raised:
                 video_production.generate_scene_media(
                     video_id=42,
-                    scenes=[{"index": 0, "prompt": "scene", "is_video": True}],
+                    scenes=[
+                        {"index": 0, "prompt": "scene zero", "is_video": True},
+                        {"index": 1, "prompt": "scene one", "is_video": True},
+                        {"index": 2, "prompt": "scene two", "is_video": False},
+                    ],
                     settings={"enable_intro_video": True},
                     progress=lambda message, stage: None,
                     cancel_check=lambda: None,
                 )
 
-        generate_video.assert_awaited_once()
+        self.assertEqual(generate_video.await_count, 2)
+        self.assertEqual(raised.exception.pending_scene_indices, [0, 1])
+        self.assertEqual(
+            raised.exception.queued_since,
+            "2026-10-18T01:00:00+00:00",
+        )
 
-    def test_scene_media_resumes_from_first_failed_video_checkpoint(self):
+    def test_scene_media_separates_policy_failure_from_pending_scene(self):
+        from auto_yt.services.google_flow_worker import (
+            FlowGenerationError,
+            FlowVideoPending,
+        )
+
+        shared_worker = MagicMock()
+        image_paths = [
+            Path(self.temporary_directory.name) / f"scene-{index}.png"
+            for index in range(3)
+        ]
+
+        @asynccontextmanager
+        async def fake_session(video_id, *, force_new_project=False):
+            yield shared_worker
+
+        generate_video = AsyncMock(
+            side_effect=[
+                FlowGenerationError("Policy rejected scene 0"),
+                FlowVideoPending(
+                    "Scene 1 is still processing",
+                    queued_since="2026-10-18T02:00:00+00:00",
+                    next_retry_at="2026-10-18T02:01:00+00:00",
+                ),
+            ]
+        )
+        with (
+            patch.object(video_production, "_flow_worker_session", fake_session),
+            patch.object(
+                video_production,
+                "_generate_scene_images_with_worker",
+                AsyncMock(return_value=image_paths),
+            ),
+            patch.object(
+                video_production,
+                "_generate_scene_video_async",
+                generate_video,
+            ),
+            patch.object(video_production, "cleanup_duplicate_scene_artifacts"),
+        ):
+            with self.assertRaises(FlowVideoPending) as raised:
+                video_production.generate_scene_media(
+                    video_id=42,
+                    scenes=[
+                        {"index": 0, "prompt": "policy", "is_video": True},
+                        {"index": 1, "prompt": "slow", "is_video": True},
+                        {"index": 2, "prompt": "still", "is_video": False},
+                    ],
+                    settings={"enable_intro_video": True},
+                    progress=lambda message, stage: None,
+                    cancel_check=lambda: None,
+                )
+
+        self.assertEqual(generate_video.await_count, 2)
+        self.assertEqual(raised.exception.pending_scene_indices, [1])
+
+    def test_scene_media_reuses_terminal_video_fallback_without_resubmit(self):
         from PIL import Image
         from auto_yt.services.google_flow_worker import FlowModeError
 
@@ -1299,14 +1382,13 @@ class VideoProductionServiceTests(unittest.TestCase):
             patch.object(video_production, "_flow_mock_enabled", return_value=False),
         )
         with common_patches[0], common_patches[1], common_patches[2], common_patches[3], common_patches[4]:
-            with self.assertRaises(FlowModeError):
-                video_production.generate_scene_media(
-                    video_id=video_id,
-                    scenes=scenes,
-                    settings={"enable_intro_video": True},
-                    progress=lambda message, stage: None,
-                    cancel_check=lambda: None,
-                )
+            first_result = video_production.generate_scene_media(
+                video_id=video_id,
+                scenes=scenes,
+                settings={"enable_intro_video": True},
+                progress=lambda message, stage: None,
+                cancel_check=lambda: None,
+            )
 
         self.assertEqual(worker.generate_scene_video.await_count, 1)
         self.assertEqual(
@@ -1317,6 +1399,12 @@ class VideoProductionServiceTests(unittest.TestCase):
             database.get_latest_video_artifact(video_id, "scene_video:1")["status"],
             "failed",
         )
+        self.assertTrue(
+            database.get_latest_video_artifact(video_id, "scene_video:1")["metadata"][
+                "terminal"
+            ]
+        )
+        self.assertEqual(first_result["media_paths"], [first_video, image_paths[1], image_paths[2]])
 
         worker.generate_scene_video.reset_mock()
         worker.generate_scene_video.side_effect = None
@@ -1345,9 +1433,10 @@ class VideoProductionServiceTests(unittest.TestCase):
                 cancel_check=lambda: None,
             )
 
-        self.assertEqual(worker.generate_scene_video.await_count, 1)
-        self.assertEqual(result[0], first_video)
-        self.assertEqual(result[2], image_paths[2])
+        worker.generate_scene_video.assert_not_awaited()
+        self.assertEqual(result["media_paths"][0], first_video)
+        self.assertEqual(result["media_paths"][1], image_paths[1])
+        self.assertEqual(result["media_paths"][2], image_paths[2])
 
     def test_scene_image_retries_once_only_for_explicit_flow_error(self):
         from PIL import Image
@@ -1737,8 +1826,10 @@ class VideoProductionServiceTests(unittest.TestCase):
 
         artifact = database.get_latest_video_artifact(video_id, "scene_video:0")
         self.assertEqual(artifact["status"], "failed")
-        self.assertIn("video mode unavailable", artifact["metadata"]["fallback_reason"])
+        self.assertIn("video mode unavailable", artifact["metadata"]["error"])
         self.assertEqual(artifact["metadata"]["failure_stage"], "legacy_video_mode")
+        self.assertEqual(artifact["metadata"]["reason_code"], "flow_mode_error")
+        self.assertTrue(artifact["metadata"]["terminal"])
 
     def test_completed_veo_persists_flow_detection_timing(self):
         from PIL import Image
@@ -1825,7 +1916,11 @@ class VideoProductionServiceTests(unittest.TestCase):
             side_effect=FlowVideoPending("Flow is still processing")
         )
         worker.download_video = AsyncMock()
-        worker.get_last_video_timing.return_value = {"submitted_elapsed_seconds": 1.0}
+        worker.get_last_video_timing.return_value = {
+            "submitted_elapsed_seconds": 1.0,
+            "video_error_count_before_submit": 2,
+            "video_tile_count_before_submit": 5,
+        }
         scene = {"index": 0, "prompt": "scene", "is_video": True}
 
         with (
@@ -1852,6 +1947,9 @@ class VideoProductionServiceTests(unittest.TestCase):
         self.assertEqual(pending["status"], "queued")
         self.assertTrue(pending["metadata"]["queued_since"])
         self.assertEqual(pending["metadata"]["reason_code"], "flow_video_pending")
+        self.assertTrue(pending["metadata"]["next_retry_at"])
+        self.assertEqual(pending["metadata"]["reconciliation_poll_count"], 0)
+        self.assertFalse(pending["metadata"]["terminal"])
         self.assertFalse(Path(pending["path"]).exists())
         self.assertEqual(video_production.cleanup_duplicate_scene_artifacts(video_id), 0)
         self.assertEqual(
@@ -1897,6 +1995,18 @@ class VideoProductionServiceTests(unittest.TestCase):
 
         self.assertTrue(result.is_file())
         self.assertTrue(worker.generate_scene_video.await_args.kwargs["reconcile_only"])
+        self.assertEqual(
+            worker.generate_scene_video.await_args.kwargs[
+                "video_error_count_before_submit"
+            ],
+            2,
+        )
+        self.assertEqual(
+            worker.generate_scene_video.await_args.kwargs[
+                "video_tile_count_before_submit"
+            ],
+            5,
+        )
         completed = database.get_latest_video_artifact(video_id, "scene_video:0")
         self.assertEqual(completed["status"], "completed")
         self.assertEqual(completed["duration_seconds"], 8.0)
@@ -1970,9 +2080,9 @@ class VideoProductionServiceTests(unittest.TestCase):
         self.assertEqual(expired["status"], "failed")
         self.assertEqual(expired["metadata"]["reason_code"], "flow_video_wait_expired")
 
-    def test_flow_video_job_deadline_applies_to_unstarted_later_scenes(self):
+    def test_flow_video_job_deadline_does_not_expire_unstarted_later_scenes(self):
         from PIL import Image
-        from auto_yt.services.google_flow_worker import FlowVideoWaitExpired
+        from auto_yt.services.google_flow_worker import FlowVideoPending
 
         video_id = database.save_video(
             "https://www.youtube.com/watch?v=flow-job-deadline",
@@ -1985,14 +2095,17 @@ class VideoProductionServiceTests(unittest.TestCase):
         Image.new("RGB", (1376, 768), color=(30, 40, 50)).save(start_frame)
         Image.new("RGB", (1376, 768), color=(50, 40, 30)).save(end_frame)
         worker = MagicMock()
-        worker.generate_scene_video = AsyncMock()
+        worker.generate_scene_video = AsyncMock(
+            side_effect=FlowVideoPending("Later scene is pending")
+        )
+        worker.download_video = AsyncMock()
         worker.get_last_video_timing.return_value = {}
 
         with (
             patch.object(video_production, "SCENES_DIR", Path(self.temporary_directory.name)),
             patch.object(video_production, "_flow_mock_enabled", return_value=False),
         ):
-            with self.assertRaises(FlowVideoWaitExpired):
+            with self.assertRaises(FlowVideoPending):
                 asyncio.run(
                     video_production._generate_scene_video_async(
                         video_id=video_id,
@@ -2013,10 +2126,10 @@ class VideoProductionServiceTests(unittest.TestCase):
                     )
                 )
 
-        worker.generate_scene_video.assert_not_awaited()
-        expired = database.get_latest_video_artifact(video_id, "scene_video:1")
-        self.assertEqual(expired["status"], "failed")
-        self.assertEqual(expired["metadata"]["reason_code"], "flow_video_wait_expired")
+        worker.generate_scene_video.assert_awaited_once()
+        pending = database.get_latest_video_artifact(video_id, "scene_video:1")
+        self.assertEqual(pending["status"], "queued")
+        self.assertFalse(pending["metadata"]["terminal"])
 
     def test_terminal_flow_video_failure_is_not_resubmitted(self):
         from PIL import Image
@@ -2107,6 +2220,9 @@ class VideoProductionServiceTests(unittest.TestCase):
             FlowVideoPending(
                 "Flow is still processing",
                 queued_since=pending_since,
+                pending_scene_indices=[1, 3],
+                reconciliation_poll_count=4,
+                retry_delay_seconds=75.0,
             ),
         )
 
@@ -2117,6 +2233,13 @@ class VideoProductionServiceTests(unittest.TestCase):
             waiting["result"]["flow_video_pending_since"],
             pending_since,
         )
+        self.assertEqual(waiting["result"]["pending_scene_indices"], [1, 3])
+        self.assertEqual(waiting["result"]["reconcile_pending_count"], 2)
+        self.assertEqual(waiting["result"]["reconcile_poll_count"], 4)
+        center_item = main._system_job_center_item(waiting, None)
+        self.assertEqual(center_item["reconcile_pending_count"], 2)
+        self.assertEqual(center_item["reconcile_poll_count"], 4)
+        self.assertEqual(center_item["pending_scene_indices"], [1, 3])
         main._handle_production_job_error(
             waiting,
             FlowVideoPending(

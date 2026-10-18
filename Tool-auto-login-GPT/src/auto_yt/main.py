@@ -6715,14 +6715,35 @@ def _handle_production_job_error(job: dict, exc: Exception) -> None:
     ):
         current_job = db.get_system_job(job["id"]) or job
         recovery_result = dict(current_job.get("result") or {})
+        pending_scene_indices = [
+            int(index)
+            for index in (getattr(exc, "pending_scene_indices", None) or [])
+        ]
+        pending_count = len(pending_scene_indices) or 1
+        reconciliation_poll_count = max(
+            0, int(getattr(exc, "reconciliation_poll_count", 0) or 0)
+        )
+        retry_delay_seconds = max(
+            1.0, float(getattr(exc, "retry_delay_seconds", 60.0) or 60.0)
+        )
         if not recovery_result.get("flow_video_pending_since"):
             recovery_result["flow_video_pending_since"] = str(
                 getattr(exc, "queued_since", "") or db.utc_now()
             )
+        recovery_result.update(
+            {
+                "pending_scene_indices": pending_scene_indices,
+                "reconcile_pending_count": pending_count,
+                "reconcile_poll_count": reconciliation_poll_count,
+                "flow_video_next_retry_at": str(
+                    getattr(exc, "next_retry_at", "") or ""
+                ),
+            }
+        )
         db.schedule_system_job_recovery(
             job["id"],
             resume_from_step="flow_video_reconcile",
-            delay_seconds=60.0,
+            delay_seconds=retry_delay_seconds,
             error=safe_error,
             result_json=recovery_result,
         )
@@ -6731,7 +6752,10 @@ def _handle_production_job_error(job: dict, exc: Exception) -> None:
                 int(job["video_id"]),
                 render_status="processing",
                 current_stage="flow_video_reconcile",
-                production_progress="Google Flow vẫn đang xử lý video; hệ thống sẽ tự đối soát lại",
+                production_progress=(
+                    f"Google Flow còn {pending_count} cảnh video đang xử lý; "
+                    "hệ thống sẽ tự đối soát lại"
+                ),
                 blocking_reason="",
             )
         return
@@ -8609,6 +8633,17 @@ def _system_job_center_item(job: dict, queue_position: int | None, *, hydrate: b
         "queue_position": queue_position,
         "attempt": job.get("attempt", 0),
         "recovery_count": job.get("recovery_count", 0),
+        "reconcile_pending_count": max(
+            0, int(result.get("reconcile_pending_count") or 0)
+        ),
+        "reconcile_poll_count": max(
+            0, int(result.get("reconcile_poll_count") or 0)
+        ),
+        "pending_scene_indices": [
+            int(index)
+            for index in (result.get("pending_scene_indices") or [])
+            if str(index).lstrip("-").isdigit()
+        ],
         "recovery_limit": (
             len(YOUTUBE_RECOVERY_DELAYS_SECONDS)
             if job_type in {"youtube_upload", "youtube_publish"}

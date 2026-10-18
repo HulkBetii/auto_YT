@@ -56,6 +56,7 @@ LOW_VARIANCE_IMAGE_THRESHOLD = 2.0
 LOW_VARIANCE_COLOR_DISTANCE = 8.0
 MAX_PERCEPTUAL_DUPLICATE_RETRIES = 2
 FLOW_VIDEO_RECONCILIATION_TTL_SECONDS = 3600.0
+FLOW_VIDEO_RECONCILIATION_POLL_SECONDS = 60.0
 PERCEPTUAL_RETRY_DIRECTIONS = (
     "Use a substantially different camera distance, viewpoint, and subject arrangement",
     "Change the foreground, background, direction of movement, and visual hierarchy completely",
@@ -1586,18 +1587,6 @@ async def _generate_scene_video_async(
         max_wait_seconds = FLOW_VIDEO_RECONCILIATION_TTL_SECONDS
     now_utc = dt.datetime.now(dt.timezone.utc)
     pending_expired = False
-    job_pending_since = str(settings.get("_flow_video_pending_since") or "")
-    if job_pending_since:
-        try:
-            job_pending_at = dt.datetime.fromisoformat(job_pending_since)
-            if job_pending_at.tzinfo is None:
-                job_pending_at = job_pending_at.replace(tzinfo=dt.timezone.utc)
-            pending_expired = (
-                max(0.0, (now_utc - job_pending_at).total_seconds())
-                >= max_wait_seconds
-            )
-        except (TypeError, ValueError):
-            pass
     is_reconciliation_checkpoint = bool(
         not force_new_project
         and existing
@@ -1625,7 +1614,7 @@ async def _generate_scene_video_async(
             )
         except (TypeError, ValueError):
             pending_age = 0.0
-        pending_expired = pending_expired or pending_age >= max_wait_seconds
+        pending_expired = pending_age >= max_wait_seconds
 
     if (
         not force_new_project
@@ -1651,7 +1640,10 @@ async def _generate_scene_video_async(
         and existing
         and existing.get("content_hash") == content_hash
         and existing.get("status") == "failed"
-        and terminal_reason in terminal_reason_codes
+        and (
+            existing_metadata.get("terminal") is True
+            or terminal_reason in terminal_reason_codes
+        )
     ):
         cached_error = str(existing_metadata.get("error") or "").strip()
         if terminal_reason == "flow_video_wait_expired":
@@ -1757,6 +1749,31 @@ async def _generate_scene_video_async(
             if scene.get("primary_reference_id"):
                 ref_ids.append(str(scene["primary_reference_id"]))
 
+            existing_flow_timing = existing_metadata.get("flow_timing")
+            if not isinstance(existing_flow_timing, dict):
+                existing_flow_timing = {}
+            baseline_error_count = existing_flow_timing.get(
+                "video_error_count_before_submit"
+            )
+            baseline_tile_count = existing_flow_timing.get(
+                "video_tile_count_before_submit"
+            )
+            try:
+                baseline_error_count = (
+                    max(0, int(baseline_error_count))
+                    if baseline_error_count is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                baseline_error_count = None
+            try:
+                baseline_tile_count = (
+                    max(0, int(baseline_tile_count))
+                    if baseline_tile_count is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                baseline_tile_count = None
             video_url = await worker.generate_scene_video(
                 prompt=video_prompt,
                 avoid_prompt=negative_prompt,
@@ -1770,10 +1787,15 @@ async def _generate_scene_video_async(
                 },
                 scene_index=int(scene.get("index", 0)),
                 reconcile_only=is_reconciliation_checkpoint,
+                video_error_count_before_submit=baseline_error_count,
+                video_tile_count_before_submit=baseline_tile_count,
             )
             await worker.download_video(video_url, str(target))
             timing_snapshot = worker.get_last_video_timing()
-            flow_timing = timing_snapshot if isinstance(timing_snapshot, dict) else {}
+            flow_timing = {
+                **existing_flow_timing,
+                **(timing_snapshot if isinstance(timing_snapshot, dict) else {}),
+            }
 
         if not target.exists() or target.stat().st_size < 1000:
             raise RuntimeError(f"Video tạo từ Google Flow Veo không hợp lệ hoặc quá nhỏ: {target}")
@@ -1781,10 +1803,27 @@ async def _generate_scene_video_async(
     except FlowVideoPending as exc:
         if worker is not None and hasattr(worker, "get_last_video_timing"):
             timing_snapshot = worker.get_last_video_timing()
-            flow_timing = timing_snapshot if isinstance(timing_snapshot, dict) else {}
+            previous_timing = existing_metadata.get("flow_timing")
+            flow_timing = {
+                **(previous_timing if isinstance(previous_timing, dict) else {}),
+                **(timing_snapshot if isinstance(timing_snapshot, dict) else {}),
+            }
         safe_error = security_logging.redact_sensitive(exc)
         queued_since = str(existing_metadata.get("queued_since") or db.utc_now())
+        previous_poll_count = int(
+            existing_metadata.get("reconciliation_poll_count") or 0
+        )
+        reconciliation_poll_count = previous_poll_count + (
+            1 if is_reconciliation_checkpoint else 0
+        )
+        next_retry_at = (
+            dt.datetime.now(dt.timezone.utc)
+            + dt.timedelta(seconds=FLOW_VIDEO_RECONCILIATION_POLL_SECONDS)
+        ).isoformat()
         exc.queued_since = queued_since
+        exc.next_retry_at = next_retry_at
+        exc.reconciliation_poll_count = reconciliation_poll_count
+        exc.retry_delay_seconds = FLOW_VIDEO_RECONCILIATION_POLL_SECONDS
         db.upsert_video_artifact(
             video_id=video_id,
             artifact_type=artifact_type,
@@ -1798,6 +1837,9 @@ async def _generate_scene_video_async(
                 "error": safe_error,
                 "failure_stage": "reconciliation",
                 "reason_code": _safe_reason_code(exc),
+                "next_retry_at": next_retry_at,
+                "reconciliation_poll_count": reconciliation_poll_count,
+                "terminal": False,
                 "flow_timing": flow_timing,
             },
         )
@@ -1840,6 +1882,7 @@ async def _generate_scene_video_async(
                 "failure_stage": failure_stage,
                 "reason_code": reason_code,
                 "fallback_reason_code": reason_code,
+                "terminal": True,
                 "flow_timing": flow_timing,
             },
         )
@@ -1864,6 +1907,10 @@ async def _generate_scene_video_async(
         "failure_stage",
         "reason_code",
         "fallback_reason_code",
+        "queued_since",
+        "next_retry_at",
+        "reconciliation_poll_count",
+        "terminal",
     ):
         completed_metadata.pop(stale_error_key, None)
     db.upsert_video_artifact(
@@ -1991,6 +2038,7 @@ def generate_scene_media(
             )
 
             media_paths: list[Path] = []
+            pending_scenes: list[dict[str, object]] = []
             flow_video_unsupported = False
             summary = _empty_intro_video_summary(enabled=enable_intro_video)
             summary["requested_count"] = sum(
@@ -2047,7 +2095,28 @@ def generate_scene_media(
                         FlowVideoPending,
                     )
                     if isinstance(exc, FlowVideoPending):
-                        raise
+                        scene_index = int(scene.get("index", index))
+                        pending_scenes.append(
+                            {
+                                "scene_index": scene_index,
+                                "queued_since": str(
+                                    getattr(exc, "queued_since", "") or ""
+                                ),
+                                "next_retry_at": str(
+                                    getattr(exc, "next_retry_at", "") or ""
+                                ),
+                                "reconciliation_poll_count": int(
+                                    getattr(
+                                        exc,
+                                        "reconciliation_poll_count",
+                                        0,
+                                    )
+                                    or 0
+                                ),
+                            }
+                        )
+                        media_paths.append(base_image_paths[index])
+                        continue
                     is_system_unsupported = isinstance(
                         exc, (FlowModeError, FlowAgentSettingsError)
                     ) or "không hỗ trợ" in str(exc).lower()
@@ -2072,6 +2141,33 @@ def generate_scene_media(
                         }
                     )
                     media_paths.append(base_image_paths[index])
+            if pending_scenes:
+                queued_values = [
+                    str(item["queued_since"])
+                    for item in pending_scenes
+                    if item.get("queued_since")
+                ]
+                retry_values = [
+                    str(item["next_retry_at"])
+                    for item in pending_scenes
+                    if item.get("next_retry_at")
+                ]
+                raise FlowVideoPending(
+                    "Google Flow vẫn đang xử lý "
+                    f"{len(pending_scenes)} cảnh video; sẽ đối soát lại cả batch "
+                    "mà không gửi trùng prompt.",
+                    reason_code="flow_video_batch_pending",
+                    queued_since=min(queued_values) if queued_values else "",
+                    pending_scene_indices=[
+                        int(item["scene_index"]) for item in pending_scenes
+                    ],
+                    next_retry_at=min(retry_values) if retry_values else "",
+                    reconciliation_poll_count=max(
+                        int(item["reconciliation_poll_count"])
+                        for item in pending_scenes
+                    ),
+                    retry_delay_seconds=FLOW_VIDEO_RECONCILIATION_POLL_SECONDS,
+                )
             summary["fallback_count"] = len(summary["fallback_scenes"])
             return {
                 "media_paths": media_paths,

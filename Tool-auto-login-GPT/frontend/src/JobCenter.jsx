@@ -809,7 +809,12 @@ function JobCenter({ onOpenVideo, refreshKey }) {
                         Đã kiểm tra processing {job.processing_poll_count} lần · timeout an toàn 24 giờ
                       </div>
                     )}
-                    {job.recovery_count > 0 && !(job.processing_poll_count > 0 && job.publish_stage === 'processing') && (
+                    {job.type === 'flow_media_generation' && job.reconcile_pending_count > 0 && (
+                      <div style={{ color: '#4dd0e1', marginTop: '6px', fontSize: '0.8em' }}>
+                        Đối soát Flow: {job.reconcile_pending_count} cảnh đang chờ · {job.reconcile_poll_count || 0} lượt kiểm tra
+                      </div>
+                    )}
+                    {job.type !== 'flow_media_generation' && job.recovery_count > 0 && !(job.processing_poll_count > 0 && job.publish_stage === 'processing') && (
                       <div style={{ color: '#4dd0e1', marginTop: '6px', fontSize: '0.8em' }}>
                         Tự phục hồi: {job.recovery_count}/{job.recovery_limit || 3}
                         {job.resume_from_step ? ` · Tiếp tục từ ${job.resume_from_step}` : ''}

@@ -2143,7 +2143,7 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
             "uploaded-one",
         )
 
-    async def test_missing_uploaded_frame_is_not_uploaded_again(self):
+    async def test_missing_uploaded_frame_is_reuploaded_once(self):
         page = MagicMock()
         page.url = "https://flow.google.com/project/project-one"
         worker = GoogleFlowWorker(page)
@@ -2170,17 +2170,38 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
                     "_attach_video_frame_from_gallery_identity",
                     AsyncMock(return_value=REFERENCE_RESULT_NOT_FOUND),
                 ),
-                patch.object(worker, "_upload_video_frame_file", AsyncMock()) as upload,
+                patch.object(
+                    worker,
+                    "_upload_video_frame_file",
+                    AsyncMock(return_value=True),
+                ) as upload,
+                patch.object(
+                    worker,
+                    "_prompt_attachment_identities",
+                    AsyncMock(
+                        return_value=[
+                            {
+                                "assetId": "uploaded-two",
+                                "urls": [
+                                    "https://flow-content.google/image/uploaded-two"
+                                ],
+                            }
+                        ]
+                    ),
+                ),
             ):
-                with self.assertRaises(FlowFrameAttachmentError):
-                    await worker._ensure_agent_video_frame(
-                        frame,
-                        "start",
-                        1,
-                        scene_index=0,
-                    )
+                await worker._ensure_agent_video_frame(
+                    frame,
+                    "start",
+                    1,
+                    scene_index=0,
+                )
 
-        upload.assert_not_awaited()
+        upload.assert_awaited_once_with(frame, 1)
+        self.assertEqual(
+            worker._project_video_frame_cache()[frame_key]["flow_asset_id"],
+            "uploaded-two",
+        )
 
     async def test_video_frame_cache_is_isolated_by_project(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2853,6 +2874,146 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
             start_frame.write_bytes(_image_bytes())
             end_frame.write_bytes(_image_bytes())
             with self.assertRaises(FlowGenerationError):
+                await worker.generate_scene_video(
+                    "A camera moves through the command room",
+                    "text",
+                    start_frame_path=start_frame,
+                    end_frame_path=end_frame,
+                    scene_index=0,
+                    reconcile_only=True,
+                )
+
+        submit.assert_not_awaited()
+
+    async def test_video_reconciliation_surfaces_video_tile_error_without_prompt_dom(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(worker, "_ensure_project_canvas", AsyncMock()),
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(return_value={"state": "missing", "source": ""}),
+            ),
+            patch.object(
+                worker,
+                "_get_existing_video_error_texts",
+                AsyncMock(
+                    return_value={
+                        "Không thành công: vi phạm chính sách tạo video"
+                    }
+                ),
+            ),
+            patch.object(worker, "_submit_prompt_and_wait_for_ack", AsyncMock()) as submit,
+        ):
+            start_frame = Path(temp_dir) / "start.png"
+            end_frame = Path(temp_dir) / "end.png"
+            start_frame.write_bytes(_image_bytes())
+            end_frame.write_bytes(_image_bytes())
+            with self.assertRaises(FlowGenerationError):
+                await worker.generate_scene_video(
+                    "A camera moves through the command room",
+                    "text",
+                    start_frame_path=start_frame,
+                    end_frame_path=end_frame,
+                    scene_index=0,
+                    reconcile_only=True,
+                )
+
+        submit.assert_not_awaited()
+
+    async def test_video_reconciliation_detects_identical_new_policy_tile_by_count(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+        policy_error = "Không thành công: vi phạm chính sách tạo video"
+
+        with (
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(return_value={"state": "missing", "source": ""}),
+            ),
+            patch.object(
+                worker,
+                "_get_video_error_texts_since",
+                AsyncMock(return_value=[policy_error]),
+            ),
+        ):
+            with self.assertRaises(FlowGenerationError):
+                await worker._raise_latest_video_error(
+                    "same prompt",
+                    video_tile_count_before_submit=4,
+                )
+
+    async def test_video_reconciliation_ignores_old_image_error_at_same_video_count(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+
+        with (
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(
+                    return_value={
+                        "state": "queued",
+                        "source": "",
+                        "is_latest_prompt": True,
+                    }
+                ),
+            ),
+            patch.object(
+                worker,
+                "_get_existing_error_texts",
+                AsyncMock(return_value={"Không thành công: lỗi tạo ảnh"}),
+            ),
+            patch.object(
+                worker,
+                "_get_video_error_texts_since",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await worker._raise_latest_video_error(
+                "same prompt",
+                video_tile_count_before_submit=4,
+            )
+
+        self.assertEqual(result["state"], "queued")
+
+    async def test_video_reconciliation_ignores_non_video_error_without_prompt_dom(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(worker, "_ensure_project_canvas", AsyncMock()),
+            patch.object(
+                worker,
+                "_find_video_for_prompt",
+                AsyncMock(return_value={"state": "missing", "source": ""}),
+            ),
+            patch.object(
+                worker,
+                "_get_existing_error_texts",
+                AsyncMock(return_value={"Không thành công: lỗi tạo ảnh"}),
+            ),
+            patch.object(
+                worker,
+                "_get_existing_video_error_texts",
+                AsyncMock(return_value=set()),
+            ),
+            patch.object(worker, "_submit_prompt_and_wait_for_ack", AsyncMock()) as submit,
+        ):
+            start_frame = Path(temp_dir) / "start.png"
+            end_frame = Path(temp_dir) / "end.png"
+            start_frame.write_bytes(_image_bytes())
+            end_frame.write_bytes(_image_bytes())
+            with self.assertRaises(FlowVideoPending):
                 await worker.generate_scene_video(
                     "A camera moves through the command room",
                     "text",

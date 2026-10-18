@@ -130,10 +130,18 @@ class FlowVideoPending(RuntimeError):
         *,
         reason_code: str = "flow_video_pending",
         queued_since: str = "",
+        pending_scene_indices: list[int] | None = None,
+        next_retry_at: str = "",
+        reconciliation_poll_count: int = 0,
+        retry_delay_seconds: float = 60.0,
     ):
         super().__init__(message)
         self.reason_code = reason_code
         self.queued_since = queued_since
+        self.pending_scene_indices = list(pending_scene_indices or [])
+        self.next_retry_at = next_retry_at
+        self.reconciliation_poll_count = max(0, int(reconciliation_poll_count or 0))
+        self.retry_delay_seconds = max(1.0, float(retry_delay_seconds or 60.0))
 
 
 class FlowVideoWaitExpired(FlowGenerationTimeout):
@@ -2439,22 +2447,56 @@ class GoogleFlowWorker:
         result: dict[str, object] | None = None,
         *,
         include_existing_canvas_errors: bool = True,
+        video_error_count_before_submit: int | None = None,
+        video_tile_count_before_submit: int | None = None,
     ) -> dict[str, object]:
-        """Raise a terminal Flow error only when it belongs to this latest prompt."""
+        """Raise terminal Flow video errors scoped by prompt or video tile."""
         matched = result or await self._find_video_for_prompt(prompt)
-        if str(matched.get("state") or "") == "failed":
+        matched_state = str(matched.get("state") or "")
+        if matched_state == "failed":
             self._record_video_timing("error_seen")
             raise FlowGenerationError(
                 "Google Flow báo lỗi khi tạo video: "
                 f"{matched.get('error') or 'Thao tác không thành công'}"
             )
         if include_existing_canvas_errors and matched.get("is_latest_prompt"):
-            active_errors = await self._get_existing_error_texts()
+            if video_tile_count_before_submit is not None:
+                active_errors = await self._get_video_error_texts_since(
+                    video_tile_count_before_submit
+                )
+            elif video_error_count_before_submit is not None:
+                current_video_error_count = await self._get_existing_video_error_count()
+                active_errors = (
+                    await self._get_existing_video_error_texts()
+                    if current_video_error_count > video_error_count_before_submit
+                    else set()
+                )
+            else:
+                active_errors = await self._get_existing_error_texts()
             if active_errors:
                 self._record_video_timing("error_seen")
                 raise FlowGenerationError(
                     "Google Flow báo lỗi khi tạo video: "
                     f"{next(iter(active_errors))}"
+                )
+        elif include_existing_canvas_errors and matched_state == "missing":
+            if video_tile_count_before_submit is not None:
+                video_errors = await self._get_video_error_texts_since(
+                    video_tile_count_before_submit
+                )
+                has_new_video_error = bool(video_errors)
+            else:
+                video_errors = await self._get_existing_video_error_texts()
+                current_video_error_count = await self._get_existing_video_error_count()
+                has_new_video_error = (
+                    video_error_count_before_submit is None
+                    or current_video_error_count > video_error_count_before_submit
+                )
+            if video_errors and has_new_video_error:
+                self._record_video_timing("error_seen")
+                raise FlowGenerationError(
+                    "Google Flow báo lỗi khi tạo video: "
+                    f"{next(iter(video_errors))}"
                 )
         return matched
 
@@ -3045,6 +3087,60 @@ class GoogleFlowWorker:
         except Exception:
             pass
         return err_texts
+
+    async def _get_existing_video_error_texts(self) -> set[str]:
+        """Return terminal errors rendered inside Google Flow video tiles only."""
+        err_texts: set[str] = set()
+        selectors = [
+            "flow-video-tile flow-error-tile",
+            "flow-video-tile .error-tile",
+            "flow-video-tile [data-tile-state='error']",
+            "flow-video-tile [role='alert']",
+        ]
+        for selector in selectors:
+            try:
+                locators = self.page.locator(selector)
+                count = await locators.count()
+                for index in range(min(count, 10)):
+                    text = (await locators.nth(index).inner_text() or "").strip()
+                    if text and _is_valid_flow_error_text(text):
+                        err_texts.add(text)
+            except Exception:
+                pass
+        return err_texts
+
+    async def _get_existing_video_error_count(self) -> int:
+        """Count video error tiles without collapsing identical policy messages."""
+        selector = (
+            "flow-video-tile flow-error-tile, "
+            "flow-video-tile .error-tile, "
+            "flow-video-tile [data-tile-state='error'], "
+            "flow-video-tile [role='alert']"
+        )
+        try:
+            return max(0, int(await self.page.locator(selector).count()))
+        except Exception:
+            return len(await self._get_existing_video_error_texts())
+
+    async def _get_existing_video_tile_count(self) -> int:
+        try:
+            return max(0, int(await self.page.locator("flow-video-tile").count()))
+        except Exception:
+            return 0
+
+    async def _get_video_error_texts_since(self, first_tile_index: int) -> list[str]:
+        """Return errors only from video tiles created for the current request."""
+        errors: list[str] = []
+        try:
+            tiles = self.page.locator("flow-video-tile")
+            tile_count = await tiles.count()
+            for index in range(max(0, int(first_tile_index)), min(tile_count, 100)):
+                text = (await tiles.nth(index).inner_text() or "").strip()
+                if text and _is_valid_flow_error_text(text):
+                    errors.append(text)
+        except Exception:
+            return []
+        return errors
 
     async def clear_ingredient_chips(self) -> None:
         """Clear all ingredient chips currently attached to the prompt box."""
@@ -3776,37 +3872,27 @@ class GoogleFlowWorker:
             )
             return
 
-        missing_generated_asset = (
-            result == REFERENCE_RESULT_NOT_FOUND
-            and record is not None
-            and record.get("source") == "generated"
-        )
-        if result == REFERENCE_RESULT_UI_ERROR or (
-            record is not None and not missing_generated_asset
-        ):
+        if result == REFERENCE_RESULT_UI_ERROR:
             self._log_video_frame_event(
                 "frame_attach_failed",
                 path,
                 role,
                 scene_index=scene_index,
-                detail="picker_ui_error" if result == REFERENCE_RESULT_UI_ERROR else "known_asset_missing",
+                detail="picker_ui_error",
             )
             raise FlowFrameAttachmentError(
                 f"Không thể gắn {role} frame đã có '{path.name}' trong project Flow.",
-                reason_code=(
-                    "frame_picker_ui_error"
-                    if result == REFERENCE_RESULT_UI_ERROR
-                    else "known_frame_missing"
-                ),
+                reason_code="frame_picker_ui_error",
             )
 
-        if missing_generated_asset:
+        if result == REFERENCE_RESULT_NOT_FOUND and record is not None:
+            cache.pop(frame_key, None)
             self._log_video_frame_event(
-                "frame_generated_reupload",
+                "frame_cached_asset_reupload",
                 path,
                 role,
                 scene_index=scene_index,
-                detail="generated_asset_not_selectable",
+                detail="cached_asset_not_selectable",
             )
 
         attached = await self._upload_video_frame_file(path, expected_count)
@@ -4762,6 +4848,8 @@ class GoogleFlowWorker:
         submitted_at: float,
         timeout_seconds: float,
         submitted_prompt: str = "",
+        initial_video_error_count: int | None = None,
+        initial_video_tile_count: int | None = None,
     ) -> str:
         agent_timeout = (
             media_type == "image" and self._agent_interface_detected
@@ -4837,11 +4925,24 @@ class GoogleFlowWorker:
                     f"{media_type}. Hãy chạy tiếp để tool mở phiên mới tại checkpoint này."
                 )
 
-            current_errors = await self._get_existing_error_texts()
-            new_errors = [
-                text for text in current_errors
-                if text not in initial_error_texts and _is_valid_flow_error_text(text)
-            ]
+            if media_type == "video" and initial_video_tile_count is not None:
+                new_errors = await self._get_video_error_texts_since(
+                    initial_video_tile_count
+                )
+            elif media_type == "video" and initial_video_error_count is not None:
+                current_video_error_count = await self._get_existing_video_error_count()
+                current_errors = await self._get_existing_video_error_texts()
+                new_errors = (
+                    [text for text in current_errors if _is_valid_flow_error_text(text)]
+                    if current_video_error_count > initial_video_error_count
+                    else []
+                )
+            else:
+                current_errors = await self._get_existing_error_texts()
+                new_errors = [
+                    text for text in current_errors
+                    if text not in initial_error_texts and _is_valid_flow_error_text(text)
+                ]
             snackbar_error = ""
             try:
                 snackbar_error = await self._get_snackbar_error()
@@ -4882,7 +4983,8 @@ class GoogleFlowWorker:
                     if media_type == "video":
                         await self._raise_latest_video_error(
                             submitted_prompt,
-                            include_existing_canvas_errors=False,
+                            video_error_count_before_submit=initial_video_error_count,
+                            video_tile_count_before_submit=initial_video_tile_count,
                         )
                         raise FlowVideoPending(
                             "Google Flow đã nhận yêu cầu video nhưng chưa hiển thị tiến trình; "
@@ -4911,7 +5013,8 @@ class GoogleFlowWorker:
                     if media_type == "video":
                         await self._raise_latest_video_error(
                             submitted_prompt,
-                            include_existing_canvas_errors=False,
+                            video_error_count_before_submit=initial_video_error_count,
+                            video_tile_count_before_submit=initial_video_tile_count,
                         )
                         raise FlowVideoPending(
                             "Google Flow đã nhận yêu cầu video nhưng kết quả chưa xuất hiện; "
@@ -4938,7 +5041,8 @@ class GoogleFlowWorker:
                 if media_type == "video":
                     await self._raise_latest_video_error(
                         submitted_prompt,
-                        include_existing_canvas_errors=False,
+                        video_error_count_before_submit=initial_video_error_count,
+                        video_tile_count_before_submit=initial_video_tile_count,
                     )
                     raise FlowVideoPending(
                         "Google Flow vẫn có thể đang xử lý video sau thời hạn theo dõi; "
@@ -5359,6 +5463,8 @@ class GoogleFlowWorker:
         video_settings: dict | None = None,
         scene_index: int | None = None,
         reconcile_only: bool = False,
+        video_error_count_before_submit: int | None = None,
+        video_tile_count_before_submit: int | None = None,
     ) -> str:
         await self._ensure_project_canvas()
         try:
@@ -5371,6 +5477,8 @@ class GoogleFlowWorker:
                 video_settings=video_settings,
                 scene_index=scene_index,
                 reconcile_only=reconcile_only,
+                video_error_count_before_submit=video_error_count_before_submit,
+                video_tile_count_before_submit=video_tile_count_before_submit,
             )
         finally:
             if self._is_asset_edit_url(str(self.page.url or "")):
@@ -5386,6 +5494,8 @@ class GoogleFlowWorker:
         video_settings: dict | None = None,
         scene_index: int | None = None,
         reconcile_only: bool = False,
+        video_error_count_before_submit: int | None = None,
+        video_tile_count_before_submit: int | None = None,
     ) -> str:
         """Generate a video clip from start (and optional end) frame using Veo on Google Flow."""
         if not start_frame_path or not Path(start_frame_path).is_file():
@@ -5402,13 +5512,26 @@ class GoogleFlowWorker:
 
         full_prompt = self._build_video_prompt(prompt, avoid_prompt)
         if reconcile_only:
+            if video_error_count_before_submit is not None:
+                self._last_video_timing["video_error_count_before_submit"] = max(
+                    0, int(video_error_count_before_submit)
+                )
+            if video_tile_count_before_submit is not None:
+                self._last_video_timing["video_tile_count_before_submit"] = max(
+                    0, int(video_tile_count_before_submit)
+                )
             existing_result = await self._find_video_for_prompt(full_prompt)
             existing_state = str(existing_result.get("state") or "missing")
             existing_source = str(existing_result.get("source") or "").strip()
             if existing_state == "completed" and existing_source:
                 self._record_video_timing("playable_url_seen")
                 return existing_source
-            await self._raise_latest_video_error(full_prompt, existing_result)
+            await self._raise_latest_video_error(
+                full_prompt,
+                existing_result,
+                video_error_count_before_submit=video_error_count_before_submit,
+                video_tile_count_before_submit=video_tile_count_before_submit,
+            )
             raise FlowVideoPending(
                 "Google Flow đã nhận yêu cầu video và chưa có file tải xuống; "
                 "sẽ tiếp tục đối soát mà không gửi lại prompt."
@@ -5449,6 +5572,14 @@ class GoogleFlowWorker:
         baseline_keys = await self._capture_video_baseline()
         self._record_video_timing("baseline_captured")
         initial_error_texts = await self._get_existing_error_texts()
+        initial_video_error_count = await self._get_existing_video_error_count()
+        initial_video_tile_count = await self._get_existing_video_tile_count()
+        self._last_video_timing["video_error_count_before_submit"] = (
+            initial_video_error_count
+        )
+        self._last_video_timing["video_tile_count_before_submit"] = (
+            initial_video_tile_count
+        )
 
         for click_attempt in range(3):
             await self.dismiss_blocking_dialogs()
@@ -5497,6 +5628,8 @@ class GoogleFlowWorker:
             submitted_at=submitted_at,
             timeout_seconds=VIDEO_GENERATION_TIMEOUT_SECONDS,
             submitted_prompt=full_prompt,
+            initial_video_error_count=initial_video_error_count,
+            initial_video_tile_count=initial_video_tile_count,
         )
         self._log_generation_event("video", "video_completed", submitted_at)
         return result
