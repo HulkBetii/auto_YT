@@ -281,5 +281,48 @@ class TestGoogleFlowWorkerUpload(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.worker._resolve_new_media_source.await_count, 3)
 
 
+    async def test_find_video_for_prompt_resolves_from_canvas_when_chat_is_queued(self):
+        self.worker.page.evaluate = AsyncMock(
+            return_value={
+                "promptFound": True,
+                "queued": True,
+                "error": "",
+                "isLatestPrompt": True,
+                "candidates": [],
+            }
+        )
+        self.worker._collect_video_candidates = AsyncMock(
+            return_value=[{"completed": True, "assetId": "canvas_video_1"}]
+        )
+        self.worker._find_new_video_source = MagicMock(return_value="")
+        self.worker._inspect_video_candidate_detail = AsyncMock(
+            return_value="https://flow.google.com/video/canvas_video_1.mp4"
+        )
+        result = await self.worker._find_video_for_prompt("Generate cinematic video")
+        self.assertEqual(result.get("state"), "completed")
+        self.assertEqual(result.get("source"), "https://flow.google.com/video/canvas_video_1.mp4")
+
+    async def test_ensure_agent_video_frame_falls_back_to_upload_on_picker_error(self):
+        import tempfile
+        from auto_yt.services.google_flow_worker import REFERENCE_RESULT_UI_ERROR
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            self.worker._attach_video_frame_from_picker = AsyncMock(
+                return_value=REFERENCE_RESULT_UI_ERROR
+            )
+            self.worker._upload_video_frame_file = AsyncMock(return_value=True)
+            self.worker._prompt_attachment_identities = AsyncMock(return_value=[{"assetId": "a1"}])
+            cache = self.worker._project_video_frame_cache()
+            key = self.worker._video_frame_key(tmp_path)
+            cache[key] = {"source": "picker", "flow_asset_id": "stale_id"}
+
+            await self.worker._ensure_agent_video_frame(tmp_path, "start", 1, scene_index=0)
+            self.worker._upload_video_frame_file.assert_awaited_once_with(tmp_path, 1)
+            self.assertEqual(cache[key]["source"], "upload")
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+
 if __name__ == "__main__":
     unittest.main()

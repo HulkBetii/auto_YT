@@ -1570,6 +1570,12 @@ async def _generate_scene_video_async(
         "flow_generation_start_error",
         "flow_result_missing_error",
         "flow_agent_stalled_error",
+        "flow_video_start_pending",
+        "flow_video_result_pending",
+        "flow_video_wait_pending",
+        "flow_video_pending",
+        "frame_picker_ui_error",
+        "known_frame_missing",
     }
     terminal_reason_codes = {
         "flow_generation_error",
@@ -1699,11 +1705,7 @@ async def _generate_scene_video_async(
             raise FlowFrameAttachmentError(
                 f"Thiếu end frame cho video scene {scene['index']}; cần đủ cặp ảnh gối đầu."
             )
-        if pending_expired:
-            raise FlowVideoWaitExpired(
-                "Google Flow không cung cấp video tải xuống trước khi hết thời hạn "
-                f"đối soát {max_wait_seconds:.0f} giây."
-            )
+
         _log_scene_generation(
             video_id=video_id,
             scene_index=int(scene.get("index", 0)),
@@ -1801,6 +1803,16 @@ async def _generate_scene_video_async(
             raise RuntimeError(f"Video tạo từ Google Flow Veo không hợp lệ hoặc quá nhỏ: {target}")
         clip_probe = probe_scene_video(target)
     except FlowVideoPending as exc:
+        if pending_expired:
+            logger.info(
+                "Scene %s video wait expired after %.0f seconds; falling back to base image.",
+                scene.get("index"),
+                max_wait_seconds,
+            )
+            raise FlowVideoWaitExpired(
+                f"Google Flow không cung cấp video tải xuống cho scene {scene.get('index')} "
+                f"trước khi hết thời hạn đối soát {max_wait_seconds:.0f} giây."
+            )
         if worker is not None and hasattr(worker, "get_last_video_timing"):
             timing_snapshot = worker.get_last_video_timing()
             previous_timing = existing_metadata.get("flow_timing")
@@ -1999,6 +2011,14 @@ def generate_scene_media(
 
     # Keep the public image-only facade intact while using one shared session for
     # jobs that include both image and Veo phases.
+    existing_final = db.get_latest_video_artifact(video_id, "final_mp4", status="ready")
+    if existing_final and Path(existing_final.get("path") or "").is_file():
+        logger.info("Video %s đã có final_mp4 hoàn tất; bỏ qua generate_scene_media.", video_id)
+        return {
+            "media_paths": [],
+            "intro_video_summary": _empty_intro_video_summary(enabled=enable_intro_video),
+        }
+
     if not has_video_scenes:
         return {
             "media_paths": generate_scene_images(
@@ -3539,6 +3559,19 @@ def prepare_google_flow_media(
     force_new_project: bool = False,
     flow_video_pending_since: str = "",
 ) -> dict:
+    existing_final = db.get_latest_video_artifact(video_id, "final_mp4", status="ready")
+    if existing_final and Path(existing_final.get("path") or "").is_file():
+        logger.info(
+            "Video %s đã có final_mp4 hoàn tất; bỏ qua prepare_google_flow_media.",
+            video_id,
+        )
+        _, manifest = load_flow_media_manifest(video_id)
+        return {
+            "manifest_artifact": db.get_latest_video_artifact(video_id, "flow_media_manifest") or {},
+            "plan_hash": manifest.get("plan_hash") or "",
+            "scene_count": len(manifest.get("media") or []),
+            "intro_video_summary": manifest.get("intro_video_summary") or {},
+        }
     prepared = prepare_visual_plan_inputs(video_id, snapshot, progress)
     if force_new_project:
         logger.info(

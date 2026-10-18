@@ -5993,6 +5993,19 @@ def _execute_flow_media_generation_job(job: dict) -> None:
 
     payload = job.get("payload") or {}
     video_id = int(job.get("video_id") or payload.get("video_id") or 0)
+    existing_final = db.get_latest_video_artifact(video_id, "final_mp4", status="ready")
+    if existing_final and Path(existing_final.get("path") or "").is_file():
+        logger.info(
+            "Video %s đã có final_mp4 hoàn tất; niêm phong toàn bộ tác vụ flow media.",
+            video_id,
+        )
+        db.update_system_job(
+            job["id"],
+            status="completed",
+            progress="Media đã hoàn tất (final_mp4 đã sẵn sàng)",
+            finished_at=db.utc_now(),
+        )
+        return
     snapshot = payload.get("snapshot") or _get_prompt_production_snapshot(
         job.get("prompt_version") or ""
     )
@@ -6014,9 +6027,6 @@ def _execute_flow_media_generation_job(job: dict) -> None:
         update,
         lambda: _raise_if_video_job_canceled(job["id"]),
         force_new_project=bool(payload.get("force_new_project", False)),
-        flow_video_pending_since=str(
-            (job.get("result") or {}).get("flow_video_pending_since") or ""
-        ),
     )
     _raise_if_video_job_canceled(job["id"])
     render_job, _ = _enqueue_video_render_job(

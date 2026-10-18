@@ -277,3 +277,28 @@ class TestFlowMediaManifest(unittest.TestCase):
                 "fallback_scenes",
             },
         )
+
+    def test_final_mp4_guard_skips_flow_media_generation(self):
+        import tempfile
+        from auto_yt.services import database as db
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            fake_artifact = {
+                "id": 99999,
+                "video_id": 404,
+                "artifact_type": "final_mp4",
+                "status": "ready",
+                "path": str(tmp_path),
+            }
+            with patch.object(db, "get_latest_video_artifact", return_value=fake_artifact):
+                result = video_production.generate_scene_media(
+                    video_id=404,
+                    scenes=[{"index": 0, "is_video": True}],
+                    progress=lambda *args: None,
+                    cancel_check=lambda: None,
+                )
+                self.assertEqual(result["media_paths"], [])
+        finally:
+            tmp_path.unlink(missing_ok=True)
+

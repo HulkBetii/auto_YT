@@ -2435,6 +2435,45 @@ class GoogleFlowWorker:
                     self._project_id(),
                 )
                 return {"state": "completed", "source": source}
+
+        # Scan full workspace Canvas for completed video tiles if chat bubble did not contain a playable video
+        try:
+            canvas_candidates = await self._collect_video_candidates()
+            canvas_source = self._find_new_video_source(canvas_candidates, set())
+            if canvas_source:
+                logger.info(
+                    "flow_generation media=video state=canvas_output_reused project=%s",
+                    self._project_id(),
+                )
+                return {"state": "completed", "source": canvas_source}
+            for candidate in reversed(canvas_candidates):
+                if not candidate.get("completed"):
+                    continue
+                try:
+                    canvas_source = await self._inspect_video_candidate_detail(
+                        candidate,
+                        detail_baseline,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "flow_generation media=video state=canvas_output_detail_failed project=%s detail=%s",
+                        self._project_id(),
+                        exc,
+                    )
+                    canvas_source = ""
+                if canvas_source:
+                    logger.info(
+                        "flow_generation media=video state=canvas_output_reused project=%s",
+                        self._project_id(),
+                    )
+                    return {"state": "completed", "source": canvas_source}
+        except Exception as exc:
+            logger.warning(
+                "flow_generation media=video state=canvas_reconciliation_scan_failed project=%s detail=%s",
+                self._project_id(),
+                exc,
+            )
+
         return {
             "state": "queued" if result.get("queued") else "pending",
             "source": "",
@@ -3872,27 +3911,15 @@ class GoogleFlowWorker:
             )
             return
 
-        if result == REFERENCE_RESULT_UI_ERROR:
-            self._log_video_frame_event(
-                "frame_attach_failed",
-                path,
-                role,
-                scene_index=scene_index,
-                detail="picker_ui_error",
-            )
-            raise FlowFrameAttachmentError(
-                f"Không thể gắn {role} frame đã có '{path.name}' trong project Flow.",
-                reason_code="frame_picker_ui_error",
-            )
-
-        if result == REFERENCE_RESULT_NOT_FOUND and record is not None:
-            cache.pop(frame_key, None)
+        if result in (REFERENCE_RESULT_UI_ERROR, REFERENCE_RESULT_NOT_FOUND):
+            if record is not None:
+                cache.pop(frame_key, None)
             self._log_video_frame_event(
                 "frame_cached_asset_reupload",
                 path,
                 role,
                 scene_index=scene_index,
-                detail="cached_asset_not_selectable",
+                detail=f"picker_{str(result).lower()}_fallback_upload",
             )
 
         attached = await self._upload_video_frame_file(path, expected_count)
