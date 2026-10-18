@@ -37,6 +37,14 @@ function statusLabel(status) {
   })[status] || status || '—'
 }
 
+function scanSourceLabel(source) {
+  return ({
+    rss: 'RSS + xác minh',
+    proxy_html: 'Proxy HTML',
+    gpm_browser: 'GPM Browser',
+  })[source] || 'Chưa quét'
+}
+
 function usageModes(voice) {
   return voice.casting_profile?.usage_modes ||
     (voice.casting_profile?.auto_cast ? ['multi_guest'] : ['single_narrator'])
@@ -136,7 +144,7 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
     }
     return run('create', () => request('/competitors/rules', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-    }), 'Đã tạo rule; Radar đang lấy baseline 15 video và không tạo video lịch sử.').then(result => {
+    }), 'Đã tạo rule; Radar đang lấy tối đa 15 video dài làm baseline và không tạo video lịch sử.').then(result => {
       if (result) setForm(current => ({ ...current, competitor: '' }))
     })
   }
@@ -183,7 +191,7 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
       <header className="radar-heading">
         <div>
           <h1>Competitor Radar</h1>
-          <p>Theo dõi video mới, tự động tạo nội dung và kiểm tra chất lượng trước khi phát hành.</p>
+          <p>Theo dõi video dài mới, tự động tạo nội dung và kiểm tra chất lượng trước khi phát hành.</p>
         </div>
         <div className="radar-heading-actions">
           <button onClick={() => load().catch(err => setError(err.message))}>↻ Làm mới</button>
@@ -196,7 +204,7 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
 
       <form className="radar-card radar-create" onSubmit={createRule}>
         <div className="radar-card-title">
-          <div><h2>Thêm đối thủ</h2><small>Việc bật rule là thao tác explicit; hệ thống sẽ resolve kênh trong GPM.</small></div>
+          <div><h2>Thêm đối thủ</h2><small>Chỉ theo dõi video thường dài từ 3 phút; loại Shorts, live và premiere.</small></div>
           <label className="radar-toggle"><input type="checkbox" checked={form.enabled} onChange={event => setForm({ ...form, enabled: event.target.checked })} /> Bật tự động</label>
         </div>
         <div className="radar-form-grid">
@@ -242,7 +250,7 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
       </form>
 
       <section className="radar-card">
-        <div className="radar-card-title"><div><h2>Watch rules</h2><small>{rules.length} rule · baseline không sinh video lịch sử</small></div></div>
+        <div className="radar-card-title"><div><h2>Watch rules</h2><small>{rules.length} rule · chỉ video dài ≥ 3 phút · baseline không sinh video lịch sử</small></div></div>
         {!rules.length ? <p className="radar-empty">Chưa có đối thủ nào được theo dõi.</p> : <div className="radar-rule-grid">
           {rules.map(rule => <article className="radar-rule" key={rule.id}>
             <div className="radar-rule-head">
@@ -250,10 +258,12 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
               <span className={`radar-status ${rule.status}`}>{statusLabel(rule.status)}</span>
             </div>
             <dl>
-              <div><dt>Baseline</dt><dd>{rule.baseline_complete ? `${rule.baseline_video_count} video` : 'Chưa lấy'}</dd></div>
+              <div><dt>Baseline</dt><dd>{rule.baseline_complete ? `${rule.baseline_video_count} video dài` : 'Chưa lấy'}</dd></div>
               <div><dt>Phát hành</dt><dd>{rule.publication_mode}</dd></div>
               <div><dt>Lần quét tới</dt><dd>{formatDate(rule.next_scan_at)}</dd></div>
               <div><dt>Nhịp quét</dt><dd>{rule.window_mode === 'manual' ? 'Thủ công' : 'Tự học'}</dd></div>
+              <div><dt>Nguồn quét</dt><dd>{scanSourceLabel(rule.last_scan_source)}</dd></div>
+              <div><dt>RSS</dt><dd>{rule.rss_retry_after ? `Thử lại ${formatDate(rule.rss_retry_after)}` : (rule.rss_failure_count ? `${rule.rss_failure_count} lần lỗi` : 'Sẵn sàng')}</dd></div>
               <div><dt>Nhóm giọng khách</dt><dd>{rule.guest_voice_pool || 'Chưa cấu hình'}</dd></div>
             </dl>
             {rule.last_error && <p className="radar-inline-error">{rule.last_error}</p>}
