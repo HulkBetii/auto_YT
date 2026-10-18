@@ -1447,6 +1447,12 @@ def init_db():
             next_scan_at TEXT DEFAULT '',
             error_count INTEGER NOT NULL DEFAULT 0,
             last_error TEXT DEFAULT '',
+            scan_strategy TEXT NOT NULL DEFAULT 'auto',
+            last_scan_source TEXT DEFAULT '',
+            rss_failure_count INTEGER NOT NULL DEFAULT 0,
+            rss_retry_after TEXT DEFAULT '',
+            fallback_failure_count INTEGER NOT NULL DEFAULT 0,
+            last_fallback_at TEXT DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY(competitor_channel_id) REFERENCES competitor_channels(id) ON DELETE CASCADE,
@@ -1461,6 +1467,18 @@ def init_db():
         )
     except sqlite3.OperationalError:
         pass
+    for column_sql in (
+        "scan_strategy TEXT NOT NULL DEFAULT 'auto'",
+        "last_scan_source TEXT DEFAULT ''",
+        "rss_failure_count INTEGER NOT NULL DEFAULT 0",
+        "rss_retry_after TEXT DEFAULT ''",
+        "fallback_failure_count INTEGER NOT NULL DEFAULT 0",
+        "last_fallback_at TEXT DEFAULT ''",
+    ):
+        try:
+            c.execute(f"ALTER TABLE competitor_watch_rules ADD COLUMN {column_sql}")
+        except sqlite3.OperationalError:
+            pass
     c.execute(
         'CREATE INDEX IF NOT EXISTS idx_competitor_rules_due '
         'ON competitor_watch_rules(status, next_scan_at)'
@@ -1475,6 +1493,13 @@ def init_db():
             published_at TEXT NOT NULL,
             discovered_at TEXT NOT NULL,
             is_baseline INTEGER NOT NULL DEFAULT 0,
+            content_type TEXT NOT NULL DEFAULT 'unknown',
+            duration_seconds INTEGER NOT NULL DEFAULT 0,
+            eligibility_status TEXT NOT NULL DEFAULT 'metadata_pending',
+            exclusion_reason TEXT DEFAULT '',
+            discovery_source TEXT DEFAULT '',
+            published_at_confidence TEXT NOT NULL DEFAULT 'unknown',
+            metadata_checked_at TEXT DEFAULT '',
             metadata_json TEXT NOT NULL DEFAULT '{}',
             FOREIGN KEY(competitor_channel_id) REFERENCES competitor_channels(id) ON DELETE CASCADE,
             UNIQUE(competitor_channel_id, youtube_video_id)
@@ -1484,6 +1509,19 @@ def init_db():
         'CREATE INDEX IF NOT EXISTS idx_competitor_source_published '
         'ON competitor_source_videos(competitor_channel_id, published_at DESC)'
     )
+    for column_sql in (
+        "content_type TEXT NOT NULL DEFAULT 'unknown'",
+        "duration_seconds INTEGER NOT NULL DEFAULT 0",
+        "eligibility_status TEXT NOT NULL DEFAULT 'metadata_pending'",
+        "exclusion_reason TEXT DEFAULT ''",
+        "discovery_source TEXT DEFAULT ''",
+        "published_at_confidence TEXT NOT NULL DEFAULT 'unknown'",
+        "metadata_checked_at TEXT DEFAULT ''",
+    ):
+        try:
+            c.execute(f"ALTER TABLE competitor_source_videos ADD COLUMN {column_sql}")
+        except sqlite3.OperationalError:
+            pass
     c.execute("""
         CREATE TABLE IF NOT EXISTS competitor_dispatches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -8224,6 +8262,12 @@ def update_competitor_watch_rule(rule_id: int, **changes) -> dict | None:
         "next_scan_at",
         "error_count",
         "last_error",
+        "scan_strategy",
+        "last_scan_source",
+        "rss_failure_count",
+        "rss_retry_after",
+        "fallback_failure_count",
+        "last_fallback_at",
     }
     assignments: list[str] = []
     values: list = []
@@ -8278,6 +8322,13 @@ def upsert_competitor_source_video(
     title: str,
     published_at: str,
     is_baseline: bool,
+    content_type: str = "unknown",
+    duration_seconds: int = 0,
+    eligibility_status: str = "metadata_pending",
+    exclusion_reason: str = "",
+    discovery_source: str = "",
+    published_at_confidence: str = "unknown",
+    metadata_checked_at: str = "",
     metadata: dict | None = None,
 ) -> tuple[dict, bool]:
     now = utc_now()
@@ -8289,8 +8340,10 @@ def upsert_competitor_source_video(
             """
             INSERT OR IGNORE INTO competitor_source_videos (
                 competitor_channel_id, youtube_video_id, url, title, published_at,
-                discovered_at, is_baseline, metadata_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                discovered_at, is_baseline, content_type, duration_seconds,
+                eligibility_status, exclusion_reason, discovery_source,
+                published_at_confidence, metadata_checked_at, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 competitor_channel_id,
@@ -8300,10 +8353,50 @@ def upsert_competitor_source_video(
                 published_at,
                 now,
                 1 if is_baseline else 0,
+                content_type,
+                max(0, int(duration_seconds or 0)),
+                eligibility_status,
+                exclusion_reason,
+                discovery_source,
+                published_at_confidence,
+                metadata_checked_at or now,
                 json.dumps(metadata or {}, ensure_ascii=False),
             ),
         )
         created = cursor.rowcount > 0
+        if not created:
+            conn.execute(
+                """
+                UPDATE competitor_source_videos
+                SET url = CASE WHEN ? != '' THEN ? ELSE url END,
+                    title = CASE WHEN ? != '' THEN ? ELSE title END,
+                    published_at = CASE WHEN ? != '' THEN ? ELSE published_at END,
+                    is_baseline = CASE WHEN is_baseline = 1 OR ? = 1 THEN 1 ELSE 0 END,
+                    content_type = ?, duration_seconds = ?, eligibility_status = ?,
+                    exclusion_reason = ?, discovery_source = ?,
+                    published_at_confidence = ?, metadata_checked_at = ?, metadata_json = ?
+                WHERE competitor_channel_id = ? AND youtube_video_id = ?
+                """,
+                (
+                    url,
+                    url,
+                    title,
+                    title,
+                    published_at,
+                    published_at,
+                    1 if is_baseline else 0,
+                    content_type,
+                    max(0, int(duration_seconds or 0)),
+                    eligibility_status,
+                    exclusion_reason,
+                    discovery_source,
+                    published_at_confidence,
+                    metadata_checked_at or now,
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                    competitor_channel_id,
+                    youtube_video_id,
+                ),
+            )
         row = conn.execute(
             """
             SELECT * FROM competitor_source_videos

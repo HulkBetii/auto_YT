@@ -629,6 +629,29 @@ def get_health():
         ),
         "first_scan_delay_seconds": 60,
     }
+    radar_rules = db.list_competitor_watch_rules()
+    enabled_radar_rules = [rule for rule in radar_rules if rule.get("status") == "enabled"]
+    radar_attention = [
+        rule
+        for rule in enabled_radar_rules
+        if rule.get("last_error") and int(rule.get("fallback_failure_count") or 0) > 0
+    ]
+    radar_degraded = [
+        rule
+        for rule in enabled_radar_rules
+        if int(rule.get("rss_failure_count") or 0) > 0 and rule not in radar_attention
+    ]
+    radar_health = {
+        "status": (
+            "needs_attention"
+            if radar_attention
+            else ("degraded" if radar_degraded else "ready")
+        ),
+        "enabled_rules": len(enabled_radar_rules),
+        "degraded_rules": len(radar_degraded),
+        "attention_rules": len(radar_attention),
+        "long_form_min_seconds": competitor_radar.LONG_FORM_MIN_SECONDS,
+    }
     is_ready = bool(coordinator.get("ready")) and bool(publish_coord.get("ready"))
     return {
         "status": "ok",
@@ -638,6 +661,7 @@ def get_health():
         "flow_media_coordinator": flow_coord,
         "competitor_radar_coordinator": radar_coord,
         "competitor_radar_scheduler": radar_scheduler,
+        "competitor_radar_health": radar_health,
         "trust_builder_scheduler": (
             trust_builder_scheduler.get_trust_builder_scheduler_status()
         ),
@@ -7114,7 +7138,8 @@ def _competitor_rule_preflight(
     for key in ("audio", "video_render", "youtube_upload"):
         if not pipeline.get(key):
             missing.append(f"pipeline.{key}")
-    if not str(target_channel.get("gpm_profile_id") or "").strip():
+    gpm_profile_id = str(target_channel.get("gpm_profile_id") or "").strip()
+    if not gpm_profile_id or gpm_profile_id.startswith("local_"):
         missing.append("gpm_profile_id")
     if not parse_proxy_url(target_channel.get("gpm_proxy_info")):
         missing.append("gpm_proxy_info")
@@ -7179,7 +7204,8 @@ def _competitor_rule_preflight(
 
 def _require_radar_channel_isolation(target_channel: dict) -> None:
     missing = []
-    if not str(target_channel.get("gpm_profile_id") or "").strip():
+    gpm_profile_id = str(target_channel.get("gpm_profile_id") or "").strip()
+    if not gpm_profile_id or gpm_profile_id.startswith("local_"):
         missing.append("gpm_profile_id")
     if not parse_proxy_url(target_channel.get("gpm_proxy_info")):
         missing.append("gpm_proxy_info")
@@ -7289,17 +7315,45 @@ def _execute_competitor_scan_job(job: dict) -> None:
             "Kênh đích chưa có proxy GPM hợp lệ; Radar đã dừng an toàn."
         )
 
-    db.update_system_job(job["id"], progress="Đang đọc RSS đối thủ qua proxy kênh đích")
-    feed_videos = competitor_radar.fetch_channel_feed(
+    is_baseline = not bool(rule.get("baseline_complete"))
+    known_videos = db.list_competitor_source_videos(
+        int(rule["competitor_channel_id"]), limit=500
+    )
+    now = datetime.datetime.now(datetime.timezone.utc)
+    rss_retry_after = competitor_radar.parse_utc(rule.get("rss_retry_after"))
+    use_rss = not rss_retry_after or now >= rss_retry_after
+    db.update_system_job(
+        job["id"],
+        progress=(
+            "Đang thử RSS và xác minh video dài qua proxy kênh đích"
+            if use_rss
+            else "RSS đang cooldown; đang xác minh video dài qua Proxy HTML"
+        ),
+    )
+    discovery = competitor_radar.discover_long_form_videos(
         str(rule["competitor_youtube_channel_id"]),
         raw_proxy,
+        str(target_channel.get("gpm_profile_id") or ""),
         limit=competitor_radar.BASELINE_VIDEO_COUNT,
+        use_rss=use_rss,
+        known_videos=known_videos,
     )
-    is_baseline = not bool(rule.get("baseline_complete"))
-    previous_success = competitor_radar.parse_utc(rule.get("last_success_at"))
+    source_videos = list(discovery.get("items") or [])
+    scan_source = str(discovery.get("scan_source") or "")
+    rss_error = str(discovery.get("rss_error") or "")
     dispatched = 0
     duplicates = 0
-    for source in feed_videos:
+    eligible_count = 0
+    excluded_count = 0
+    pending_count = 0
+    for source in source_videos:
+        eligibility = str(source.get("eligibility_status") or "metadata_pending")
+        if eligibility == "eligible":
+            eligible_count += 1
+        elif eligibility == "excluded":
+            excluded_count += 1
+        else:
+            pending_count += 1
         source_row, _created = db.upsert_competitor_source_video(
             competitor_channel_id=int(rule["competitor_channel_id"]),
             youtube_video_id=source["youtube_video_id"],
@@ -7307,21 +7361,27 @@ def _execute_competitor_scan_job(job: dict) -> None:
             title=source.get("title", ""),
             published_at=source.get("published_at", ""),
             is_baseline=is_baseline,
+            content_type=source.get("content_type", "unknown"),
+            duration_seconds=int(source.get("duration_seconds") or 0),
+            eligibility_status=eligibility,
+            exclusion_reason=source.get("exclusion_reason", ""),
+            discovery_source=source.get("discovery_source", scan_source),
+            published_at_confidence=source.get(
+                "published_at_confidence", "unknown"
+            ),
+            metadata_checked_at=source.get("metadata_checked_at", ""),
             metadata={"updated_at": source.get("updated_at", "")},
         )
-        published_at = competitor_radar.parse_utc(source.get("published_at"))
+        if eligibility != "eligible" or bool(source_row.get("is_baseline")):
+            continue
         existing_dispatch = db.get_competitor_dispatch(
             int(source_row["id"]), str(rule["prompt_version"])
         )
         retry_failed_dispatch = bool(
             existing_dispatch and existing_dispatch.get("status") == "error"
         )
-        if (
-            is_baseline
-            or not published_at
-            or not previous_success
-            or (published_at <= previous_success and not retry_failed_dispatch)
-        ):
+        if existing_dispatch and not retry_failed_dispatch:
+            duplicates += 1
             continue
         dispatch, reserved = db.reserve_competitor_dispatch(
             source_video_id=int(source_row["id"]),
@@ -7378,12 +7438,18 @@ def _execute_competitor_scan_job(job: dict) -> None:
                 error=security_logging.redact_sensitive(str(exc)),
             )
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     source_history = db.list_competitor_source_videos(
         int(rule["competitor_channel_id"]), limit=100
     )
+    learned_published_times = [
+        item.get("published_at", "")
+        for item in source_history
+        if item.get("eligibility_status") == "eligible"
+        and item.get("content_type") == "long_form"
+        and item.get("published_at_confidence") == "exact"
+    ]
     next_scan = competitor_radar.next_scan_at(
-        published_times=[item.get("published_at", "") for item in source_history],
+        published_times=learned_published_times,
         now=now,
         window_mode=str(rule.get("window_mode") or "learned"),
         manual_windows=rule.get("manual_windows") or [],
@@ -7391,22 +7457,45 @@ def _execute_competitor_scan_job(job: dict) -> None:
             rule.get("target_publication_timezone") or "Asia/Ho_Chi_Minh"
         ),
     )
+    rss_failure_count = int(rule.get("rss_failure_count") or 0)
+    rss_retry_after_value = str(rule.get("rss_retry_after") or "")
+    if use_rss and rss_error:
+        rss_failure_count += 1
+        if rss_failure_count >= 3:
+            rss_retry_after_value = (
+                now + datetime.timedelta(hours=6)
+            ).isoformat()
+    elif use_rss:
+        rss_failure_count = 0
+        rss_retry_after_value = ""
     db.update_competitor_watch_rule(
         rule_id,
         baseline_complete=True,
         baseline_video_count=(
-            len(feed_videos) if is_baseline else int(rule.get("baseline_video_count") or 0)
+            eligible_count
+            if is_baseline
+            else int(rule.get("baseline_video_count") or 0)
         ),
         last_scan_at=now.isoformat(),
         last_success_at=now.isoformat(),
         next_scan_at=next_scan,
         error_count=0,
         last_error="",
+        last_scan_source=scan_source,
+        rss_failure_count=rss_failure_count,
+        rss_retry_after=rss_retry_after_value,
+        fallback_failure_count=0,
+        last_fallback_at=(
+            now.isoformat() if scan_source in {"proxy_html", "gpm_browser"} else ""
+        ),
     )
     progress = (
-        f"Đã tạo baseline {len(feed_videos)} video; không tạo video lịch sử"
+        f"Đã tạo baseline {eligible_count} video dài; "
+        f"loại {excluded_count}, chờ metadata {pending_count}; không tạo video lịch sử"
         if is_baseline
-        else f"Đã quét {len(feed_videos)} video; xếp hàng {dispatched}, bỏ qua {duplicates} trùng"
+        else f"Đã quét {eligible_count} video dài qua {scan_source}; "
+        f"xếp hàng {dispatched}, bỏ qua {duplicates} trùng, loại {excluded_count}, "
+        f"chờ metadata {pending_count}"
     )
     db.update_system_job(
         job["id"],
@@ -7415,7 +7504,12 @@ def _execute_competitor_scan_job(job: dict) -> None:
         result_json={
             "rule_id": rule_id,
             "baseline": is_baseline,
-            "feed_count": len(feed_videos),
+            "candidate_count": len(source_videos),
+            "eligible_count": eligible_count,
+            "excluded_count": excluded_count,
+            "pending_count": pending_count,
+            "scan_source": scan_source,
+            "rss_degraded": bool(rss_error),
             "dispatched": dispatched,
             "duplicates": duplicates,
             "next_scan_at": next_scan,
@@ -7441,6 +7535,7 @@ def _handle_competitor_scan_error(job: dict, exc: Exception) -> None:
             last_scan_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             next_scan_at=next_scan,
             error_count=error_count,
+            fallback_failure_count=int(rule.get("fallback_failure_count") or 0) + 1,
             last_error=safe_error,
         )
     db.update_system_job(
