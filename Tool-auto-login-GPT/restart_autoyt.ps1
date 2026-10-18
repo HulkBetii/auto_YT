@@ -21,7 +21,7 @@ if (-not (Test-AutoYTAdministrator)) {
     exit (Invoke-AutoYTElevatedScript -ScriptPath $PSCommandPath -Arguments $forwardArguments)
 }
 
-$powershellPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+$powershellPath = Join-Path $PSHOME "powershell.exe"
 $stopScript = Join-Path $PSScriptRoot "stop_autoyt.ps1"
 $startScript = Join-Path $PSScriptRoot "start_autoyt.ps1"
 $previousNoPause = $env:AUTOYT_NO_PAUSE

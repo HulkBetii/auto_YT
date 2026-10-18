@@ -21,37 +21,29 @@ const DEFAULT_PIPELINE = {
 
 const GOOGLE_FLOW_IMAGE_MODELS = [
   {
-    id: 'nano_banana_2',
-    name: '🍌 Nano Banana 2',
+    id: 'nano_banana_2_1',
+    name: '🍌 Nano Banana 2.1',
     badge: '🟢 Chuẩn Google Flow',
-    creditLabel: '🟢 Tiết kiệm (~1 credit/ảnh)',
+    creditLabel: '🟢 Tiêu chuẩn (~1 credit/ảnh)',
     speed: '⚡ 3–5s',
-    description: '⭐ Model tạo ảnh mặc định mới nhất trên Google Flow. Tốc độ sinh nhanh, màu sắc chân thực, chi tiết sắc nét, phù hợp tạo 30–50 cảnh visual cho video dài.'
-  },
-  {
-    id: 'nano_banana_pro',
-    name: 'Nano Banana Pro (Legacy)',
-    badge: '🟢 Tiết kiệm Credit',
-    creditLabel: '🟢 Thấp nhất (~1 credit/ảnh)',
-    speed: '⚡ 3–5s',
-    description: 'Model thế hệ tiền nhiệm, tương thích hoàn toàn với các prompt version cũ.',
+    description: '⭐ Model tạo ảnh mặc định mới nhất trên Google Flow. Tốc độ sinh nhanh, màu sắc chân thực, chi tiết sắc nét, bám sát prompt phức tạp.',
     recommended: true
   },
   {
-    id: 'imagen_3_standard',
-    name: 'Google Imagen 3 (High-Fidelity)',
-    badge: '🟡 Chất lượng cao',
-    creditLabel: '🟡 Trung bình (~2–3 credit/ảnh)',
-    speed: '⏳ 8–12s',
-    description: 'Chất lượng siêu thực cao cấp. Tái tạo biểu cảm nhân vật, bàn tay, ánh sáng và chi tiết da xuất sắc; bám sát prompt phức tạp.'
+    id: 'nano_banana_2_lite',
+    name: '🍌 Nano Banana 2 Lite',
+    badge: '⚡ Siêu tốc',
+    creditLabel: '🟢 Tiết kiệm (~1 credit/ảnh)',
+    speed: '⚡ 2–3s',
+    description: 'Phiên bản rút gọn tối ưu tốc độ sinh ảnh, thời gian chờ cực ngắn, phù hợp tạo số lượng lớn cảnh visual.'
   },
   {
-    id: 'imagen_3_photoreal',
-    name: 'Google Imagen 3 (Photorealistic / 35mm)',
-    badge: '🟡 Tư liệu thực tế',
-    creditLabel: '🟡 Tiêu chuẩn (~2 credit/ảnh)',
-    speed: '⏳ 6–10s',
-    description: 'Phong cách ảnh tư liệu / Điện ảnh thực tế. Tối ưu đặc biệt cho video kể chuyện, phim tài liệu, hạn chế cảm giác bóng bẩy 3D/CGI.'
+    id: 'nano_banana_pro',
+    name: '🍌 Nano Banana Pro',
+    badge: '🔵 Ổn định',
+    creditLabel: '🟢 Thấp nhất (~1 credit/ảnh)',
+    speed: '⚡ 3–5s',
+    description: 'Model Pro ổn định thế hệ trước, tương thích hoàn toàn với các phong cách prompt cũ.'
   }
 ];
 
@@ -59,10 +51,11 @@ const GOOGLE_FLOW_VIDEO_MODELS = [
   {
     id: 'omni_1_1_flash',
     name: 'Omni 1.1 Flash',
-    badge: '⚡ Mặc định / Siêu tốc',
+    badge: '⚡ Mặc định / Chuẩn Flow',
     creditLabel: '🟡 Tiêu chuẩn (~10 credit/clip)',
     speed: '⚡ 15–25s',
-    description: '⭐ Model tạo video AI mặc định mới nhất của Google Flow. Tốc độ sinh siêu nhanh, chuyển động mượt mà và phối cảnh nhất quán.'
+    description: '⭐ Model tạo video AI mặc định mới nhất của Google Flow. Tốc độ sinh siêu nhanh, chuyển động mượt mà và phối cảnh nhất quán.',
+    recommended: true
   },
   {
     id: 'veo_3_1_lite',
@@ -70,8 +63,7 @@ const GOOGLE_FLOW_VIDEO_MODELS = [
     badge: '🟢 Tiết kiệm Credit',
     creditLabel: '🟢 Thấp (~8 credit/clip)',
     speed: '⏳ 20–30s',
-    description: 'Bản rút gọn của Veo 3.1, tối ưu chi phí credit cho các cảnh intro ngắn.',
-    recommended: true
+    description: 'Bản rút gọn của Veo 3.1, tối ưu chi phí credit cho các cảnh intro ngắn.'
   },
   {
     id: 'veo_3_1_fast',
@@ -141,10 +133,10 @@ const DEFAULT_IMAGE_GENERATION_SETTINGS = {
     show_animated_icon: true,
   },
   provider: 'google_flow',
-  model: 'nano_banana_pro',
+  model: 'nano_banana_2_1',
   aspect_ratio: '16:9',
   output_count: 1,
-  video_model: 'veo_3_1_lite',
+  video_model: 'omni_1_1_flash',
   video_aspect_ratio: '16:9',
   video_output_count: 1,
   style_prompt: 'Cinematic documentary film still, 35mm photography, atmospheric natural lighting, realistic textures, cinematic composition, shallow depth of field, balanced color grading, high visual fidelity, 8k raw photo.',
@@ -2391,7 +2383,7 @@ export default function Settings({
                 Model tạo ảnh
                 <select
                   className="version-select"
-                  value={currentImageGeneration.model || 'nano_banana_2'}
+                  value={currentImageGeneration.model || 'nano_banana_2_1'}
                   onChange={event => handlePromptSettingChange(
                     'image_generation_settings', 'model', event.target.value
                   )}
@@ -2480,7 +2472,7 @@ export default function Settings({
             {/* Selected Image Model Info Card */}
             {(() => {
               const selectedImgModel = GOOGLE_FLOW_IMAGE_MODELS.find(
-                m => m.id === (currentImageGeneration.model || 'nano_banana_2')
+                m => m.id === (currentImageGeneration.model || 'nano_banana_2_1')
               ) || GOOGLE_FLOW_IMAGE_MODELS[0];
               return (
                 <div

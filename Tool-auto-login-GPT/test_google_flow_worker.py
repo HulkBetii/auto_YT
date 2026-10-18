@@ -1926,6 +1926,7 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(worker, "_submit_file_from_add_menu", AsyncMock()),
             patch.object(worker, "wait_for_load", AsyncMock()),
             patch.object(worker, "_close_reference_ui", AsyncMock()),
             patch.object(
@@ -2299,6 +2300,7 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
         visible_button.is_enabled.assert_awaited_once()
 
     async def test_agent_video_settings_are_saved_once_per_project(self):
+        GoogleFlowWorker._session_configured_agent_projects.clear()
         page = MagicMock()
         page.url = "https://flow.google.com/project/project-one"
 
@@ -2342,9 +2344,16 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
         model_options.last = model_option
         page.get_by_text.return_value = model_options
 
+        option_filter = MagicMock()
+        option_filter.first = model_option
+        option_loc = MagicMock()
+        option_loc.filter.return_value = option_filter
+
         def locate(selector):
             if "flow-agent-settings" in selector:
                 return panel_collection
+            if "[role='option']" in selector:
+                return option_loc
             return settings_locator
 
         page.locator.side_effect = locate
@@ -2375,12 +2384,112 @@ class GoogleFlowWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         settings_button.click.assert_awaited_once()
         choices["Không bao giờ"].click.assert_awaited_once()
-        choices["16:9"].click.assert_awaited_once()
         choices["x1"].click.assert_awaited_once()
         save_button.click.assert_awaited_once()
         model_select.click.assert_awaited_once()
         model_option.click.assert_awaited_once()
         self.assertIn("project-one", GoogleFlowWorker._session_configured_agent_projects)
+
+    async def test_unknown_agent_image_model_fails_without_opening_settings(self):
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        worker = GoogleFlowWorker(page)
+        with self.assertRaises(FlowAgentSettingsError):
+            await worker.ensure_agent_image_settings({"model": "unknown-image-model"})
+        page.locator.assert_not_called()
+
+    async def test_agent_image_settings_saves_aspect_ratio_output_count_and_model(self):
+        GoogleFlowWorker._session_configured_agent_image_projects.clear()
+        page = MagicMock()
+        page.url = "https://flow.google.com/project/project-one"
+        settings_button = MagicMock()
+        settings_button.click = AsyncMock()
+        settings_locator = MagicMock()
+        settings_locator.first = settings_button
+
+        panel = MagicMock()
+        panel.is_visible = AsyncMock(side_effect=[True, False])
+        choices = {}
+        for text in ("Không bao giờ", "16:9", "x1"):
+            choice_locator = MagicMock()
+            choice_locator.is_visible = AsyncMock(return_value=True)
+            choice_locator.click = AsyncMock()
+            choice_matches = MagicMock()
+            choice_matches.first = choice_locator
+            choices[text] = choice_locator
+
+        def get_panel_text(label, exact=True):
+            mock_match = MagicMock()
+            mock_match.first = choices[label]
+            return mock_match
+
+        panel.get_by_text.side_effect = get_panel_text
+
+        model_select = MagicMock()
+        model_select.is_visible = AsyncMock(return_value=True)
+        model_select.click = AsyncMock()
+        model_selects = MagicMock()
+        model_selects.first = model_select
+        panel.locator.return_value = model_selects
+
+        panel_collection = MagicMock()
+        filtered_panel = MagicMock()
+        filtered_panel.first = panel
+        panel_collection.filter.return_value = filtered_panel
+
+        model_option = MagicMock()
+        model_option.is_visible = AsyncMock(return_value=True)
+        model_option.click = AsyncMock()
+        model_options = MagicMock()
+        model_options.first = model_option
+        page.get_by_text.return_value = model_options
+
+        option_filter = MagicMock()
+        option_filter.first = model_option
+        option_loc = MagicMock()
+        option_loc.filter.return_value = option_filter
+
+        def locate(selector):
+            if "flow-agent-settings" in selector:
+                return panel_collection
+            if "[role='option']" in selector:
+                return option_loc
+            return settings_locator
+
+        page.locator.side_effect = locate
+        worker = GoogleFlowWorker(page)
+        save_button = MagicMock()
+        save_button.click = AsyncMock()
+        with (
+            patch.object(
+                worker,
+                "_find_agent_settings_button",
+                AsyncMock(return_value=settings_button),
+            ),
+            patch.object(
+                worker,
+                "_find_agent_settings_save_button",
+                AsyncMock(return_value=save_button),
+            ),
+            patch.object(worker, "_save_debug_screenshot", AsyncMock()),
+            patch("auto_yt.services.google_flow_worker.asyncio.sleep", AsyncMock()),
+        ):
+            settings = {
+                "model": "nano_banana_2_1",
+                "aspect_ratio": "16:9",
+                "output_count": 1,
+            }
+            await worker.ensure_agent_image_settings(settings)
+            await worker.ensure_agent_image_settings(settings)
+
+        settings_button.click.assert_awaited_once()
+        choices["Không bao giờ"].click.assert_awaited_once()
+        choices["16:9"].click.assert_awaited_once()
+        choices["x1"].click.assert_awaited_once()
+        save_button.click.assert_awaited_once()
+        model_select.click.assert_awaited_once()
+        model_option.click.assert_awaited_once()
+        self.assertIn("project-one", GoogleFlowWorker._session_configured_agent_image_projects)
 
     async def test_wait_for_editor_rejects_asset_edit_route(self):
         page = MagicMock()

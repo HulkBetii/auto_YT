@@ -54,8 +54,14 @@ VIDEO_FRAME_UPLOAD_RETRY_COUNT = 2
 VIDEO_COMPLETION_SOURCE_GRACE_SECONDS = 5.0
 VIDEO_COMPLETION_FAST_POLL_SECONDS = 0.25
 VIDEO_DETAIL_SCAN_TIMEOUT_SECONDS = 5.0
+FLOW_IMAGE_MODEL_LABELS = {
+    "nano_banana_2_1": ("Nano Banana 2.1",),
+    "nano_banana_2": ("Nano Banana 2.1",),
+    "nano_banana_2_lite": ("Nano Banana 2 Lite",),
+    "nano_banana_pro": ("Nano Banana Pro",),
+}
 FLOW_VIDEO_MODEL_LABELS = {
-    "omni_1_1_flash": ("Omni 1.1 Flash",),
+    "omni_1_1_flash": ("Omni 1.1 Flash", "Omni Flash", "Omni 1.1"),
     "veo_3_1_lite": ("Veo 3.1 Lite", "Veo 3.1 – Lite", "Veo 3.1 - Lite"),
     "veo_3_1_fast": ("Veo 3.1 Fast", "Veo 3.1 – Fast", "Veo 3.1 - Fast"),
     "veo_3_1_quality": (
@@ -63,6 +69,7 @@ FLOW_VIDEO_MODEL_LABELS = {
         "Veo 3.1 – Quality",
         "Veo 3.1 - Quality",
     ),
+    "google_veo_intro": ("Omni 1.1 Flash", "Omni Flash", "Omni 1.1"),
 }
 PROMPT_ROOT_SELECTOR = (
     "flow-creative-agent-prompt-box, flow-base-prompt-box, flow-prompt-box"
@@ -240,6 +247,7 @@ class GoogleFlowWorker:
     _session_uploaded_image_urls: set[str] = set()
     _session_video_frame_assets: dict[str, dict[str, dict[str, str]]] = {}
     _session_configured_agent_projects: set[str] = set()
+    _session_configured_agent_image_projects: set[str] = set()
 
     def __init__(self, page: Page):
         self.page = page
@@ -1002,21 +1010,35 @@ class GoogleFlowWorker:
                 return None
             await asyncio.sleep(0.2)
 
-    async def ensure_agent_video_settings(self, video_settings: dict | None = None) -> None:
-        """Persist deterministic Agent defaults once for the active Flow project."""
-        project_id = self._project_id()
-        if project_id in self._session_configured_agent_projects:
-            return
+    async def ensure_agent_image_settings(self, image_settings: dict | None = None) -> None:
+        """Persist deterministic Agent image defaults once for the active Flow project."""
+        settings = image_settings if isinstance(image_settings, dict) else {}
+        aspect_ratio = str(settings.get("aspect_ratio") or "16:9").strip()
+        if aspect_ratio not in {"16:9", "4:3", "1:1", "3:4", "9:16"}:
+            aspect_ratio = "16:9"
 
-        settings = video_settings if isinstance(video_settings, dict) else {}
-        aspect_ratio = "16:9"
-        output_count = 1
-        model_id = str(settings.get("video_model") or "veo_3_1_lite").strip()
-        model_labels = FLOW_VIDEO_MODEL_LABELS.get(model_id)
+        try:
+            output_count = int(settings.get("output_count", 1))
+            if output_count not in {1, 2, 3, 4}:
+                output_count = 1
+        except (TypeError, ValueError):
+            output_count = 1
+
+        raw_model_id = str(settings.get("model") or "nano_banana_2_1").strip()
+        model_id = (
+            "nano_banana_2_1"
+            if raw_model_id in {"nano_banana_2", "imagen_3_standard", "imagen_3_photoreal"}
+            else raw_model_id
+        )
+        model_labels = FLOW_IMAGE_MODEL_LABELS.get(model_id)
         if not model_labels:
             raise FlowAgentSettingsError(
-                f"Model video '{model_id}' chưa có ánh xạ giao diện Google Flow Agent."
+                f"Model ảnh '{model_id}' chưa có ánh xạ giao diện Google Flow Agent."
             )
+
+        project_id = self._project_id()
+        if project_id in self._session_configured_agent_image_projects:
+            return
 
         try:
             settings_button = await self._find_agent_settings_button()
@@ -1039,11 +1061,116 @@ class GoogleFlowWorker:
             if not await self._click_agent_setting_text(
                 panel,
                 (aspect_ratio,),
-                use_last=True,
+                use_last=False,
             ):
                 raise FlowAgentSettingsError(
-                    f"Không chọn được tỷ lệ video Agent {aspect_ratio}."
+                    f"Không chọn được tỷ lệ ảnh Agent {aspect_ratio}."
                 )
+            if not await self._click_agent_setting_text(
+                panel,
+                (f"x{output_count}",),
+                use_last=False,
+            ):
+                raise FlowAgentSettingsError(
+                    f"Không chọn được số lượng ảnh Agent x{output_count}."
+                )
+
+            model_select = panel.locator(
+                "[role='combobox'], mat-select, button:has(mat-icon:text-is('arrow_drop_down'))"
+            ).first
+            if not await model_select.is_visible(timeout=1000):
+                raise FlowAgentSettingsError("Không tìm thấy bộ chọn model ảnh Agent.")
+            await model_select.click(timeout=2000)
+            await asyncio.sleep(0.2)
+            model_option = None
+            for label in model_labels:
+                option = self.page.locator("[role='option'], mat-option").filter(
+                    has_text=re.compile(rf"{re.escape(label)}", re.IGNORECASE)
+                ).first
+                if await option.is_visible(timeout=500):
+                    model_option = option
+                    break
+                fallback_opt = self.page.get_by_text(label, exact=False).first
+                if await fallback_opt.is_visible(timeout=500):
+                    model_option = fallback_opt
+                    break
+            if model_option is None:
+                raise FlowAgentSettingsError(
+                    f"Model ảnh '{model_id}' không có trong Google Flow Agent."
+                )
+            await model_option.click(force=True, timeout=2000)
+            await asyncio.sleep(0.2)
+
+            save_button = await self._find_agent_settings_save_button(panel)
+            if save_button is None:
+                raise FlowAgentSettingsError("Không tìm thấy nút Lưu cài đặt Agent.")
+            await save_button.click(timeout=2000)
+            deadline = time.monotonic() + 5.0
+            while await panel.is_visible(timeout=100):
+                if time.monotonic() >= deadline:
+                    raise FlowAgentSettingsError("Bảng Cài đặt tác nhân không đóng sau khi lưu.")
+                await asyncio.sleep(0.2)
+        except FlowAgentSettingsError:
+            await self._save_debug_screenshot("agent_image_settings_failed")
+            raise
+        except Exception as exc:
+            await self._save_debug_screenshot("agent_image_settings_failed")
+            raise FlowAgentSettingsError("Không thể lưu cài đặt Google Flow Agent (Hình ảnh).") from exc
+
+        self._session_configured_agent_image_projects.add(project_id)
+        logger.info(
+            "flow_generation media=image state=agent_settings_saved project=%s "
+            "aspect=%s outputs=%d model=%s",
+            project_id,
+            aspect_ratio,
+            output_count,
+            model_id,
+        )
+
+    async def ensure_agent_video_settings(self, video_settings: dict | None = None) -> None:
+        """Persist deterministic Agent defaults once for the active Flow project."""
+        settings = video_settings if isinstance(video_settings, dict) else {}
+        try:
+            output_count = int(settings.get("video_output_count") or settings.get("output_count") or 1)
+            if output_count not in {1, 2, 3, 4}:
+                output_count = 1
+        except (TypeError, ValueError):
+            output_count = 1
+
+        raw_model_id = str(settings.get("video_model") or "omni_1_1_flash").strip()
+        model_id = "omni_1_1_flash" if raw_model_id == "google_veo_intro" else raw_model_id
+        model_labels = FLOW_VIDEO_MODEL_LABELS.get(model_id)
+        if not model_labels:
+            raise FlowAgentSettingsError(
+                f"Model video '{model_id}' chưa có ánh xạ giao diện Google Flow Agent."
+            )
+
+        project_id = self._project_id()
+        if project_id in self._session_configured_agent_projects:
+            return
+
+        try:
+            settings_button = await self._find_agent_settings_button()
+            if settings_button is None:
+                raise FlowAgentSettingsError("Không tìm thấy nút Cài đặt tác nhân.")
+            await settings_button.click(timeout=2000)
+            await asyncio.sleep(0.4)
+
+            panel = self.page.locator(
+                "flow-agent-settings, flow-agent-panel, .cdk-overlay-pane, mat-dialog-container"
+            ).filter(has_text=re.compile("Cài đặt tác nhân|Agent settings", re.IGNORECASE)).first
+            if not await panel.is_visible(timeout=3000):
+                raise FlowAgentSettingsError("Bảng Cài đặt tác nhân không xuất hiện.")
+
+            if not await self._click_agent_setting_text(
+                panel,
+                ("Không bao giờ", "Never"),
+            ):
+                raise FlowAgentSettingsError("Không chọn được chế độ xác nhận 'Không bao giờ'.")
+
+            # NOTE: On modern Google Flow Agent, video aspect ratio is inherited from reference frames / canvas;
+            # the Agent Settings panel only has aspect ratio buttons in the Image block.
+            # We preserve output_count in the Video block using use_last=True.
             if not await self._click_agent_setting_text(
                 panel,
                 (f"x{output_count}",),
@@ -1061,11 +1188,25 @@ class GoogleFlowWorker:
             await model_select.click(timeout=2000)
             await asyncio.sleep(0.2)
             model_option = None
-            for label in model_labels:
-                option = self.page.get_by_text(label, exact=True).last
+
+            # Build list of candidate labels: first try desired model labels, then fallback to Omni 1.1 Flash labels
+            candidate_labels = list(model_labels or ())
+            for omni_label in FLOW_VIDEO_MODEL_LABELS.get("omni_1_1_flash", ()):
+                if omni_label not in candidate_labels:
+                    candidate_labels.append(omni_label)
+
+            for label in candidate_labels:
+                option = self.page.locator("[role='option'], mat-option").filter(
+                    has_text=re.compile(rf"{re.escape(label)}", re.IGNORECASE)
+                ).first
                 if await option.is_visible(timeout=500):
                     model_option = option
                     break
+                fallback_opt = self.page.get_by_text(label, exact=False).last
+                if await fallback_opt.is_visible(timeout=500):
+                    model_option = fallback_opt
+                    break
+
             if model_option is None:
                 raise FlowAgentSettingsError(
                     f"Model video '{model_id}' không có trong Google Flow Agent."
@@ -1092,9 +1233,8 @@ class GoogleFlowWorker:
         self._session_configured_agent_projects.add(project_id)
         logger.info(
             "flow_generation media=video state=agent_settings_saved project=%s "
-            "aspect=%s outputs=%d model=%s",
+            "outputs=%d model=%s",
             project_id,
-            aspect_ratio,
             output_count,
             model_id,
         )
@@ -2634,7 +2774,7 @@ class GoogleFlowWorker:
 
             button = await self._find_prompt_submit_button(editor)
             method = ""
-            if button is not None:
+            if button is not None and (agent_interface or "button" not in attempted_methods):
                 method = "button"
                 attempted_methods.append(method)
                 await self.dismiss_blocking_dialogs()
@@ -2668,6 +2808,8 @@ class GoogleFlowWorker:
                         continue
 
             if not method:
+                if not agent_interface and "enter" in attempted_methods:
+                    break
                 method = "enter"
                 attempted_methods.append(method)
                 try:
@@ -4822,6 +4964,7 @@ class GoogleFlowWorker:
         *,
         scene_index: int | None = None,
         scene_count: int | None = None,
+        image_settings: dict | None = None,
     ) -> str:
         self._set_active_reference_filenames(reference_ids, reference_paths)
         self._reset_image_candidate_state()
@@ -4834,6 +4977,7 @@ class GoogleFlowWorker:
                 reference_paths,
                 scene_index=scene_index,
                 scene_count=scene_count,
+                image_settings=image_settings,
             )
         finally:
             if self._is_asset_edit_url(str(self.page.url or "")):
@@ -4848,6 +4992,7 @@ class GoogleFlowWorker:
         *,
         scene_index: int | None = None,
         scene_count: int | None = None,
+        image_settings: dict | None = None,
     ) -> str:
         # Clean any URL / bracket tags from prompt
         clean_prompt = re.sub(r"\[IMAGE_URL:[^\]]*\]", "", prompt)
@@ -4880,6 +5025,8 @@ class GoogleFlowWorker:
             return late_source
 
         await self._ensure_agent_session_ready()
+        if await self._is_agent_interface_active():
+            await self.ensure_agent_image_settings(image_settings)
 
         # References must be visible before the baseline is captured so they can
         # never be mistaken for the result of the next prompt.

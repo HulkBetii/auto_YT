@@ -7,6 +7,24 @@ STOP_SCRIPT = Path(__file__).with_name("stop_autoyt.ps1")
 RESTART_SCRIPT = Path(__file__).with_name("restart_autoyt.ps1")
 ADMIN_HELPER = Path(__file__).with_name("lifecycle_admin.ps1")
 RESTART_WRAPPER = Path(__file__).with_name("run_autoyt_restart.bat")
+ROOT_DIR = Path(__file__).parent.parent
+DOUBLE_CLICK_ENTRYPOINTS = (
+    (
+        ROOT_DIR / "run_autoyt.bat",
+        Path(__file__).with_name("run_autoyt.bat"),
+        STARTUP_SCRIPT,
+    ),
+    (
+        ROOT_DIR / "run_autoyt_stop.bat",
+        Path(__file__).with_name("run_autoyt_stop.bat"),
+        STOP_SCRIPT,
+    ),
+    (
+        ROOT_DIR / "run_autoyt_restart.bat",
+        Path(__file__).with_name("run_autoyt_restart.bat"),
+        RESTART_SCRIPT,
+    ),
+)
 MAIN_MODULE = Path(__file__).parent / "src" / "auto_yt" / "main.py"
 OMNIVOICE_CLIENT = (
     Path(__file__).parent / "src" / "auto_yt" / "services" / "omnivoice_client.py"
@@ -38,10 +56,25 @@ class StartupLifecycleTests(unittest.TestCase):
     def test_elevation_waits_and_propagates_the_administrator_exit_code(self):
         helper = ADMIN_HELPER.read_text(encoding="utf-8")
 
+        self.assertIn('$powershellPath = Join-Path $PSHOME "powershell.exe"', helper)
+        self.assertNotIn("GetCurrentProcess().MainModule.FileName", helper)
         self.assertIn("-Verb RunAs", helper)
         self.assertIn("-Wait", helper)
         self.assertIn("-PassThru", helper)
         self.assertIn("return [int]$process.ExitCode", helper)
+
+    def test_double_click_entrypoints_reach_an_elevating_lifecycle_script(self):
+        for root_wrapper_path, canonical_wrapper_path, lifecycle_script_path in (
+            DOUBLE_CLICK_ENTRYPOINTS
+        ):
+            root_wrapper = root_wrapper_path.read_text(encoding="utf-8")
+            canonical_wrapper = canonical_wrapper_path.read_text(encoding="utf-8")
+            lifecycle_script = lifecycle_script_path.read_text(encoding="utf-8")
+
+            self.assertIn(f"call {canonical_wrapper_path.name} %*", root_wrapper)
+            self.assertIn(lifecycle_script_path.name, canonical_wrapper)
+            self.assertIn("Test-AutoYTAdministrator", lifecycle_script)
+            self.assertIn("Invoke-AutoYTElevatedScript", lifecycle_script)
 
     def test_restart_uses_one_elevated_powershell_flow(self):
         restart_script = RESTART_SCRIPT.read_text(encoding="utf-8")
@@ -54,6 +87,9 @@ class StartupLifecycleTests(unittest.TestCase):
         self.assertIn('$env:AUTOYT_REQUIRE_IDLE = "1"', restart_script)
         self.assertIn("stop_autoyt.ps1", restart_script)
         self.assertIn("start_autoyt.ps1", restart_script)
+        self.assertIn(
+            '$powershellPath = Join-Path $PSHOME "powershell.exe"', restart_script
+        )
 
     def test_only_canonical_wrapper_starts_omnivoice_worker(self):
         startup_script = STARTUP_SCRIPT.read_text(encoding="utf-8")

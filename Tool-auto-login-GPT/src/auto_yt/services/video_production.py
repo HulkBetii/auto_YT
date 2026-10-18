@@ -1173,6 +1173,11 @@ async def _generate_scene_image_async(
                 "dramatic atmospheric lighting, clean visual without text."
             ).replace("  ", " ").strip()
 
+            image_settings = {
+                "model": str(settings.get("model") or "nano_banana_2_1"),
+                "aspect_ratio": str(settings.get("aspect_ratio") or "16:9"),
+                "output_count": int(settings.get("output_count") or 1),
+            }
             while True:
                 generation_prompt = (
                     clean_prompt
@@ -1203,6 +1208,7 @@ async def _generate_scene_image_async(
                         reference_paths,
                         scene_index=int(scene.get("index", 0)),
                         scene_count=scene_count,
+                        image_settings=image_settings,
                     )
                 except FlowGenerationError as first_error:
                     logger.warning(
@@ -1235,6 +1241,7 @@ async def _generate_scene_image_async(
                         reference_paths,
                         scene_index=int(scene.get("index", 0)),
                         scene_count=scene_count,
+                        image_settings=image_settings,
                     )
 
                 await worker.download_image(asset_url, str(target))
@@ -1757,7 +1764,7 @@ async def _generate_scene_video_async(
                 end_frame_path=end_frame_path,
                 reference_ids=ref_ids,
                 video_settings={
-                    "video_model": str(settings.get("video_model") or "veo_3_1_lite"),
+                    "video_model": str(settings.get("video_model") or "omni_1_1_flash"),
                     "video_aspect_ratio": str(settings.get("video_aspect_ratio") or "16:9"),
                     "video_output_count": int(settings.get("video_output_count") or 1),
                 },

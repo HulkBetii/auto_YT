@@ -14,7 +14,7 @@ function Invoke-AutoYTElevatedScript {
     )
 
     $resolvedScript = [System.IO.Path]::GetFullPath($ScriptPath)
-    $powershellPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    $powershellPath = Join-Path $PSHOME "powershell.exe"
     $processArguments = @(
         "-NoLogo",
         "-NoProfile",

@@ -583,7 +583,7 @@ class PromptSettingsTests(unittest.TestCase):
         snapshot = main._build_prompt_production_snapshot("default", version)
         img = snapshot.get("image_generation_settings") or {}
         self.assertEqual(img.get("provider"), "google_flow")
-        self.assertEqual(img.get("model"), "nano_banana_pro")
+        self.assertEqual(img.get("model"), "nano_banana_2_1")
         self.assertEqual(img.get("style_prompt"), "cinematic documentary")
         self.assertEqual(img.get("avoid_prompt"), "blurry text")
         self.assertEqual(img.get("density"), 30)
@@ -593,11 +593,11 @@ class PromptSettingsTests(unittest.TestCase):
 
     def test_save_and_normalize_google_flow_models(self):
         """Test that Google Flow image & video models can be saved, migrated and normalized correctly."""
-        # 1. Test saving Nano Banana 2 and Omni 1.1 Flash
+        # 1. Test saving Nano Banana 2.1 and Omni 1.1 Flash
         res = main.save_prompt_image_generation(
             "default",
             main.PromptImageGenerationData(
-                model="nano_banana_2",
+                model="nano_banana_2_1",
                 video_model="omni_1_1_flash",
                 aspect_ratio="16:9",
                 output_count=2,
@@ -606,40 +606,66 @@ class PromptSettingsTests(unittest.TestCase):
                 thumbnail_variant="without_text",
             ),
         )
-        self.assertEqual(res["version"]["image_generation_settings"]["model"], "nano_banana_2")
+        self.assertEqual(res["version"]["image_generation_settings"]["model"], "nano_banana_2_1")
         self.assertEqual(res["version"]["image_generation_settings"]["video_model"], "omni_1_1_flash")
         self.assertEqual(res["version"]["image_generation_settings"]["aspect_ratio"], "16:9")
         self.assertEqual(res["version"]["image_generation_settings"]["output_count"], 2)
 
-        # 2. Test saving Veo 3.1 Fast video model
+        # 2. Test saving Nano Banana 2 Lite and Veo 3.1 Fast video model
         res = main.save_prompt_image_generation(
             "default",
             main.PromptImageGenerationData(
-                model="nano_banana_2",
+                model="nano_banana_2_lite",
                 video_model="veo_3_1_fast",
                 style_prompt="cinematic intro hook",
                 density=30,
                 thumbnail_variant="without_text",
             ),
         )
+        self.assertEqual(res["version"]["image_generation_settings"]["model"], "nano_banana_2_lite")
         self.assertEqual(res["version"]["image_generation_settings"]["video_model"], "veo_3_1_fast")
 
-        # 3. Test legacy model migration (google_veo_intro -> omni_1_1_flash) and nano_banana_pro preservation
+        # 3. Test legacy model migration (nano_banana_2 -> nano_banana_2_1, imagen_3 -> nano_banana_2_1, google_veo_intro -> omni_1_1_flash)
         res = main.save_prompt_image_generation(
             "default",
             main.PromptImageGenerationData(
-                model="nano_banana_pro",
+                model="nano_banana_2",
                 video_model="google_veo_intro",
                 style_prompt="",
                 density=30,
                 thumbnail_variant="without_text",
             ),
         )
-        self.assertEqual(res["version"]["image_generation_settings"]["model"], "nano_banana_pro")
+        self.assertEqual(res["version"]["image_generation_settings"]["model"], "nano_banana_2_1")
         self.assertEqual(res["version"]["image_generation_settings"]["video_model"], "omni_1_1_flash")
 
-        # 4. Test unknown model fallback to nano_banana_pro and veo_3_1_lite
-        res = main.save_prompt_image_generation(
+        res_imagen = main.save_prompt_image_generation(
+            "default",
+            main.PromptImageGenerationData(
+                model="imagen_3_standard",
+                video_model="omni_1_1_flash",
+                style_prompt="",
+                density=30,
+                thumbnail_variant="without_text",
+            ),
+        )
+        self.assertEqual(res_imagen["version"]["image_generation_settings"]["model"], "nano_banana_2_1")
+
+        # 4. Test nano_banana_pro preservation
+        res_pro = main.save_prompt_image_generation(
+            "default",
+            main.PromptImageGenerationData(
+                model="nano_banana_pro",
+                video_model="veo_3_1_lite",
+                style_prompt="",
+                density=30,
+                thumbnail_variant="without_text",
+            ),
+        )
+        self.assertEqual(res_pro["version"]["image_generation_settings"]["model"], "nano_banana_pro")
+
+        # 5. Test unknown model fallback to DEFAULT_IMAGE_MODEL (nano_banana_2_1) and veo_3_1_lite
+        res_unknown = main.save_prompt_image_generation(
             "default",
             main.PromptImageGenerationData(
                 model="non_existent_model_xyz",
@@ -649,15 +675,15 @@ class PromptSettingsTests(unittest.TestCase):
                 thumbnail_variant="without_text",
             ),
         )
-        self.assertEqual(res["version"]["image_generation_settings"]["model"], "nano_banana_pro")
-        self.assertEqual(res["version"]["image_generation_settings"]["video_model"], "veo_3_1_lite")
+        self.assertEqual(res_unknown["version"]["image_generation_settings"]["model"], "nano_banana_2_1")
+        self.assertEqual(res_unknown["version"]["image_generation_settings"]["video_model"], "omni_1_1_flash")
 
-        # 5. Restore default models
+        # 6. Restore default models
         main.save_prompt_image_generation(
             "default",
             main.PromptImageGenerationData(
-                model="nano_banana_pro",
-                video_model="veo_3_1_lite",
+                model="nano_banana_2_1",
+                video_model="omni_1_1_flash",
                 style_prompt="",
                 density=30,
                 thumbnail_variant="without_text",

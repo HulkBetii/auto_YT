@@ -381,7 +381,7 @@ class PromptImageGenerationData(BaseModel):
     model: str = "nano_banana_pro"
     aspect_ratio: str = "16:9"
     output_count: int = 1
-    video_model: str = "veo_3_1_lite"
+    video_model: str = "omni_1_1_flash"
     video_aspect_ratio: str = "16:9"
     video_output_count: int = 1
     workflow_profile_id: str = Field(default="", max_length=120)
