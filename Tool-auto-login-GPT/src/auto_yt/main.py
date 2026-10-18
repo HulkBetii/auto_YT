@@ -7754,7 +7754,20 @@ def get_competitor_history(rule_id: Optional[int] = None, limit: int = Query(100
 def get_competitor_casting_report(video_id: int):
     if not db.get_video(video_id):
         raise HTTPException(status_code=404, detail="Không tìm thấy video.")
-    return {"video_id": video_id, "assignments": db.list_video_cast_assignments(video_id)}
+    voice_names = {
+        str(voice.get("id") or ""): str(voice.get("name") or "").strip()
+        for voice in voice_config.load_voice_config().get("voices", [])
+        if voice.get("id")
+    }
+    assignments = []
+    for stored in db.list_video_cast_assignments(video_id):
+        assignment = dict(stored)
+        assignment["voice_name"] = (
+            voice_names.get(str(assignment.get("voice_id") or ""))
+            or "Giọng không còn trong danh mục"
+        )
+        assignments.append(assignment)
+    return {"video_id": video_id, "assignments": assignments}
 
 
 @app.get("/api/competitors/videos/{video_id}/qc")

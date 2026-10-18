@@ -670,6 +670,35 @@ class TestCompetitorRadarScheduling(unittest.TestCase):
 
 
 class TestCompetitorRadarStartupContract(unittest.TestCase):
+    def test_casting_report_resolves_voice_names_from_full_catalog(self):
+        assignments = [
+            {"id": 1, "speaker_key": "MC", "voice_id": "voice-active"},
+            {"id": 2, "speaker_key": "GUEST_1", "voice_id": "voice-archived"},
+            {"id": 3, "speaker_key": "GUEST_2", "voice_id": "voice-removed"},
+        ]
+        with patch.object(main.db, "get_video", return_value={"id": 42}), patch.object(
+            main.db, "list_video_cast_assignments", return_value=assignments
+        ), patch.object(
+            main.voice_config,
+            "load_voice_config",
+            return_value={
+                "voices": [
+                    {"id": "voice-active", "name": "MC Minh", "status": "active"},
+                    {
+                        "id": "voice-archived",
+                        "name": "Khách Lan",
+                        "status": "archived",
+                    },
+                ]
+            },
+        ):
+            report = main.get_competitor_casting_report(42)
+
+        self.assertEqual(
+            [item["voice_name"] for item in report["assignments"]],
+            ["MC Minh", "Khách Lan", "Giọng không còn trong danh mục"],
+        )
+
     def test_health_reports_radar_source_quality_without_gating_global_readiness(self):
         main_path = Path(__file__).parents[1] / "src" / "auto_yt" / "main.py"
         source = main_path.read_text(encoding="utf-8")

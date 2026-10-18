@@ -300,8 +300,8 @@ export default function CompetitorRadar({ onOpenJobCenter }) {
       {report && <div className="radar-modal-backdrop" onClick={() => setReport(null)}><section className="radar-modal" onClick={event => event.stopPropagation()}>
         <div className="radar-card-title"><div><h2>Báo cáo video #{report.item.video_id}</h2><small>{report.item.source_title}</small></div><button onClick={() => setReport(null)}>Đóng</button></div>
         <h3>Casting</h3>
-        {!report.casting.length ? <p className="radar-empty">Chưa có casting report.</p> : <table className="radar-table"><thead><tr><th>Nhân vật</th><th>Voice</th><th>Confidence</th><th>Điểm</th><th>Nguồn</th></tr></thead><tbody>
-          {report.casting.map(item => <tr key={item.id}><td>{item.speaker_name || item.speaker_key}</td><td>{item.voice_id}</td><td>{Math.round((item.confidence || 0) * 100)}%</td><td>{item.match_score}</td><td>{item.source}</td></tr>)}
+        {!report.casting.length ? <p className="radar-empty">Chưa có casting report.</p> : <table className="radar-table"><thead><tr><th>Nhân vật</th><th>Giọng</th><th>Confidence</th><th>Điểm</th><th>Nguồn</th></tr></thead><tbody>
+          {report.casting.map(item => <tr key={item.id}><td>{item.speaker_name || item.speaker_key}</td><td>{item.voice_name || voices.find(voice => voice.id === item.voice_id)?.name || 'Giọng không còn trong danh mục'}</td><td>{Math.round((item.confidence || 0) * 100)}%</td><td>{item.match_score}</td><td>{item.source}</td></tr>)}
         </tbody></table>}
         <h3>Auto QC</h3>
         {!report.qc.length ? <p className="radar-empty">Chưa chạy Auto QC.</p> : report.qc.map(review => <article className="radar-review" key={review.id}>
