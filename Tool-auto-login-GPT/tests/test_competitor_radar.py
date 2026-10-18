@@ -1,9 +1,12 @@
 import datetime as dt
+import io
+import json
 import sqlite3
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
 
@@ -61,6 +64,10 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
                 row[1]
                 for row in conn.execute("PRAGMA table_info(competitor_watch_rules)").fetchall()
             }
+            source_columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(competitor_source_videos)").fetchall()
+            }
         self.assertTrue(
             {
                 "competitor_channels",
@@ -73,6 +80,27 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
             }.issubset(tables)
         )
         self.assertIn("guest_voice_pool", rule_columns)
+        self.assertTrue(
+            {
+                "scan_strategy",
+                "last_scan_source",
+                "rss_failure_count",
+                "rss_retry_after",
+                "fallback_failure_count",
+                "last_fallback_at",
+            }.issubset(rule_columns)
+        )
+        self.assertTrue(
+            {
+                "content_type",
+                "duration_seconds",
+                "eligibility_status",
+                "exclusion_reason",
+                "discovery_source",
+                "published_at_confidence",
+                "metadata_checked_at",
+            }.issubset(source_columns)
+        )
 
     def test_rule_persists_guest_voice_pool(self):
         rule = self._rule("prompt-with-pool")
@@ -85,38 +113,79 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
     def test_shared_competitor_dispatches_once_for_each_prompt(self):
         first_rule = self._rule("prompt-alpha")
         second_rule = self._rule("prompt-beta")
-        source, created = db.upsert_competitor_source_video(
-            competitor_channel_id=self.competitor["id"],
-            youtube_video_id="new-video-1",
-            url="https://www.youtube.com/watch?v=new-video-1",
-            title="New upload",
-            published_at="2026-10-17T08:00:00+00:00",
-            is_baseline=False,
-        )
-        self.assertTrue(created)
+        for rule in (first_rule, second_rule):
+            db.update_competitor_watch_rule(rule["id"], baseline_complete=True)
+        discovery = {
+            "scan_source": "proxy_html",
+            "rss_error": "",
+            "items": [
+                {
+                    "youtube_video_id": "sharedvid01",
+                    "url": "https://www.youtube.com/watch?v=sharedvid01",
+                    "title": "Shared long-form upload",
+                    "published_at": "2026-10-17T08:00:00+00:00",
+                    "updated_at": "2026-10-17T08:00:00+00:00",
+                    "published_at_confidence": "exact",
+                    "content_type": "long_form",
+                    "duration_seconds": 600,
+                    "eligibility_status": "eligible",
+                    "exclusion_reason": "",
+                    "discovery_source": "proxy_html",
+                    "metadata_checked_at": "2026-10-17T09:00:00+00:00",
+                }
+            ],
+        }
 
-        dispatch_a, created_a = db.reserve_competitor_dispatch(
-            source_video_id=source["id"],
-            watch_rule_id=first_rule["id"],
-            prompt_version="prompt-alpha",
-        )
-        dispatch_b, created_b = db.reserve_competitor_dispatch(
-            source_video_id=source["id"],
-            watch_rule_id=second_rule["id"],
-            prompt_version="prompt-beta",
-        )
-        duplicate_a, duplicate_created = db.reserve_competitor_dispatch(
-            source_video_id=source["id"],
-            watch_rule_id=first_rule["id"],
-            prompt_version="prompt-alpha",
-        )
+        def execute(rule: dict, suffix: str) -> None:
+            job = db.create_system_job(
+                job_id=f"scan-{rule['id']}-{suffix}",
+                job_type="competitor_scan",
+                title="Shared competitor scan",
+                payload={"rule_id": rule["id"], "automatic": True},
+                prompt_version=str(rule["prompt_version"]),
+            )
+            main._execute_competitor_scan_job(job)
 
-        self.assertTrue(created_a)
-        self.assertTrue(created_b)
-        self.assertNotEqual(dispatch_a["id"], dispatch_b["id"])
-        self.assertFalse(duplicate_created)
-        self.assertEqual(duplicate_a["id"], dispatch_a["id"])
-        self.assertEqual(len(db.list_competitor_dispatches()), 2)
+        with patch.object(
+            main.db,
+            "get_youtube_channel",
+            return_value={
+                "id": self.target_channel_id,
+                "gpm_profile_id": "profile-1",
+                "gpm_proxy_info": "http://127.0.0.1:8080",
+            },
+        ), patch.object(main, "_competitor_rule_preflight"), patch.object(
+            main.competitor_radar,
+            "discover_long_form_videos",
+            return_value=discovery,
+        ), patch.object(
+            main.competitor_radar,
+            "next_scan_at",
+            return_value="2026-10-17T09:20:00+00:00",
+        ), patch.object(
+            main,
+            "_enqueue_video_request",
+            side_effect=lambda request, **_kwargs: {
+                "status": "queued",
+                "job_id": f"video-{request.prompt_version}",
+            },
+        ) as enqueue:
+            execute(first_rule, "initial")
+            execute(second_rule, "initial")
+            execute(first_rule, "repeat")
+            execute(second_rule, "repeat")
+
+        self.assertEqual(enqueue.call_count, 2)
+        dispatches = db.list_competitor_dispatches()
+        self.assertEqual(len(dispatches), 2)
+        self.assertEqual(
+            {item["prompt_version"] for item in dispatches},
+            {"prompt-alpha", "prompt-beta"},
+        )
+        self.assertEqual(
+            {item["system_job_id"] for item in dispatches},
+            {"video-prompt-alpha", "video-prompt-beta"},
+        )
 
     def test_source_video_upsert_is_idempotent(self):
         payload = {
@@ -161,15 +230,26 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
             payload={"rule_id": rule["id"], "automatic": True},
             prompt_version="prompt-retry",
         )
-        feed = [
-            {
-                "youtube_video_id": "retry-video",
-                "url": "https://www.youtube.com/watch?v=retry-video",
-                "title": "Retry upload",
-                "published_at": "2026-10-17T08:00:00+00:00",
-                "updated_at": "2026-10-17T08:00:00+00:00",
-            }
-        ]
+        discovery = {
+            "scan_source": "rss",
+            "rss_error": "",
+            "items": [
+                {
+                    "youtube_video_id": "retry-video",
+                    "url": "https://www.youtube.com/watch?v=retry-video",
+                    "title": "Retry upload",
+                    "published_at": "2026-10-17T08:00:00+00:00",
+                    "updated_at": "2026-10-17T08:00:00+00:00",
+                    "published_at_confidence": "exact",
+                    "content_type": "long_form",
+                    "duration_seconds": 600,
+                    "eligibility_status": "eligible",
+                    "exclusion_reason": "",
+                    "discovery_source": "rss",
+                    "metadata_checked_at": "2026-10-17T09:00:00+00:00",
+                }
+            ],
+        }
         with patch.object(
             main.db,
             "get_youtube_channel",
@@ -181,7 +261,7 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
         ), patch.object(
             main, "_competitor_rule_preflight"
         ), patch.object(
-            main.competitor_radar, "fetch_channel_feed", return_value=feed
+            main.competitor_radar, "discover_long_form_videos", return_value=discovery
         ), patch.object(
             main.competitor_radar,
             "next_scan_at",
@@ -197,6 +277,89 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
         retried = db.get_competitor_dispatch(source["id"], "prompt-retry")
         self.assertEqual(retried["status"], "queued")
         self.assertEqual(retried["system_job_id"], "video-retry")
+
+    def test_baseline_counts_only_eligible_long_form_and_never_dispatches(self):
+        rule = self._rule("prompt-baseline-long-form")
+        job = db.create_system_job(
+            job_id="scan-baseline-long-form",
+            job_type="competitor_scan",
+            title="Baseline scan",
+            payload={"rule_id": rule["id"], "automatic": True},
+            prompt_version="prompt-baseline-long-form",
+        )
+        common = {
+            "published_at": "2026-10-17T08:00:00+00:00",
+            "updated_at": "",
+            "published_at_confidence": "exact",
+            "discovery_source": "proxy_html",
+            "metadata_checked_at": "2026-10-17T09:00:00+00:00",
+        }
+        discovery = {
+            "scan_source": "proxy_html",
+            "rss_error": "RSS unavailable",
+            "items": [
+                {
+                    **common,
+                    "youtube_video_id": "longvideo01",
+                    "url": "https://www.youtube.com/watch?v=longvideo01",
+                    "title": "Long video",
+                    "content_type": "long_form",
+                    "duration_seconds": 600,
+                    "eligibility_status": "eligible",
+                    "exclusion_reason": "",
+                },
+                {
+                    **common,
+                    "youtube_video_id": "shortvideo1",
+                    "url": "https://www.youtube.com/watch?v=shortvideo1",
+                    "title": "Short video",
+                    "content_type": "short",
+                    "duration_seconds": 120,
+                    "eligibility_status": "excluded",
+                    "exclusion_reason": "duration_below_180_seconds",
+                },
+                {
+                    **common,
+                    "youtube_video_id": "pendingvid1",
+                    "url": "https://www.youtube.com/watch?v=pendingvid1",
+                    "title": "Pending video",
+                    "content_type": "unknown",
+                    "duration_seconds": 0,
+                    "eligibility_status": "metadata_pending",
+                    "exclusion_reason": "metadata_unavailable",
+                },
+            ],
+        }
+        with patch.object(
+            main.db,
+            "get_youtube_channel",
+            return_value={
+                "id": self.target_channel_id,
+                "gpm_profile_id": "profile-1",
+                "gpm_proxy_info": "http://127.0.0.1:8080",
+            },
+        ), patch.object(main, "_competitor_rule_preflight"), patch.object(
+            main.competitor_radar,
+            "discover_long_form_videos",
+            return_value=discovery,
+        ), patch.object(
+            main.competitor_radar,
+            "next_scan_at",
+            return_value="2026-10-17T09:20:00+00:00",
+        ), patch.object(main, "_enqueue_video_request") as enqueue:
+            main._execute_competitor_scan_job(job)
+
+        enqueue.assert_not_called()
+        updated_rule = db.get_competitor_watch_rule(rule["id"])
+        self.assertTrue(updated_rule["baseline_complete"])
+        self.assertEqual(updated_rule["baseline_video_count"], 1)
+        self.assertEqual(updated_rule["last_scan_source"], "proxy_html")
+        sources = db.list_competitor_source_videos(self.competitor["id"])
+        self.assertEqual(len(sources), 3)
+        self.assertEqual(
+            {item["eligibility_status"] for item in sources},
+            {"eligible", "excluded", "metadata_pending"},
+        )
 
     def test_deleting_rule_cascades_its_dispatches(self):
         rule = self._rule("prompt-delete")
@@ -219,6 +382,169 @@ class TestCompetitorRadarPersistence(unittest.TestCase):
 
 
 class TestCompetitorRadarScheduling(unittest.TestCase):
+    @staticmethod
+    def _watch_html(
+        *,
+        duration: int = 600,
+        live: bool = False,
+        live_replay: bool = False,
+        short: bool = False,
+    ) -> bytes:
+        player = {
+            "playabilityStatus": {"status": "OK"},
+            "videoDetails": {
+                "videoId": "abcdefghijk",
+                "channelId": "UC_COMPETITOR_000000001",
+                "title": "Long form candidate",
+                "lengthSeconds": str(duration),
+                "isLiveContent": live,
+                "isShort": short,
+            },
+            "microformat": {
+                "playerMicroformatRenderer": {
+                    "publishDate": "2026-10-17T08:00:00+00:00",
+                    **({"liveBroadcastDetails": {"startTimestamp": "2026-10-17T08:00:00Z"}} if live_replay else {}),
+                }
+            },
+        }
+        return f"<script>var ytInitialPlayerResponse = {json.dumps(player)};</script>".encode()
+
+    def test_long_form_classifier_requires_standard_video_at_least_180_seconds(self):
+        eligible = competitor_radar.parse_watch_video_metadata(
+            self._watch_html(duration=180),
+            video_id="abcdefghijk",
+            expected_channel_id="UC_COMPETITOR_000000001",
+            discovery_source="proxy_html",
+        )
+        too_short = competitor_radar.parse_watch_video_metadata(
+            self._watch_html(duration=179),
+            video_id="abcdefghijk",
+            expected_channel_id="UC_COMPETITOR_000000001",
+            discovery_source="proxy_html",
+        )
+        flagged_short = competitor_radar.parse_watch_video_metadata(
+            self._watch_html(duration=600, short=True),
+            video_id="abcdefghijk",
+            expected_channel_id="UC_COMPETITOR_000000001",
+            discovery_source="proxy_html",
+        )
+
+        self.assertEqual(eligible["eligibility_status"], "eligible")
+        self.assertEqual(eligible["content_type"], "long_form")
+        self.assertEqual(too_short["eligibility_status"], "excluded")
+        self.assertEqual(flagged_short["eligibility_status"], "excluded")
+
+    def test_live_and_live_replay_are_excluded(self):
+        live = competitor_radar.parse_watch_video_metadata(
+            self._watch_html(live=True),
+            video_id="abcdefghijk",
+            expected_channel_id="UC_COMPETITOR_000000001",
+            discovery_source="proxy_html",
+        )
+        replay = competitor_radar.parse_watch_video_metadata(
+            self._watch_html(live_replay=True),
+            video_id="abcdefghijk",
+            expected_channel_id="UC_COMPETITOR_000000001",
+            discovery_source="proxy_html",
+        )
+        self.assertEqual(live["content_type"], "live")
+        self.assertEqual(replay["content_type"], "live_replay")
+        self.assertEqual(live["eligibility_status"], "excluded")
+        self.assertEqual(replay["eligibility_status"], "excluded")
+
+    def test_rss_failure_falls_back_to_proxied_videos_page(self):
+        channel_html = (
+            '<html>UC_COMPETITOR_000000001 '
+            '"videoId":"abcdefghijk"</html>'
+        ).encode()
+
+        def page_response(_opener, url, **_kwargs):
+            return self._watch_html() if "watch?v=" in url else channel_html
+
+        with patch.object(
+            competitor_radar,
+            "fetch_channel_feed",
+            side_effect=competitor_radar.CompetitorSourceUnavailable(
+                "rss", "RSS unavailable", status_code=404
+            ),
+        ), patch.object(
+            competitor_radar, "_read_proxied_page", side_effect=page_response
+        ):
+            result = competitor_radar.discover_long_form_videos(
+                "UC_COMPETITOR_000000001",
+                "http://127.0.0.1:8080",
+                "profile-1",
+            )
+
+        self.assertEqual(result["scan_source"], "proxy_html")
+        self.assertEqual(result["items"][0]["eligibility_status"], "eligible")
+        self.assertIn("RSS unavailable", result["rss_error"])
+
+    def test_empty_proxied_videos_page_falls_back_to_gpm(self):
+        gpm_items = [
+            {
+                "youtube_video_id": "abcdefghijk",
+                "url": "https://www.youtube.com/watch?v=abcdefghijk",
+                "title": "Long video",
+                "published_at": "2026-10-17T08:00:00+00:00",
+                "updated_at": "",
+                "published_at_confidence": "exact",
+                "content_type": "long_form",
+                "duration_seconds": 600,
+                "eligibility_status": "eligible",
+                "exclusion_reason": "",
+                "discovery_source": "gpm_browser",
+                "metadata_checked_at": "2026-10-17T09:00:00+00:00",
+            }
+        ]
+        with patch.object(
+            competitor_radar, "fetch_channel_feed", return_value=[]
+        ), patch.object(
+            competitor_radar,
+            "_read_proxied_page",
+            return_value=b"<html>UC_COMPETITOR_000000001</html>",
+        ), patch.object(
+            competitor_radar, "_discover_with_gpm", return_value=gpm_items
+        ) as gpm_discovery:
+            result = competitor_radar.discover_long_form_videos(
+                "UC_COMPETITOR_000000001",
+                "http://127.0.0.1:8080",
+                "profile-1",
+            )
+
+        gpm_discovery.assert_awaited_once()
+        self.assertEqual(result["scan_source"], "gpm_browser")
+        self.assertEqual(result["items"], gpm_items)
+        self.assertIn("không tìm thấy video", result["fallback_error"])
+
+    def test_unverified_gpm_metadata_fails_closed_for_retry(self):
+        pending_items = [
+            {
+                "youtube_video_id": "abcdefghijk",
+                "eligibility_status": "metadata_pending",
+            }
+        ]
+        with patch.object(
+            competitor_radar, "fetch_channel_feed", return_value=[]
+        ), patch.object(
+            competitor_radar,
+            "_read_proxied_page",
+            return_value=b"<html>UC_COMPETITOR_000000001</html>",
+        ), patch.object(
+            competitor_radar, "_discover_with_gpm", return_value=pending_items
+        ):
+            with self.assertRaises(
+                competitor_radar.CompetitorSourceUnavailable
+            ) as caught:
+                competitor_radar.discover_long_form_videos(
+                    "UC_COMPETITOR_000000001",
+                    "http://127.0.0.1:8080",
+                    "profile-1",
+                )
+
+        self.assertEqual(caught.exception.source, "gpm_browser")
+        self.assertIn("tự thử lại", str(caught.exception))
+
     def test_scan_cadence_for_cold_predicted_and_off_window(self):
         now = dt.datetime(2026, 10, 17, 12, 0, tzinfo=dt.timezone.utc)
         self.assertEqual(
@@ -279,6 +605,48 @@ class TestCompetitorRadarScheduling(unittest.TestCase):
             competitor_radar.fetch_channel_feed("UC_COMPETITOR_000000001", "")
         opener.assert_not_called()
 
+    @patch.object(competitor_radar.time, "sleep")
+    @patch.object(competitor_radar, "create_proxy_opener")
+    def test_feed_fetch_retries_transient_404(self, create_opener, sleep):
+        class Response:
+            headers = {"Content-Type": "text/xml; charset=UTF-8"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _limit):
+                return (
+                    '<feed xmlns="http://www.w3.org/2005/Atom" '
+                    'xmlns:yt="http://www.youtube.com/xml/schemas/2015">'
+                    '<entry><yt:videoId>abcdefghijk</yt:videoId>'
+                    '<title>Video</title><published>2026-10-17T08:00:00Z</published>'
+                    '</entry></feed>'
+                ).encode()
+
+        http_error = urllib.error.HTTPError(
+            "https://www.youtube.com/feeds/videos.xml",
+            404,
+            "Not Found",
+            {},
+            io.BytesIO(b"not found"),
+        )
+        opener = MagicMock()
+        opener.open.side_effect = [http_error, Response()]
+        create_opener.return_value = opener
+
+        videos = competitor_radar.fetch_channel_feed(
+            "UC_COMPETITOR_000000001",
+            "http://127.0.0.1:8080",
+            retry_delays=(0,),
+        )
+
+        self.assertEqual(videos[0]["youtube_video_id"], "abcdefghijk")
+        self.assertEqual(opener.open.call_count, 2)
+        sleep.assert_called_once_with(0.0)
+
     def test_feed_parser_keeps_only_baseline_count(self):
         entries = "".join(
             f"""
@@ -302,10 +670,23 @@ class TestCompetitorRadarScheduling(unittest.TestCase):
 
 
 class TestCompetitorRadarStartupContract(unittest.TestCase):
+    def test_health_reports_radar_source_quality_without_gating_global_readiness(self):
+        main_path = Path(__file__).parents[1] / "src" / "auto_yt" / "main.py"
+        source = main_path.read_text(encoding="utf-8")
+        health = source[source.index('@app.get("/health")') : source.index('@app.get("/api/system/maintenance-status")')]
+        self.assertIn('"competitor_radar_health": radar_health', health)
+        self.assertIn('"long_form_min_seconds": competitor_radar.LONG_FORM_MIN_SECONDS', health)
+        self.assertIn('"degraded" if radar_degraded else "ready"', health)
+        self.assertNotIn('and bool(radar_health', health)
+
     def test_channel_isolation_preflight_fails_closed(self):
         invalid_channels = (
             {"gpm_profile_id": "", "gpm_proxy_info": "http://127.0.0.1:8080"},
             {"gpm_profile_id": "profile-1", "gpm_proxy_info": ""},
+            {
+                "gpm_profile_id": "local_chrome_Default",
+                "gpm_proxy_info": "http://127.0.0.1:8080",
+            },
         )
         for channel in invalid_channels:
             with self.subTest(channel=channel), self.assertRaises(HTTPException) as error:
