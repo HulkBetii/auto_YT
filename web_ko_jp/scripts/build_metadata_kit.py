@@ -19,10 +19,14 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = REPO_ROOT / "src"
+SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 from channel_registry import DEFAULT_REGISTRY_PATH, ChannelRegistry
+from channel_profile import RENDER_SUBDIR
 from metadata_gate import GateReport, render_gate_banner, run_gate
 from timestamp_sync import extract_raw_chapter_lines
 
@@ -154,7 +158,13 @@ def build_gate(
     )
 
 
-def build_kit_content(video_id: int, record: dict, inputs: dict, gate: GateReport) -> str:
+def build_kit_content(
+    video_id: int,
+    record: dict,
+    inputs: dict,
+    gate: GateReport,
+    folder: Optional[Path] = None,
+) -> str:
     """Assemble the youtube_upload_kit.txt content (gate verdict first)."""
     sep = "=" * 80
     duration = inputs["duration"]
@@ -224,7 +234,45 @@ def build_kit_content(video_id: int, record: dict, inputs: dict, gate: GateRepor
     for check in gate.checks:
         icon = "✅" if check.passed else ("❌" if check.severity == "fail" else "⚠")
         lines.append(f"  {icon} {check.id}" + (f": {check.detail}" if check.detail else ""))
-    lines += ["", f"  OVERALL: {gate.status}", sep]
+    lines += ["", f"  OVERALL: {gate.status}"]
+
+    # Section 9: Upload & Pre-approval Checklist
+    lines += ["", sep, "[9. UPLOAD & PRE-APPROVAL CHECKLIST]", sep]
+    render_mp4 = (folder / RENDER_SUBDIR / f"final_v{video_id}.mp4") if folder else None
+    mp4_status = "✅ Present" if render_mp4 and render_mp4.exists() else "❌ Not rendered yet"
+    mp4_path_str = str(render_mp4) if render_mp4 else f"output/v{video_id}_*/{RENDER_SUBDIR}/final_v{video_id}.mp4"
+    lines.append(f"  Target MP4 Video: {mp4_path_str} ({mp4_status})")
+
+    upload_stage = "not_started"
+    youtube_vid = None
+    try:
+        import upload_store
+        active = upload_store.get_active_upload(video_id) or upload_store.get_latest_upload_for_video(video_id)
+        if active:
+            upload_stage = active.get("stage", "unknown")
+            youtube_vid = active.get("youtube_video_id")
+    except Exception:
+        pass
+
+    lines.append(f"  Upload Stage    : {upload_stage}")
+    if youtube_vid:
+        lines.append(f"  YouTube Video ID: {youtube_vid}")
+        lines.append(f"  Studio Edit URL : https://studio.youtube.com/video/{youtube_vid}/edit")
+
+    lines.append("")
+    lines.append("  Pre-Approval Review Checklist (verify on Studio before running approve):")
+    lines.append("  [ ] 1. Check title, description chapters, tags, and Japanese subtitles (.srt).")
+    lines.append("  [ ] 2. Re-listen to flagged audio timestamps in [7. VOICE QA].")
+    lines.append("  [ ] 3. Fix chapters if gate reported 'chapters_interpolated'.")
+    lines.append("  [ ] 4. Enable YouTube Test & Compare with Titles A, B, and C (from [1. TITLES]).")
+    lines.append("  [ ] 5. After publication: pin comment (from [4. PINNED COMMENT]) and configure end screen.")
+    lines.append("")
+    lines.append("  Commands:")
+    lines.append(f"    Upload draft (PRIVATE):   uv run python web_ko_jp/scripts/youtube_upload.py upload --video_id {video_id} --ack-warn")
+    lines.append(f"    Approve & schedule:       uv run python web_ko_jp/scripts/youtube_upload.py approve --video_id {video_id} --next-slot")
+    lines.append(f"    Check status:             uv run python web_ko_jp/scripts/youtube_upload.py status --video_id {video_id}")
+    lines += [sep]
+
     return "\n".join(lines)
 
 
@@ -255,7 +303,7 @@ def main():
     registry = ChannelRegistry.load(args.registry)
     inputs = collect_kit_inputs(record, data, output_folder)
     gate = build_gate(inputs, registry, args.video_id, stored_title=record.get("title_jp") or "")
-    kit_content = build_kit_content(args.video_id, record, inputs, gate)
+    kit_content = build_kit_content(args.video_id, record, inputs, gate, output_folder)
 
     if args.dry_run:
         print("\n" + "=" * 80)

@@ -59,7 +59,7 @@ class GeminiStoryPipeline:
         self,
         engine: Optional[GeminiApiEngine] = None,
         model: Optional[str] = None,
-        timeout: int = 180,
+        timeout: int = 360,
     ):
         self.engine = engine or get_gemini_api_engine()
         self.model = model or self.engine.default_model

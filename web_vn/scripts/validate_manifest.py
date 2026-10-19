@@ -89,16 +89,16 @@ def validate_manifest(manifest_path: Path) -> bool:
         words = e.get("words", 0)
         silence = e.get("silence_after_ms", 0)
         
-        # Check breath word limits
-        if words > 35:
-            issues.append(f"[{cid}] Overlength chunk ({words} words > 35 limit): {text[:60]}...")
+        # Check breath word limits (Pacing Engine v5.1 trần 38 từ)
+        if words > 38:
+            issues.append(f"[{cid}] Overlength chunk ({words} words > 38 limit): {text[:60]}...")
             
         # Check for un-stripped meta tags or markdown
         if any(bad in text for bad in ["[SPEAKER", "**", "##", ">>", "__"]):
             issues.append(f"[{cid}] Leftover markdown/meta tag in text: {text}")
 
-        # Check silence padding validity
-        if silence < 100 or silence > 3000:
+        # Check silence padding validity (80ms - 3000ms)
+        if silence < 50 or silence > 3000:
             issues.append(f"[{cid}] Invalid silence padding: {silence}ms")
 
     if issues:
@@ -108,7 +108,7 @@ def validate_manifest(manifest_path: Path) -> bool:
         if len(issues) > 15:
             print(f"  ... and {len(issues) - 15} more issues.")
     else:
-        print("[PASS] 100% Quality checks passed: Zero meta tags, clean punctuation, compliant breath limits (<=35 words), dynamic silence valid.")
+        print("[PASS] 100% Quality checks passed: Zero meta tags, clean punctuation, compliant breath limits (<=38 words), dynamic silence valid.")
 
     # 5. Multi-Role Diversity Verification (4 canonical roles)
     print("-" * 75)

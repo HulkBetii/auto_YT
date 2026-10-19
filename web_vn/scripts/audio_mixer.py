@@ -45,7 +45,7 @@ def create_silence_wav(duration_sec: float, output_path: Path, sample_rate: int 
     ]
     subprocess.run(cmd, check=True, capture_output=True)
 
-def trim_dead_silence(input_wav: Path, output_wav: Path, top_db: float = 25, buffer_sec: float = 0.05):
+def trim_dead_silence(input_wav: Path, output_wav: Path, top_db: float = 28, buffer_sec: float = 0.03):
     """Trims trailing/leading dead air silence with a natural acoustic buffer."""
     y, sr = sf.read(input_wav)
     trimmed_y, index = librosa.effects.trim(y, top_db=top_db)

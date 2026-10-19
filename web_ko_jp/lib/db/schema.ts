@@ -167,7 +167,49 @@ export const koJpChannelConfig = pgTable("ko_jp_channel_config", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const KO_JP_YOUTUBE_UPLOAD_STAGES = [
+  "preflight_ok",
+  "uploading",
+  "draft_created",
+  "draft_private",
+  "approved",
+  "scheduled",
+  "published",
+  "needs_review",
+  "failed",
+] as const;
+
+export type KoJpYoutubeUploadStage = (typeof KO_JP_YOUTUBE_UPLOAD_STAGES)[number];
+
+export const koJpYoutubeUploads = pgTable(
+  "ko_jp_youtube_uploads",
+  {
+    id: serial("id").primaryKey(),
+    videoId: integer("video_id")
+      .notNull()
+      .references(() => koJpVideos.id, { onDelete: "cascade" }),
+    stage: text("stage").notNull().default("preflight_ok"),
+    youtubeVideoId: text("youtube_video_id"),
+    artifactSha256: text("artifact_sha256"),
+    snapshot: jsonb("snapshot"),
+    gateStatus: text("gate_status"),
+    warnAcknowledgedAt: timestamp("warn_acknowledged_at", { withTimezone: true }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ko_jp_youtube_uploads_active_unique")
+      .on(table.videoId)
+      .where(sql`${table.stage} != 'failed'`),
+    index("ko_jp_youtube_uploads_video_stage_idx").on(table.videoId, table.stage),
+  ],
+);
+
 export type KoJpVideo = typeof koJpVideos.$inferSelect;
 export type KoJpSection = typeof koJpSections.$inferSelect;
 export type KoJpJob = typeof koJpJobs.$inferSelect;
 export type KoJpPromptVersion = typeof koJpPromptVersions.$inferSelect;
+export type KoJpYoutubeUpload = typeof koJpYoutubeUploads.$inferSelect;
+

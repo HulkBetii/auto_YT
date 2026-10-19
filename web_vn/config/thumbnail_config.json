@@ -1,0 +1,43 @@
+{
+  "pipeline_mode": "deterministic_layered",
+  "default_provider": "playwright_chatgpt",
+  "text_model": "ag/gemini-3.8-flash-high",
+  "vision_model": "ag/gemini-3.8-flash-high",
+  "ninerouter_url": "http://localhost:20128/v1",
+  "generateHeadlineInsideImage": false,
+  "verifyGeneratedHeadline": true,
+  "maxFullImageTextRetries": 1,
+  "enableTypographyFallback": true,
+  "requireExactVietnameseText": true,
+  "finalThumbnailMustContainText": true,
+  "host_assets_dir": "data/thumbnail_assets/host",
+  "default_badge": "🎙️ SÂM KỂ CHUYỆN",
+  "default_footer": "CHUẨN 48KHZ AUDIO DRAMA • SÂM KỂ CHUYỆN",
+  "fonts": {
+    "bold": "data/fonts/BeVietnamPro-Bold.ttf",
+    "regular": "data/fonts/BeVietnamPro-Regular.ttf",
+    "fallback_bold": "C:/Windows/Fonts/arialbd.ttf",
+    "fallback_regular": "C:/Windows/Fonts/arial.ttf"
+  },
+  "dimensions": {
+    "width": 1280,
+    "height": 720
+  },
+  "host_composition": {
+    "target_height_ratio": 0.72,
+    "max_width_ratio": 0.42,
+    "feather_radius": 2,
+    "shadow_blur": 22,
+    "shadow_opacity": 0.65,
+    "shadow_offset": [10, 10]
+  },
+  "qc_threshold": 60,
+  "supported_expressions": [
+    "shock",
+    "grief",
+    "anger",
+    "disbelief",
+    "suspicious",
+    "serious"
+  ]
+}

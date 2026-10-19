@@ -1,2 +1,3 @@
 data/channel_registry.json
 data/*.tmp
+data/upload_config.json

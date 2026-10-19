@@ -72,6 +72,88 @@ export function YouTubeDramaCard() {
   // Prompt preview toggle
   const [showPromptPreview, setShowPromptPreview] = useState(false);
 
+  // YouTube Upload State
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<string | null>(null);
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+  const [uploadStudioUrl, setUploadStudioUrl] = useState<string | null>(null);
+  const [uploadScheduledAt, setUploadScheduledAt] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [ackWarn, setAckWarn] = useState(false);
+
+  async function fetchUploadStatus(vidId: number) {
+    try {
+      const res = await fetch(`/api/youtube-upload?videoId=${vidId}`);
+      const data = await res.json();
+      if (data.ok && data.upload) {
+        setUploadStage(data.upload.stage);
+        setYoutubeVideoId(data.upload.youtubeVideoId || null);
+        setUploadStudioUrl(data.studioUrl || null);
+        setUploadScheduledAt(data.upload.scheduledAt || null);
+        setUploadError(data.upload.error || null);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleUploadDraft() {
+    if (!result?.videoId) return;
+    setUploadLoading(true);
+    setUploadError(null);
+    try {
+      const res = await fetch("/api/youtube-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upload",
+          videoId: result.videoId,
+          ackWarn,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setUploadError(data.error || "Upload thất bại.");
+      } else {
+        setUploadStage(data.upload?.stage || "draft_private");
+        setYoutubeVideoId(data.upload?.youtubeVideoId || null);
+        setUploadStudioUrl(data.studioUrl || null);
+      }
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploadLoading(false);
+    }
+  }
+
+  async function handleApproveSchedule() {
+    if (!result?.videoId) return;
+    setUploadLoading(true);
+    setUploadError(null);
+    try {
+      const res = await fetch("/api/youtube-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          videoId: result.videoId,
+          mode: "next_slot",
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setUploadError(data.error || "Đặt lịch thất bại.");
+      } else {
+        setUploadStage(data.upload?.stage || "scheduled");
+        setUploadScheduledAt(data.upload?.scheduledAt || null);
+      }
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploadLoading(false);
+    }
+  }
+
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
@@ -120,6 +202,9 @@ export function YouTubeDramaCard() {
 
       setStep("Hoàn tất trọn bộ 5 Turns!");
       setResult(json.data);
+      if (json.data.videoId) {
+        fetchUploadStatus(json.data.videoId);
+      }
       setSelectedThumb(json.data.thumbnailText || "");
       if (json.data.audioUrl) {
         setAudioUrl(json.data.audioUrl);
@@ -144,8 +229,8 @@ export function YouTubeDramaCard() {
           console.warn("Auto TTS failed:", ttsErr);
         }
       }
-    } catch (err: any) {
-      setError(err.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -176,8 +261,8 @@ export function YouTubeDramaCard() {
       }
 
       setAudioUrl(json.audioUrl);
-    } catch (err: any) {
-      setTtsError(err.message || String(err));
+    } catch (err: unknown) {
+      setTtsError(err instanceof Error ? err.message : String(err));
     } finally {
       setTtsLoading(false);
     }
@@ -766,6 +851,110 @@ export function YouTubeDramaCard() {
                   📁 {audioUrl.split("file=")[1] || "audio.wav"}
                 </div>
                 <audio controls src={audioUrl} className="w-full h-10 rounded" autoPlay />
+              </div>
+            )}
+
+            {/* Auto Upload Section */}
+            {result?.videoId && (
+              <div className="pt-4 border-t border-[#344254] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold text-[#F7FAFF] flex items-center gap-2">
+                      <span>🚀 Tự Động Upload YouTube (Nexus Adapter)</span>
+                      {uploadStage && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono uppercase font-bold ${
+                          uploadStage === "scheduled" || uploadStage === "published"
+                            ? "bg-[#43D17A]/20 text-[#43D17A]"
+                            : uploadStage === "draft_private"
+                            ? "bg-[#26D9FF]/20 text-[#26D9FF]"
+                            : uploadStage === "uploading"
+                            ? "bg-[#FFCC00]/20 text-[#FFCC00]"
+                            : uploadStage === "needs_review" || uploadStage === "failed"
+                            ? "bg-[#FF5C7A]/20 text-[#FF5C7A]"
+                            : "bg-[#344254] text-[#95A3B5]"
+                        }`}>
+                          {uploadStage}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-[#95A3B5]">
+                      Quy trình an toàn: Upload bản nháp PRIVATE &rarr; Kiểm tra Studio &rarr; Duyệt & đặt lịch đăng (20:00 JST).
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {uploadStudioUrl && (
+                      <a
+                        href={uploadStudioUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs px-3 py-1.5 rounded bg-[#101821] hover:bg-[#344254] border border-[#344254] text-[#26D9FF] hover:text-[#FFFFFF] transition-colors flex items-center gap-1.5 font-medium shrink-0"
+                      >
+                        <span>🔗 Mở Studio ({youtubeVideoId})</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {uploadScheduledAt && (
+                  <div className="text-[11px] text-[#43D17A] bg-[#43D17A]/10 border border-[#43D17A]/30 px-3 py-1.5 rounded flex items-center gap-2">
+                    <span>📅 Đã lên lịch phát sóng lúc: <strong>{new Date(uploadScheduledAt).toLocaleString("vi-VN", { timeZone: "Asia/Tokyo" })} (JST)</strong></span>
+                  </div>
+                )}
+
+                {uploadError && (
+                  <div className="p-2.5 rounded bg-[#FF5C7A]/10 border border-[#FF5C7A]/30 text-[#FF5C7A] text-xs">
+                    ❌ Lỗi upload: {uploadError}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleUploadDraft}
+                    disabled={uploadLoading || uploadStage === "uploading" || uploadStage === "scheduled" || uploadStage === "published"}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${
+                      uploadLoading || uploadStage === "uploading" || uploadStage === "scheduled" || uploadStage === "published"
+                        ? "bg-[#344254] text-[#95A3B5] cursor-not-allowed"
+                        : "bg-[#26D9FF] text-[#0B0F14] hover:bg-[#26D9FF]/90 hover:shadow-[0_0_15px_rgba(38,217,255,0.4)]"
+                    }`}
+                  >
+                    {uploadLoading && uploadStage !== "draft_private" ? (
+                      <>
+                        <svg className="animate-spin h-3.5 w-3.5 text-[#0B0F14]" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>Đang xử lý Preflight & Upload...</span>
+                      </>
+                    ) : (
+                      <span>⬆️ 1. Upload Bản Nháp (PRIVATE)</span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleApproveSchedule}
+                    disabled={uploadLoading || uploadStage !== "draft_private"}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${
+                      uploadLoading || uploadStage !== "draft_private"
+                        ? "bg-[#344254] text-[#95A3B5] cursor-not-allowed"
+                        : "bg-[#43D17A] text-[#0B0F14] hover:bg-[#43D17A]/90 hover:shadow-[0_0_15px_rgba(67,209,122,0.4)]"
+                    }`}
+                  >
+                    <span>📅 2. Duyệt & Đặt Lịch (20:00 JST)</span>
+                  </button>
+
+                  <label className="text-xs text-[#95A3B5] flex items-center gap-1.5 cursor-pointer ml-auto">
+                    <input
+                      type="checkbox"
+                      checked={ackWarn}
+                      onChange={(e) => setAckWarn(e.target.checked)}
+                      className="rounded border-[#344254] text-[#26D9FF] focus:ring-0"
+                    />
+                    <span>Bỏ qua cảnh báo (--ack-warn)</span>
+                  </label>
+                </div>
               </div>
             )}
           </div>

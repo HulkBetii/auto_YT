@@ -37,6 +37,7 @@ from youtube_extractor import extract_youtube_info
 from chatgpt_drama_pipeline import execute_full_drama_workflow
 from timestamp_sync import extract_raw_chapter_lines, format_timestamp, sync_chapters_detailed
 from tts_gpt_sovits import GPT_SOVITS_PY
+from channel_profile import RENDER_SUBDIR
 
 
 def get_db_connection():
@@ -341,11 +342,21 @@ async def run_master_pipeline(
         "STAGE 8 Upload Kit"
     )
 
+    render_dir = video_out_dir / RENDER_SUBDIR
+    render_dir.mkdir(parents=True, exist_ok=True)
+    target_mp4 = render_dir / f"final_v{video_id}.mp4"
+
     elapsed = time.time() - start_time
     print("\n" + "=" * 80)
     print(f"🎉 PIPELINE COMPLETED SUCCESSFULLY IN {elapsed:.1f} SECONDS!")
-    print(f"Output Directory: {video_out_dir}")
-    print(f"Upload Kit: {kit_txt_file}")
+    print(f"Output Directory : {video_out_dir}")
+    print(f"Upload Kit       : {kit_txt_file}")
+    print(f"Target MP4 Path  : {target_mp4}")
+    print("=" * 80)
+    print("Next Steps for YouTube Upload:")
+    print(f"  1. Render MP4 and drop into: {target_mp4}")
+    print(f"  2. Upload draft (PRIVATE):   uv run python web_ko_jp/scripts/youtube_upload.py upload --video_id {video_id} --ack-warn")
+    print(f"  3. Review on Studio & approve: uv run python web_ko_jp/scripts/youtube_upload.py approve --video_id {video_id} --next-slot")
     print("=" * 80)
 
     return {
@@ -353,6 +364,7 @@ async def run_master_pipeline(
         "video_id": video_id,
         "folder_path": str(video_out_dir),
         "upload_kit_path": str(kit_txt_file),
+        "target_mp4_path": str(target_mp4),
         "title_a": title_a_jp,
         "title_b": title_b_jp,
         "title_c": title_c_jp,

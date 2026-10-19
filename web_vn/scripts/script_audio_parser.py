@@ -367,7 +367,7 @@ def clean_text_for_tts(text: str) -> str:
     return text
 
 def split_into_sentence_chunks(text: str, max_words: int = 35) -> List[str]:
-    """Splits into natural sentence chunks with appropriate breath limits (strictly max 35 words)."""
+    """Splits into natural sentence chunks with appropriate breath limits (strictly max 35 words for VieNeu-TTS v3 Turbo clarity)."""
     raw_sentences = re.split(r"(?<=[.!?…])\s+", text)
     fine_sentences = []
 
@@ -728,17 +728,19 @@ def classify_speaker(text: str, chapter: int, part_idx: int, total_parts: int, d
 
 def compute_dynamic_silence_padding(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Computes dynamic silence padding (ms) based on narrative context and speaker transitions.
-    - Same speaker continuing clause: 180ms - 220ms
-    - Same speaker paragraph end: 320ms
-    - Transition to another speaker: 480ms - 600ms (dramatic pacing)
-    - Chapter transition: 1400ms (clear inter-chapter breathing)
+    Computes dynamic silence padding (ms) based on narrative context and speaker transitions (Pacing Engine v5.1).
+    - Same speaker continuing clause: 120ms
+    - Same speaker sentence end (. ! ? …): 220ms
+    - Fast dialogue transition: 320ms
+    - Narrative to direct antagonist dialogue transition: 380ms
+    - Host Narrator transition (bac_sam): 450ms
+    - Chapter transition: 950ms
     """
     total = len(entries)
     for i in range(total):
         curr = entries[i]
         if i == total - 1:
-            curr["silence_after_ms"] = 1500
+            curr["silence_after_ms"] = 1000
             continue
 
         nxt = entries[i + 1]
@@ -748,22 +750,25 @@ def compute_dynamic_silence_padding(entries: List[Dict[str, Any]]) -> List[Dict[
         nxt_ch = nxt["chapter"]
 
         if curr_ch != nxt_ch:
-            curr["silence_after_ms"] = 1400
+            curr["silence_after_ms"] = 950
         elif curr_spk != nxt_spk:
             # Dramatic speaker transition
             if "sam" in curr_spk or "sam" in nxt_spk:
-                curr["silence_after_ms"] = 650
+                curr["silence_after_ms"] = 450
+            elif (curr_spk == "nhan_vat_chinh" and nxt_spk in ["ke_phan_dien_nu", "ke_phan_dien_nam"]) or \
+                 (curr_spk in ["ke_phan_dien_nu", "ke_phan_dien_nam"] and nxt_spk == "nhan_vat_chinh"):
+                curr["silence_after_ms"] = 380
             elif "can_bo" in curr_spk or "can_bo" in nxt_spk:
-                curr["silence_after_ms"] = 550
+                curr["silence_after_ms"] = 380
             else:
-                curr["silence_after_ms"] = 480
+                curr["silence_after_ms"] = 320  # Conversational dialogue pacing
         else:
             # Same speaker continuation
             curr_text = curr["text"].strip()
             if curr_text.endswith((".", "!", "?", "…")):
-                curr["silence_after_ms"] = 280
+                curr["silence_after_ms"] = 220
             else:
-                curr["silence_after_ms"] = 180
+                curr["silence_after_ms"] = 120
 
     return entries
 

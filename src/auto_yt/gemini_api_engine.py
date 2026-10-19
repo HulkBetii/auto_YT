@@ -78,7 +78,7 @@ class GeminiApiEngine:
 
     @classmethod
     def _parse_keys(cls, keys: Optional[Union[List[str], str]]) -> List[str]:
-        """Chuẩn hóa danh sách API Keys từ string, list hoặc biến môi trường."""
+        """Chuẩn hóa danh sách API Keys từ string, list hoặc biến môi trường hoặc db_config.json."""
         if keys is None:
             raw = (
                 os.getenv("NINEROUTER_API_KEYS")
@@ -87,6 +87,21 @@ class GeminiApiEngine:
                 or os.getenv("GEMINI_API_KEY")
                 or ""
             )
+            if not raw:
+                # Try reading from db_config.json
+                cfg_path = DATA_DIR / "db_config.json"
+                if cfg_path.exists():
+                    try:
+                        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+                        raw = (
+                            cfg.get("ninerouter_api_key")
+                            or cfg.get("NINEROUTER_API_KEY")
+                            or cfg.get("gemini_api_key")
+                            or cfg.get("GEMINI_API_KEY")
+                            or ""
+                        )
+                    except Exception:
+                        pass
         elif isinstance(keys, list):
             raw = ",".join(str(k) for k in keys)
         else:

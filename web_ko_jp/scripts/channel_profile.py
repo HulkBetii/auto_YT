@@ -88,3 +88,16 @@ SOURCE_CLASSIC_TERMS = [
     "cổ nhân", "người xưa", "ông bà", "khổng tử", "lão tử", "luận ngữ", "trang tử", "mạnh tử",
     "tăng quảng hiền văn", "thái căn đàm", "quỷ cốc tử",
 ]
+
+# YouTube Channel Upload and Scheduling Defaults
+YOUTUBE_CHANNEL_ID = "UCTNErlRz8xR8-HQxNbq-bNA"
+PUBLISH_TIMEZONE = "Asia/Tokyo"
+PUBLISH_SLOTS = [{"day": d, "time": "20:00"} for d in range(7)]   # 4 past videos all published at 20:00 JST
+PUBLISH_DAILY_LIMIT = 1
+PUBLISH_LEAD_MINUTES = 120
+YOUTUBE_CATEGORY_ID = "27"          # Education (matches Studio upload defaults)
+VIDEO_LANGUAGE = "ja"
+CONTAINS_SYNTHETIC_MEDIA = True     # AI voice: must be declared
+MADE_FOR_KIDS = False
+RENDER_SUBDIR = "render"            # User drops final_v{id}.mp4 here
+

@@ -178,11 +178,12 @@ class ChannelRegistry(BaseModel):
         return resolved
 
     def record_kit(
-        self, title: str, chapters: List[str], db_video_id: int, source_video_id: str = ""
+        self, title: str, chapters: List[str], db_video_id: int, source_video_id: str = "", video_id: str = ""
     ) -> None:
         """Records the title an upload kit ships (replaces the previous kit of the same DB video)."""
         self.videos = [v for v in self.videos if not (v.origin == "upload_kit" and v.db_video_id == db_video_id)]
         self.videos.append(PublishedVideo(
+            video_id=video_id,
             title=title, chapters=chapters, db_video_id=db_video_id,
             source_video_id=source_video_id, origin="upload_kit",
         ))

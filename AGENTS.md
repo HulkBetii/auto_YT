@@ -106,8 +106,9 @@ Use Puppeteer to search Official Docs or StackOverflow ONLY when:
 - If the profile is locked, report the conflict or clear stale singleton locks; never fall back to a different profile.
 
 ## 11. AI Generation Engines Policy
-- Primary Engine: 9Router API Gateway (`http://localhost:20128/v1`, `cc/claude-sonnet-5` via `GeminiApiEngine`).
-- Secondary/Fallback: Playwright ChatGPT Automation using `PROFILE_GPT_1`.
+- Primary Engine: 9Router API Gateway (`http://localhost:20128/v1`, `ag/gemini-3.8-flash-high` via `GeminiApiEngine`).
+- Secondary/Fallback Models: `ag/gemini-pro-agent` -> `ag/gemini-3.8-flash-medium` -> `ag/gemini-3.7-flash-high` (auto-failover in `GeminiApiEngine`).
+- Playwright Fallback: Playwright ChatGPT Automation using `PROFILE_GPT_1`.
 - OpenAI Direct API usage is allowed only for semantic embeddings and Whisper transcription with timestamps.
 
 ## 12. Output Review & Continuous System Improvement Philosophy (MANDATORY)

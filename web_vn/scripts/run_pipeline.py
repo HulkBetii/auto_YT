@@ -211,10 +211,26 @@ def run_step_5_tts(
     })
 
 
+def run_step_6_subtitles(story_id: str, story_dir: Path, chapter: Optional[int] = None):
+    """Step 6: Generate sample-accurate SRT & WebVTT subtitle files."""
+    logger.info("=" * 70)
+    logger.info("👉 STEP 6/8: Subtitle Generation (SRT & WebVTT)")
+    logger.info("=" * 70)
+
+    from generate_subtitles import generate_subtitles
+    out_srt, out_vtt, out_spk_srt = generate_subtitles(story_dir, chapter_filter=chapter)
+    update_state(story_dir, "step_6_subtitles", "DONE", {
+        "srt": str(out_srt),
+        "vtt": str(out_vtt),
+        "speaker_srt": str(out_spk_srt)
+    })
+    logger.info(f"📑 Subtitles generated: {out_srt.name}, {out_vtt.name}, {out_spk_srt.name}")
+
+
 def run_step_7_video(story_id: str, story_dir: Path, title: str, cover_image: Optional[str] = None):
     """Step 7: Render 1080p MP4 Video with NVENC GPU."""
     logger.info("=" * 70)
-    logger.info("👉 STEP 7/7: 1080p Video Rendering (NVENC GPU)")
+    logger.info("👉 STEP 7/8: 1080p Video Rendering (NVENC GPU)")
     logger.info("=" * 70)
 
     from video_renderer import generate_story_cover_image, render_story_video
@@ -252,6 +268,34 @@ def run_step_7_video(story_id: str, story_dir: Path, title: str, cover_image: Op
     logger.info(f"🎬 Master 1080p Video Ready: {output_video} ({output_video.stat().st_size:,} bytes)")
 
 
+def run_step_8_capcut_draft(story_id: str, story_dir: Path, bg_videos_dir: Optional[str] = None, bgm_path: Optional[str] = None):
+    """Step 8: CapCut PC Draft Project Generation."""
+    logger.info("=" * 70)
+    logger.info("👉 STEP 8/8: CapCut PC Draft Project Generation")
+    logger.info("=" * 70)
+
+    from export_capcut_draft import build_capcut_draft, DEFAULT_BG_VIDEOS_DIR
+
+    bg_dir = Path(bg_videos_dir).resolve() if bg_videos_dir else DEFAULT_BG_VIDEOS_DIR
+    bgm_p = Path(bgm_path).resolve() if bgm_path else None
+
+    try:
+        project_dir = build_capcut_draft(
+            story_dir=story_dir,
+            project_name=story_id,
+            bg_videos_dir=bg_dir,
+            bgm_path=bgm_p
+        )
+        update_state(story_dir, "step_8_capcut_draft", "DONE", {
+            "project_dir": str(project_dir),
+            "project_name": story_id
+        })
+        logger.info(f"✨ CapCut Draft Project Ready: {project_dir}")
+    except Exception as e:
+        logger.warning(f"⚠️ CapCut draft export encountered warning: {e}", exc_info=True)
+        update_state(story_dir, "step_8_capcut_draft", "FAILED", {"error": str(e)})
+
+
 def main():
     parser = argparse.ArgumentParser(description="Vietnamese Audio Drama Orchestrator Pipeline v4.1")
     parser.add_argument("--story-id", type=str, required=True, help="Story identifier (e.g. story_bo_chong_02)")
@@ -261,6 +305,8 @@ def main():
     parser.add_argument("--skip-script", "--skip-chatgpt", dest="skip_script", action="store_true", help="Skip Step 2 (Script generation) if script exists")
     parser.add_argument("--skip-tts", action="store_true", help="Stop after manifest generation and validation")
     parser.add_argument("--skip-video", action="store_true", help="Skip Step 7 (video rendering)")
+    parser.add_argument("--skip-capcut", action="store_true", help="Skip Step 8 (CapCut PC draft generation)")
+    parser.add_argument("--bg-videos-dir", type=str, default=None, help="Custom folder for stock background videos")
     parser.add_argument("--cover-image", type=str, default=None, help="Custom cover image path for video")
     parser.add_argument("--headless", action="store_true", help="Run Playwright in headless mode (if using chatgpt engine)")
     parser.add_argument("--chapter", type=int, default=None, help="Filter to specific chapter number")
@@ -320,6 +366,9 @@ def main():
                 bgm_path=args.bgm
             )
 
+            # Step 6: Subtitle Generation (SRT & VTT)
+            run_step_6_subtitles(story_folder, story_dir, chapter=args.chapter)
+
             # Step 7: Video Rendering
             if not args.skip_video and args.chapter is None and args.limit_chunks is None:
                 run_step_7_video(
@@ -338,6 +387,25 @@ def main():
                 )
             else:
                 logger.info("Skipping video rendering (--skip-video enabled).")
+
+            # Step 8: CapCut PC Draft Project Generation
+            if not args.skip_capcut and args.chapter is None and args.limit_chunks is None:
+                run_step_8_capcut_draft(
+                    story_id=story_folder,
+                    story_dir=story_dir,
+                    bg_videos_dir=args.bg_videos_dir,
+                    bgm_path=args.bgm
+                )
+            elif not args.skip_capcut:
+                logger.info("Generating CapCut draft for partial run...")
+                run_step_8_capcut_draft(
+                    story_id=story_folder,
+                    story_dir=story_dir,
+                    bg_videos_dir=args.bg_videos_dir,
+                    bgm_path=args.bgm
+                )
+            else:
+                logger.info("Skipping CapCut draft generation (--skip-capcut enabled).")
         else:
             logger.info("Stopping pipeline before TTS (--skip-tts enabled).")
 
@@ -347,10 +415,17 @@ def main():
         logger.info("╚" + "═" * 68 + "╝")
         master_mp3 = story_dir / "full_story_audio.mp3"
         master_mp4 = story_dir / "full_story_video.mp4"
+        capcut_info = story_dir / "capcut_draft_info.json"
         if master_mp3.exists():
             logger.info(f"🎧 Final Master MP3: {master_mp3} ({master_mp3.stat().st_size:,} bytes)")
         if master_mp4.exists():
             logger.info(f"🎬 Final Master MP4: {master_mp4} ({master_mp4.stat().st_size:,} bytes)")
+        if capcut_info.exists():
+            try:
+                cinfo = json.loads(capcut_info.read_text(encoding="utf-8"))
+                logger.info(f"✨ CapCut Project  : {cinfo.get('capcut_project_dir')}")
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"❌ PIPELINE EXECUTION FAILED: {e}", exc_info=True)

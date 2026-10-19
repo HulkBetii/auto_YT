@@ -1,0 +1,5 @@
+{
+  "gpm_profile_id": "REPLACE_WITH_YOUR_GPM_PROFILE_ID",
+  "nexus_root": "D:\\VibeCoding\\auto_upload\\Nexus",
+  "nexus_python": "D:\\VibeCoding\\auto_upload\\Nexus\\.venv\\Scripts\\python.exe"
+}
