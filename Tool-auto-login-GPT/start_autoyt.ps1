@@ -36,9 +36,15 @@ $omniVoiceRoot = if ($env:AUTO_YT_OMNIVOICE_ROOT) {
     [System.IO.Path]::GetFullPath($env:AUTO_YT_OMNIVOICE_ROOT).TrimEnd("\")
 }
 else {
-    [System.IO.Path]::GetFullPath(
-        (Join-Path (Split-Path (Split-Path $projectRoot -Parent) -Parent) "omnivoice")
-    ).TrimEnd("\")
+    $cand = Join-Path (Split-Path (Split-Path (Split-Path $projectRoot -Parent) -Parent) -Parent) "omnivoice"
+    if (Test-Path -LiteralPath $cand) {
+        [System.IO.Path]::GetFullPath($cand).TrimEnd("\")
+    }
+    else {
+        [System.IO.Path]::GetFullPath(
+            (Join-Path (Split-Path (Split-Path $projectRoot -Parent) -Parent) "omnivoice")
+        ).TrimEnd("\")
+    }
 }
 
 $ffmpegDir = Join-Path $dataRoot "tools\ffmpeg"
@@ -421,10 +427,10 @@ function Invoke-BrowserServiceAction {
         $env:PYTHONPATH = Join-Path $projectRoot "src"
         $env:PYTHONIOENCODING = "utf-8"
         $env:PYTHONUTF8 = "1"
-        Invoke-ExternalCommand `
-            $venvPython `
-            @("-c", $pythonCode) `
-            "$DisplayName browser service action '$Action' failed"
+        & $venvPython @("-c", $pythonCode)
+        if ($LASTEXITCODE -ne 0) {
+            throw "$DisplayName browser service action '$Action' failed (exit code $LASTEXITCODE)."
+        }
     }
     finally {
         if ($null -eq $previousPythonPath) {
@@ -532,10 +538,6 @@ function Ensure-PythonEnvironment {
     if (-not $venvNeedsRebuild) {
         if (-not (Test-Path -LiteralPath $venvConfig -PathType Leaf)) {
             $venvNeedsRebuild = $true
-        }
-        else {
-            $configText = Get-Content -LiteralPath $venvConfig -Raw
-            $venvNeedsRebuild = $configText -notmatch [regex]::Escape($venvRoot)
         }
     }
 
@@ -750,7 +752,8 @@ try {
 
     $backendReady = Test-BackendReady
     $frontendReady = Test-FrontendReady
-    $omniVoiceReady = Test-OmniVoiceReady
+    $omniVoiceAvailable = Test-Path -LiteralPath (Join-Path $omniVoiceRoot "api_server.py") -PathType Leaf
+    $omniVoiceReady = if ($omniVoiceAvailable) { Test-OmniVoiceReady } else { $true }
     $chatgptReady = Test-ChatGPTBrowserReady
     $flowReady = Test-GoogleFlowBrowserReady
 
@@ -847,11 +850,18 @@ try {
                     Write-Step "Frontend Web UI (5173) is ready ($([math]::Round($barrierTimer.Elapsed.TotalSeconds, 1)) s)."
                 }
             }
-            if (-not $omniVoiceReady -and (Test-OmniVoiceReady)) {
-                $omniVoiceReady = $true
-                if (-not $reported.ContainsKey("omnivoice")) {
-                    $reported["omnivoice"] = $true
-                    Write-Step "OmniVoice TTS Worker (8011) is ready ($([math]::Round($barrierTimer.Elapsed.TotalSeconds, 1)) s)."
+            if (-not $omniVoiceReady) {
+                if ($omniVoiceAvailable) {
+                    if (Test-OmniVoiceReady) {
+                        $omniVoiceReady = $true
+                        if (-not $reported.ContainsKey("omnivoice")) {
+                            $reported["omnivoice"] = $true
+                            Write-Step "OmniVoice TTS Worker (8011) is ready ($([math]::Round($barrierTimer.Elapsed.TotalSeconds, 1)) s)."
+                        }
+                    }
+                }
+                else {
+                    $omniVoiceReady = $true
                 }
             }
             if (-not $chatgptReady -and (Test-ChatGPTBrowserReady)) {

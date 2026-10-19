@@ -21,15 +21,18 @@ from queue import Queue, Empty
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
-TARGET_DIR = Path(r"E:\yt\Tool\Auto_YT\Tool-auto-login-GPT\data\background_videos")
+PROJECT_ROOT = Path(__file__).resolve().parent
+TARGET_DIR = PROJECT_ROOT / "data" / "background_videos"
 TARGET_DIR.mkdir(parents=True, exist_ok=True)
 
 STATE_FILE = TARGET_DIR / "state.json"
 METADATA_FILE = TARGET_DIR / "metadata.json"
 LOG_FILE = TARGET_DIR / "download.log"
 
-FFMPEG_EXE = r"E:\yt\Tool\Auto_YT\Tool-auto-login-GPT\.venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe"
-if not os.path.exists(FFMPEG_EXE):
+try:
+    import imageio_ffmpeg
+    FFMPEG_EXE = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
     FFMPEG_EXE = shutil.which("ffmpeg") or "ffmpeg"
 
 SEARCH_QUERIES = [

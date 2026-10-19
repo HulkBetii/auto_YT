@@ -14,3 +14,4 @@ faster-whisper>=1.1
 Pillow>=10.0
 tzdata>=2025.2
 curl-cffi
+websocket-client>=1.8.0

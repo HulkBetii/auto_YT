@@ -19,13 +19,21 @@ from auto_yt.services.secret_store import (
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8011"
+def _resolve_omnivoice_root() -> Path:
+    explicit = os.environ.get("AUTO_YT_OMNIVOICE_ROOT")
+    if explicit:
+        return Path(explicit).resolve()
+    for candidate in (
+        PROJECT_ROOT.parent.parent.parent / "omnivoice",
+        PROJECT_ROOT.parent.parent / "omnivoice",
+    ):
+        if candidate.exists():
+            return candidate.resolve()
+    return (PROJECT_ROOT.parent.parent.parent / "omnivoice").resolve()
+
+
 TOKEN_PATH = DATA_DIR / "omnivoice_internal_token.txt"
-OMNIVOICE_ROOT = Path(
-    os.environ.get(
-        "AUTO_YT_OMNIVOICE_ROOT",
-        str(PROJECT_ROOT.parent.parent / "omnivoice"),
-    )
-).resolve()
+OMNIVOICE_ROOT = _resolve_omnivoice_root()
 MAX_JSON_BYTES = 5 * 1024 * 1024
 MAX_AUDIO_BYTES = 2 * 1024 * 1024 * 1024
 
